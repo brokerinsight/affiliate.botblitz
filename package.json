@@ -4,7 +4,8 @@
   "description": "Affiliate tracking and commission server for BotBlitz",
   "main": "affiliate-server.js",
   "scripts": {
-    "start": "node affiliate-server.js"
+    "start": "node affiliate-server.js",
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./public/output.css --watch"
   },
   "dependencies": {
     "axios": "^1.6.7",
