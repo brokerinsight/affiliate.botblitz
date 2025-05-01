@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotBlitz Affiliate Program</title>
-    <link rel="stylesheet" href="/output.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="icon" href="https://botblitz.store/favicon.ico">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
@@ -30,7 +30,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen bg-gray-100">
     <div id="app"></div>
     <div id="toast" class="fixed bottom-4 right-4 px-4 py-2 rounded-md toast hidden text-white"></div>
     <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 popup hidden">
@@ -76,6 +76,8 @@
             loading: false,
             error: '',
             modal: { isOpen: false, title: '', content: '', className: '' },
+            formValid: false,
+            showPassword: false,
         };
 
         let ws = null;
@@ -180,10 +182,9 @@
             try {
                 const res = await axios.get(`${API_URL}/data`);
                 state.user = { ...state.user, ...res.data };
-                // Compute commissionRate from monthlyCommission and totalSales
                 const commissionRate = res.data.totalSales > 0 ? res.data.monthlyCommission / res.data.totalSales : 0.2;
                 state.settings = {
-                    commissionRate: commissionRate || 0.2, // Fallback to 0.2 if undefined
+                    commissionRate: commissionRate || 0.2,
                     supportEmail: res.data.supportEmail || 'support@botblitz.store',
                     copyrightText: res.data.copyrightText || '© 2025 BotBlitz',
                     whatsappLink: res.data.whatsappLink || '#',
@@ -208,6 +209,24 @@
             }
         }
 
+        // Validate Form Inputs
+        function validateForm() {
+            const fullName = document.getElementById('full-name')?.value?.trim().replace(/\s+/g, ' ') || '';
+            const email = document.getElementById('email')?.value?.trim() || '';
+            const password = document.getElementById('password')?.value || '';
+            const terms = document.getElementById('terms')?.checked || false;
+
+            if (state.isLogin) {
+                state.formValid = email.length > 0 && password.length > 0;
+            } else {
+                const names = fullName.split(' ').filter(name => name.length > 0);
+                const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                const passwordValid = password.length >= 8 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
+                state.formValid = names.length >= 2 && emailValid && passwordValid && terms;
+            }
+            render();
+        }
+
         // Handle Signup/Login
         async function handleAuth(e) {
             e.preventDefault();
@@ -215,23 +234,27 @@
             state.loading = true;
             render();
 
-            const fullName = document.getElementById('full-name')?.value.trim().replace(/\s+/g, ' ');
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            const terms = document.getElementById('terms')?.checked;
+            const fullName = document.getElementById('full-name')?.value?.trim().replace(/\s+/g, ' ') || '';
+            const email = document.getElementById('email')?.value?.trim() || '';
+            const password = document.getElementById('password')?.value || '';
+            const terms = document.getElementById('terms')?.checked || false;
+
+            console.log('Auth Inputs:', { fullName, email, password, terms });
 
             // Client-side Validation
             if (state.isLogin) {
                 if (!email || !password) {
                     state.error = 'Email and password are required';
+                    console.log('Login validation failed:', { email, password });
                     showToast(state.error, true);
                     state.loading = false;
                     render();
                     return;
                 }
             } else {
-                const names = fullName?.split(' ').filter((name) => name.trim() !== '') || [];
-                if (!fullName || names.length < 2) {
+                const names = fullName.split(' ').filter(name => name.length > 0);
+                console.log('Names after split:', names);
+                if (names.length < 2) {
                     state.error = 'Full name must include first and last name (e.g., John Doe)';
                     showToast(state.error, true);
                     state.loading = false;
@@ -289,21 +312,35 @@
             state.loading = true;
             render();
 
-            const amount = document.getElementById('withdrawal-amount').value;
-            const mpesaNumber = document.getElementById('mpesa-number').value;
-            const mpesaName = document.getElementById('mpesa-name').value;
-            const reuseDetails = document.getElementById('reuse-details').checked;
-            const password = document.getElementById('withdrawal-password').value;
+            const amount = document.getElementById('withdrawal-amount')?.value;
+            const mpesaNumber = document.getElementById('mpesa-number')?.value;
+            const mpesaName = document.getElementById('mpesa-name')?.value;
+            const reuseDetails = document.getElementById('reuse-details')?.checked;
+            const password = document.getElementById('withdrawal-password')?.value;
 
-            if (parseFloat(amount) > state.user.currentBalance) {
+            if (!amount || parseFloat(amount) > state.user.currentBalance) {
                 state.error = 'Amount exceeds current balance';
                 showToast(state.error, true);
                 state.loading = false;
                 render();
                 return;
             }
-            if (!/^07[0-9]{8}$/.test(mpesaNumber)) {
+            if (!mpesaNumber || !/^07[0-9]{8}$/.test(mpesaNumber)) {
                 state.error = 'Invalid M-PESA number (must be 07XXXXXXXX)';
+                showToast(state.error, true);
+                state.loading = false;
+                render();
+                return;
+            }
+            if (!mpesaName) {
+                state.error = 'M-PESA name is required';
+                showToast(state.error, true);
+                state.loading = false;
+                render();
+                return;
+            }
+            if (!password) {
+                state.error = 'Password is required for withdrawal';
                 showToast(state.error, true);
                 state.loading = false;
                 render();
@@ -345,18 +382,18 @@
 
         // Copy Affiliate Link
         function copyLink() {
-            navigator.clipboard.writeText(`https://botblitz.store?ref=${state.user.refCode}`);
+            navigator.clipboard.writeText(`https://botblitz.store?ref=${state.user.refCode || ''}`);
             showToast('Link copied to clipboard', false);
         }
 
         // Mark Notification as Read
         async function markNotificationRead(index) {
             const notification = state.notifications[index];
-            if (notification[2] === 'true') return;
+            if (notification[2] === true || notification[2] === 'true') return;
             try {
                 await axios.post(`${API_URL}/mark-notification`, { timestamp: notification[0] });
                 state.notifications[index][2] = 'true';
-                state.unreadCount = state.notifications.filter((n) => n[2] !== 'true').length;
+                state.unreadCount = state.notifications.filter((n) => n[2] !== 'true' && n[2] !== true).length;
                 showToast('Notification marked as read', false);
                 render();
             } catch (err) {
@@ -371,8 +408,16 @@
             state.loading = true;
             render();
 
-            const currentPassword = document.getElementById('current-password').value;
-            const newPassword = document.getElementById('new-password').value;
+            const currentPassword = document.getElementById('current-password')?.value;
+            const newPassword = document.getElementById('new-password')?.value;
+
+            if (!currentPassword || !newPassword) {
+                state.error = 'Both current and new passwords are required';
+                showToast(state.error, true);
+                state.loading = false;
+                render();
+                return;
+            }
 
             try {
                 await axios.post(`${API_URL}/update-password`, { oldPassword: currentPassword, newPassword });
@@ -387,12 +432,21 @@
         }
 
         // Handle Account Deletion
-        async function handleDeleteAccount() {
+        async function handleDeleteAccount(e) {
+            e.preventDefault();
             state.error = '';
             state.loading = true;
             render();
 
-            const deletePassword = document.getElementById('delete-password').value;
+            const deletePassword = document.getElementById('delete-password')?.value;
+
+            if (!deletePassword) {
+                state.error = 'Password is required to delete account';
+                showToast(state.error, true);
+                state.loading = false;
+                render();
+                return;
+            }
 
             try {
                 await axios.post(`${API_URL}/delete-account`, { password: deletePassword });
@@ -428,6 +482,155 @@
             return hash.slice(1);
         }
 
+        // Attach Event Listeners Safely
+        function attachEventListeners() {
+            const tabHome = document.getElementById('tab-home');
+            const tabWithdrawals = document.getElementById('tab-withdrawals');
+            const tabRewards = document.getElementById('tab-rewards');
+            const tabLeaderboard = document.getElementById('tab-leaderboard');
+            const copyLinkBtn = document.getElementById('copy-link');
+            const commissionInfoBtn = document.getElementById('commission-info');
+            const withdrawalForm = document.getElementById('withdrawal-form');
+            const prevPageBtn = document.getElementById('prev-page');
+            const nextPageBtn = document.getElementById('next-page');
+            const notificationsBtn = document.getElementById('notifications-btn');
+            const settingsBtn = document.getElementById('settings-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+            const passwordForm = document.getElementById('password-form');
+            const deleteAccountForm = document.getElementById('delete-account-form');
+
+            if (tabHome) tabHome.onclick = () => {
+                state.currentTab = 'home';
+                render();
+            };
+            if (tabWithdrawals) tabWithdrawals.onclick = () => {
+                state.currentTab = 'withdrawals';
+                state.currentPage = 1;
+                render();
+            };
+            if (tabRewards) tabRewards.onclick = () => {
+                state.currentTab = 'rewards';
+                render();
+            };
+            if (tabLeaderboard) tabLeaderboard.onclick = () => {
+                state.currentTab = 'leaderboard';
+                render();
+            };
+            if (copyLinkBtn) copyLinkBtn.onclick = copyLink;
+            if (commissionInfoBtn) commissionInfoBtn.onclick = () => showModal(
+                'Commission Explanation',
+                `
+                <p>We pay <strong>${(state.settings.commissionRate * 100).toFixed(2)}%</strong> commission on each confirmed sale through your affiliate link.</p>
+                <p class="mt-2">Your affiliate link must be clicked within the last 24 hours for a sale to be credited to you.</p>
+            `
+            );
+            if (withdrawalForm) withdrawalForm.onsubmit = handleWithdrawal;
+            if (prevPageBtn) prevPageBtn.onclick = () => {
+                state.currentPage--;
+                render();
+            };
+            if (nextPageBtn) nextPageBtn.onclick = () => {
+                state.currentPage++;
+                render();
+            };
+            if (notificationsBtn) notificationsBtn.onclick = () => {
+                showModal(
+                    'Notifications',
+                    `
+                    <div class="max-h-96 overflow-y-auto">
+                        ${
+                            state.notifications.length
+                                ? state.notifications
+                                      .map(
+                                          (n, index) => `
+                                        <div class="p-4 border-b flex justify-between items-center">
+                                            <div>
+                                                <p class="${n[2] === 'true' || n[2] === true ? 'text-gray-600' : 'font-semibold'}">${
+                                              n[1] || 'No message'
+                                          }</p>
+                                                <p class="text-sm text-gray-500">${new Date(
+                                                    n[0] || Date.now()
+                                                ).toLocaleString()}</p>
+                                            </div>
+                                            <button class="mark-read-btn text-blue-500 hover:underline" data-index="${index}">${
+                                                n[2] === 'true' || n[2] === true ? 'Read' : 'Mark as Read'
+                                            }</button>
+                                        </div>
+                                    `
+                                      )
+                                      .join('')
+                                : '<p>No notifications.</p>'
+                        }
+                    </div>
+                `
+                );
+                setTimeout(() => {
+                    document.querySelectorAll('.mark-read-btn').forEach((btn) => {
+                        btn.onclick = () => markNotificationRead(parseInt(btn.dataset.index));
+                    });
+                }, 0);
+            };
+            if (settingsBtn) settingsBtn.onclick = () => {
+                showModal(
+                    'Settings',
+                    `
+                    <div>
+                        <h3 class="text-lg font-semibold mb-4">Update Password</h3>
+                        <form id="password-form">
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700">Current Password</label>
+                                <input type="password" id="current-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700">New Password</label>
+                                <input type="password" id="new-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                            </div>
+                            <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Update Password</button>
+                        </form>
+                        <h3 class="text-lg font-semibold mt-6 mb-4">Delete Account</h3>
+                        <form id="delete-account-form">
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700">Password</label>
+                                <input type="password" id="delete-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                            </div>
+                            <button type="button" id="delete-account-btn" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Delete Account</button>
+                        </form>
+                    </div>
+                `
+                );
+                setTimeout(() => {
+                    const passwordFormInner = document.getElementById('password-form');
+                    const deleteAccountFormInner = document.getElementById('delete-account-form');
+                    const deleteAccountBtn = document.getElementById('delete-account-btn');
+                    if (passwordFormInner) passwordFormInner.onsubmit = handlePasswordUpdate;
+                    if (deleteAccountBtn) deleteAccountBtn.onclick = () => {
+                        showModal(
+                            'Confirm Deletion',
+                            `
+                            <div class="text-center">
+                                <p class="mb-4">Are you sure you want to delete your account?</p>
+                                <button id="delete-no" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 mr-2">No</button>
+                                <button id="delete-yes" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Yes</button>
+                            </div>
+                        `,
+                            'text-center'
+                        );
+                        setTimeout(() => {
+                            const deleteNo = document.getElementById('delete-no');
+                            const deleteYes = document.getElementById('delete-yes');
+                            if (deleteNo) deleteNo.onclick = () => {
+                                document.getElementById('modal').classList.add('hidden');
+                                state.modal.isOpen = false;
+                                render();
+                            };
+                            if (deleteYes) deleteYes.onclick = (e) => handleDeleteAccount(e);
+                        }, 0);
+                    };
+                }, 0);
+            };
+            if (logoutBtn) logoutBtn.onclick = logout;
+        }
+
         // Render
         function render() {
             const app = document.getElementById('app');
@@ -444,7 +647,7 @@
                                         <span class="text-xl font-bold text-gray-800">BotBlitz Affiliates</span>
                                     </div>
                                     <div class="flex items-center nav-icons space-x-4">
-                                        <a href="${state.settings.whatsappLink}" target="_blank" class="text-2xl text-green-500">
+                                        <a href="${state.settings.whatsappLink || '#'}" target="_blank" class="text-2xl text-green-500">
                                             <i class="fab fa-whatsapp"></i>
                                         </a>
                                         <div class="relative">
@@ -470,8 +673,8 @@
 
                         <!-- Main Content -->
                         <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                            <h1 class="text-3xl font-bold mb-8 text-gray-800">Welcome, ${state.user.fullName}</h1>
-                            <div class="flex space-x-4 mb-8">
+                            <h1 class="text-3xl font-bold mb-8 text-gray-800">Welcome, ${state.user.fullName || 'User'}</h1>
+                            <div class="flex flex-wrap space-x-4 mb-8">
                                 <button id="tab-home" class="px-4 py-2 rounded-md focus:outline-none ${
                                     state.currentTab === 'home' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
                                 }">Home</button>
@@ -511,7 +714,7 @@
                                             <div class="bg-white p-6 rounded-lg shadow">
                                                 <h2 class="text-xl font-bold mb-4 text-gray-800">Affiliate Link</h2>
                                                 <p class="text-blue-500 break-all mb-2">https://botblitz.store?ref=${
-                                                    state.user.refCode
+                                                    state.user.refCode || ''
                                                 }</p>
                                                 <button id="copy-link" class="btn bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Copy Link</button>
                                             </div>
@@ -535,20 +738,20 @@
                                             <form id="withdrawal-form">
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">Amount (KES)</label>
-                                                    <input type="number" id="withdrawal-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" max="${
+                                                    <input type="number" id="withdrawal-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" value="${
                                                         state.user.currentBalance || 0
                                                     }" required />
                                                 </div>
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">M-PESA Number</label>
                                                     <input type="text" id="mpesa-number" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" value="${
-                                                        state.user.mpesaNumber
+                                                        state.user.mpesaNumber || ''
                                                     }" pattern="^07[0-9]{8}$" required />
                                                 </div>
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">M-PESA Name</label>
                                                     <input type="text" id="mpesa-name" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" value="${
-                                                        state.user.mpesaName
+                                                        state.user.mpesaName || ''
                                                     }" required />
                                                 </div>
                                                 <div class="mb-4 flex items-center">
@@ -596,13 +799,13 @@
                                                             (w) => `
                                                         <tr>
                                                             <td class="py-2 px-4 border-b">${parseFloat(
-                                                                w[1]
+                                                                w[1] || 0
                                                             ).toFixed(2)}</td>
-                                                            <td class="py-2 px-4 border-b">${w[2]}</td>
-                                                            <td class="py-2 px-4 border-b">${w[3]}</td>
-                                                            <td class="py-2 px-4 border-b">${w[4]}</td>
+                                                            <td class="py-2 px-4 border-b">${w[2] || '-'}</td>
+                                                            <td class="py-2 px-4 border-b">${w[3] || '-'}</td>
+                                                            <td class="py-2 px-4 border-b">${w[4] || 'Pending'}</td>
                                                             <td class="py-2 px-4 border-b">${new Date(
-                                                                w[0]
+                                                                w[0] || Date.now()
                                                             ).toLocaleString()}</td>
                                                             <td class="py-2 px-4 border-b">${w[5] || '-'}</td>
                                                         </tr>
@@ -647,11 +850,11 @@
                                                             (r) => `
                                                         <tr>
                                                             <td class="py-2 px-4 border-b">${parseFloat(
-                                                                r[2]
+                                                                r[2] || 0
                                                             ).toFixed(2)}</td>
-                                                            <td class="py-2 px-4 border-b">${r[3]}</td>
+                                                            <td class="py-2 px-4 border-b">${r[3] || '-'}</td>
                                                             <td class="py-2 px-4 border-b">${new Date(
-                                                                r[0]
+                                                                r[0] || Date.now()
                                                             ).toLocaleString()}</td>
                                                         </tr>
                                                     `
@@ -681,8 +884,8 @@
                                                             (l, index) => `
                                                         <tr>
                                                             <td class="py-2 px-4 border-b">${index + 1}</td>
-                                                            <td class="py-2 px-4 border-b">${l.name}</td>
-                                                            <td class="py-2 px-4 border-b">${l.totalSales}</td>
+                                                            <td class="py-2 px-4 border-b">${l.name || 'Unknown'}</td>
+                                                            <td class="py-2 px-4 border-b">${l.totalSales || 0}</td>
                                                         </tr>
                                                     `
                                                         )
@@ -700,130 +903,18 @@
                         <!-- Footer -->
                         <footer class="bg-white shadow-inner">
                             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                                <p class="text-center text-gray-600">${state.settings.copyrightText}</p>
+                                <p class="text-center text-gray-600">${state.settings.copyrightText || '© 2025 BotBlitz'}</p>
                                 <div class="flex justify-center space-x-4 mt-2">
-                                    <a href="/terms" class="text-gray-600 hover:underline">Terms</a>
-                                    <a href="/privacy" class="text-gray-600 hover:underline">Privacy</a>
-                                    <a href="mailto:${state.settings.supportEmail}" class="text-gray-600 hover:underline">Support</a>
+                                    ${state.staticPages.map(page => `
+                                        <a href="${page.slug || '#'}" class="text-gray-600 hover:underline">${page.title || 'Page'}</a>
+                                    `).join('')}
+                                    <a href="mailto:${state.settings.supportEmail || 'support@botblitz.store'}" class="text-gray-600 hover:underline">Support</a>
                                 </div>
                             </div>
                         </footer>
                     </div>
                 `;
-
-                // Attach event listeners after DOM is rendered
-                setTimeout(() => {
-                    const tabHome = document.getElementById('tab-home');
-                    const tabWithdrawals = document.getElementById('tab-withdrawals');
-                    const tabRewards = document.getElementById('tab-rewards');
-                    const tabLeaderboard = document.getElementById('tab-leaderboard');
-                    const copyLinkBtn = document.getElementById('copy-link');
-                    const commissionInfoBtn = document.getElementById('commission-info');
-                    const withdrawalForm = document.getElementById('withdrawal-form');
-                    const prevPageBtn = document.getElementById('prev-page');
-                    const nextPageBtn = document.getElementById('next-page');
-                    const notificationsBtn = document.getElementById('notifications-btn');
-                    const settingsBtn = document.getElementById('settings-btn');
-                    const logoutBtn = document.getElementById('logout-btn');
-                    const passwordForm = document.getElementById('password-form');
-                    const deleteAccountBtn = document.getElementById('delete-account');
-
-                    if (tabHome) tabHome.onclick = () => {
-                        state.currentTab = 'home';
-                        render();
-                    };
-                    if (tabWithdrawals) tabWithdrawals.onclick = () => {
-                        state.currentTab = 'withdrawals';
-                        state.currentPage = 1;
-                        render();
-                    };
-                    if (tabRewards) tabRewards.onclick = () => {
-                        state.currentTab = 'rewards';
-                        render();
-                    };
-                    if (tabLeaderboard) tabLeaderboard.onclick = () => {
-                        state.currentTab = 'leaderboard';
-                        render();
-                    };
-                    if (copyLinkBtn) copyLinkBtn.onclick = copyLink;
-                    if (commissionInfoBtn) commissionInfoBtn.onclick = () => showModal(
-                        'Commission Explanation',
-                        `
-                        <p>We pay <strong>${(state.settings.commissionRate * 100).toFixed(2)}%</strong> commission on each confirmed sale through your affiliate link.</p>
-                        <p class="mt-2">Your affiliate link must be clicked within the last 24 hours for a sale to be credited to you.</p>
-                    `
-                    );
-                    if (withdrawalForm) withdrawalForm.onsubmit = handleWithdrawal;
-                    if (prevPageBtn) prevPageBtn.onclick = () => {
-                        state.currentPage--;
-                        render();
-                    };
-                    if (nextPageBtn) nextPageBtn.onclick = () => {
-                        state.currentPage++;
-                        render();
-                    };
-                    if (notificationsBtn) notificationsBtn.onclick = () => showModal(
-                        'Notifications',
-                        `
-                        <div class="max-h-96 overflow-y-auto">
-                            ${
-                                state.notifications.length
-                                    ? state.notifications
-                                          .map(
-                                              (n, index) => `
-                                            <div class="p-4 border-b flex justify-between items-center">
-                                                <div>
-                                                    <p class="${n[2] === 'true' ? 'text-gray-600' : 'font-semibold'}">${
-                                                  n[1]
-                                              }</p>
-                                                    <p class="text-sm text-gray-500">${new Date(
-                                                        n[0]
-                                                    ).toLocaleString()}</p>
-                                                </div>
-                                                <button class="mark-read-btn text-blue-500 hover:underline" data-index="${index}">${
-                                                    n[2] === 'true' ? 'Read' : 'Mark as Read'
-                                                }</button>
-                                            </div>
-                                        `
-                                          )
-                                          .join('')
-                                    : '<p>No notifications.</p>'
-                            }
-                        </div>
-                    `
-                    );
-                    document.querySelectorAll('.mark-read-btn').forEach((btn) =>
-                        btn.onclick = () => markNotificationRead(btn.dataset.index)
-                    );
-                    if (settingsBtn) settingsBtn.onclick = () => showModal(
-                        'Settings',
-                        `
-                        <div>
-                            <h3 class="text-lg font-semibold mb-4">Update Password</h3>
-                            <form id="password-form">
-                                <div class="mb-4">
-                                    <label class="block text-sm font-medium text-gray-700">Current Password</label>
-                                    <input type="password" id="current-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
-                                </div>
-                                <div class="mb-4">
-                                    <label class="block text-sm font-medium text-gray-700">New Password</label>
-                                    <input type="password" id="new-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
-                                </div>
-                                <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Update Password</button>
-                            </form>
-                            <h3 class="text-lg font-semibold mt-6 mb-4">Delete Account</h3>
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-gray-700">Password</label>
-                                <input type="password" id="delete-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
-                            </div>
-                            <button id="delete-account" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Delete Account</button>
-                        </div>
-                    `
-                    );
-                    if (passwordForm) passwordForm.onsubmit = handlePasswordUpdate;
-                    if (deleteAccountBtn) deleteAccountBtn.onclick = handleDeleteAccount;
-                    if (logoutBtn) logoutBtn.onclick = logout;
-                }, 0);
+                setTimeout(attachEventListeners, 0);
             } else {
                 state.isLogin = route === '/login';
                 app.innerHTML = `
@@ -848,22 +939,27 @@
                                     <label class="block text-sm font-medium text-gray-700">Email</label>
                                     <input type="email" id="email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
                                 </div>
-                                <div class="mb-4">
+                                <div class="mb-4 relative">
                                     <label class="block text-sm font-medium text-gray-700">Password</label>
-                                    <input type="password" id="password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                    <input type="${state.showPassword ? 'text' : 'password'}" id="password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                    <button type="button" id="show-password" class="absolute right-2 top-8 text-gray-600 focus:outline-none">
+                                        <i class="fas ${state.showPassword ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                                    </button>
                                 </div>
                                 ${
                                     !state.isLogin
                                         ? `
                                     <div class="mb-4 flex items-center">
                                         <input type="checkbox" id="terms" class="mr-2" required />
-                                        <label class="text-sm text-gray-700">I accept the <a href="/terms" class="text-blue-500 hover:underline">terms and conditions</a></label>
+                                        <label class="text-sm text-gray-700">I accept the <a href="/affiliate-terms" class="text-blue-500 hover:underline">terms and conditions</a></label>
                                     </div>
                                 `
                                         : ''
                                 }
-                                <button type="submit" class="btn w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                                    ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : state.isLogin ? 'Login' : 'Sign Up'}
+                                <button type="submit" class="btn w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400" ${
+                                    state.formValid ? '' : 'disabled'
+                                }>
+                                    ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : state.isLogin ? 'Login' : 'Create Account'}
                                 </button>
                             </form>
                             <p class="mt-4 text-center text-gray-600">
@@ -874,9 +970,33 @@
                             </p>
                         </div>
                     </div>
+                    <footer class="bg-white shadow-inner">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                            <p class="text-center text-gray-600">${state.settings.copyrightText || '© 2025 BotBlitz'}</p>
+                            <div class="flex justify-center space-x-4 mt-2">
+                                ${state.staticPages.map(page => `
+                                    <a href="${page.slug || '#'}" class="text-gray-600 hover:underline">${page.title || 'Page'}</a>
+                                `).join('')}
+                                <a href="mailto:${state.settings.supportEmail || 'support@botblitz.store'}" class="text-gray-600 hover:underline">Support</a>
+                            </div>
+                        </div>
+                    </footer>
                 `;
-                const authForm = document.getElementById('auth-form');
-                if (authForm) authForm.onsubmit = handleAuth;
+                setTimeout(() => {
+                    const authForm = document.getElementById('auth-form');
+                    const showPasswordBtn = document.getElementById('show-password');
+                    if (authForm) {
+                        ['full-name', 'email', 'password', 'terms'].forEach(id => {
+                            const element = document.getElementById(id);
+                            if (element) element.oninput = validateForm;
+                        });
+                        authForm.onsubmit = handleAuth;
+                    }
+                    if (showPasswordBtn) showPasswordBtn.onclick = () => {
+                        state.showPassword = !state.showPassword;
+                        render();
+                    };
+                }, 0);
             }
 
             if (state.modal.isOpen) {
