@@ -1,1043 +1,928 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BotBlitz Affiliate Program</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="icon" href="https://botblitz.store/favicon.ico">
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/lib/jwt-decode.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .popup { transition: opacity 0.3s ease, transform 0.3s ease; }
-        .table-container { max-height: 500px; overflow-y: auto; }
-        .btn { min-width: 120px; transition: all 0.2s ease; }
-        .live-clicks { animation: pulse 2s infinite; }
-        .toast { transition: opacity 0.5s ease; }
-        .tick-icon { animation: tick 0.5s ease-in-out; }
-        .form-input { transition: border-color 0.2s ease; }
-        .form-input:focus { border-color: #2563eb; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        @keyframes tick { 0% { transform: scale(0); } 100% { transform: scale(1); } }
-        @media (max-width: 640px) {
-            .table-container { max-height: 300px; }
-            .btn { min-width: 100px; font-size: 0.875rem; }
-            .popup { max-width: 90%; }
-            .grid-cols-2 { grid-template-columns: 1fr; }
-            .nav-icons { flex-direction: row; gap: 1rem; }
-            .auth-card { max-width: 90%; padding: 1rem; }
-            .form-input { font-size: 0.875rem; }
-            .main-content { padding: 1rem; }
-            .tab-btn { font-size: 0.875rem; padding: 0.5rem 1rem; }
-        }
-        @media (min-width: 641px) and (max-width: 1024px) {
-            .auth-card { max-width: 75%; }
-            .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-            .main-content { padding: 2rem; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deriv Bot Store Affiliates</title>
+  <link href="/output.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.7.7/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-router-dom@6.26.2/dist/umd/react-router-dom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.25.6/babel.min.js"></script>
 </head>
-<body class="min-h-screen bg-gray-100">
-    <div id="app"></div>
-    <div id="toast" class="fixed bottom-4 right-4 px-4 py-2 rounded-md toast hidden text-white"></div>
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 popup hidden">
-        <div id="modal-content" class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-            <h2 id="modal-title" class="text-xl font-bold mb-4 text-gray-800"></h2>
-            <div id="modal-body"></div>
-            <button id="modal-close" class="mt-4 btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">Close</button>
-        </div>
-    </div>
-    <div id="cookie-consent" class="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg z-50 hidden">
-        <p class="text-sm text-gray-700">We use cookies to enhance your experience.</p>
-        <button id="cookie-accept" class="mt-2 btn bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Accept</button>
-    </div>
-    <script>
-        const API_URL = 'https://affiliate-botblitz.onrender.com/api/affiliate';
-        const WS_URL = 'wss://affiliate-botblitz.onrender.com';
-        const pageSize = 20;
+<body class="bg-gray-100 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+    const { BrowserRouter, Routes, Route, Link, useNavigate, useParams } = ReactRouterDOM;
 
-        // State
-        let state = {
-            isLogin: true,
-            isAuthenticated: !!localStorage.getItem('affiliateToken'),
-            token: localStorage.getItem('affiliateToken'),
-            user: {
-                fullName: localStorage.getItem('affiliateName') || '',
-                email: '',
-                refCode: localStorage.getItem('affiliateRefCode') || '',
-                linkClicks: 0,
-                totalSales: 0,
-                currentBalance: 0,
-                mpesaNumber: '',
-                mpesaName: '',
-                reuseDetails: false,
-                pendingWithdrawals: 0,
-            },
-            settings: { commissionRate: 0.2, supportEmail: 'support@botblitz.store', copyrightText: '© 2025 BotBlitz', whatsappLink: '#' },
-            staticPages: [],
-            notifications: [],
-            withdrawals: [],
-            rewards: [],
-            leaderboard: [],
-            unreadCount: 0,
-            currentTab: 'home',
-            currentPage: 1,
-            loading: false,
-            error: '',
-            modal: { isOpen: false, title: '', content: '', className: '' },
-            formValid: false,
-            showPassword: false,
+    const socket = io('https://affiliate-botblitz.onrender.com', { withCredentials: true });
+
+    // Utility to get cookie
+    const getCookie = (name) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      return parts.length === 2 ? parts.pop().split(';').shift() : null;
+    };
+
+    // Utility to set cookie
+    const setCookie = (name, value, days) => {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = `${name}=${value}; expires=${expires}; path=/; secure; samesite=strict`;
+    };
+
+    // Main App Component
+    const App = () => {
+      const [isAuthenticated, setIsAuthenticated] = useState(!!getCookie('jwt'));
+      const [userData, setUserData] = useState(null);
+      const [settings, setSettings] = useState({});
+      const [staticPages, setStaticPages] = useState([]);
+      const [notifications, setNotifications] = useState([]);
+      const [popup, setPopup] = useState(null);
+
+      const fetchData = useCallback(async () => {
+        try {
+          const response = await axios.get('/api/affiliate/data', { headers: { Authorization: `Bearer ${getCookie('jwt')}` } });
+          setUserData(response.data);
+          setNotifications(response.data.notifications || []);
+        } catch (err) {
+          if (err.response?.status === 401) {
+            setIsAuthenticated(false);
+            document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+          }
+        }
+      }, []);
+
+      const fetchSettings = useCallback(async () => {
+        try {
+          const response = await axios.get('/api/admin/affiliate/data', { headers: { Authorization: `Bearer ${getCookie('jwt')}` } });
+          setSettings(response.data.settings || {});
+          setStaticPages(response.data.staticPages || []);
+          if (response.data.settings.urgentPopup?.enabled) {
+            setPopup({ message: response.data.settings.urgentPopup.message, type: 'urgent' });
+          }
+        } catch (err) {
+          console.error('Failed to fetch settings:', err);
+        }
+      }, []);
+
+      useEffect(() => {
+        if (isAuthenticated) {
+          fetchData();
+          fetchSettings();
+        }
+
+        socket.on('update', (data) => {
+          setUserData(prev => ({ ...prev, ...data }));
+          setSettings(data.settings || {});
+          setStaticPages(data.staticPages || []);
+          if (data.settings.urgentPopup?.enabled) {
+            setPopup({ message: data.settings.urgentPopup.message, type: 'urgent' });
+          }
+        });
+
+        socket.on('forceLogout', ({ email }) => {
+          if (userData?.email === email) {
+            setIsAuthenticated(false);
+            document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            setUserData(null);
+          }
+        });
+
+        return () => {
+          socket.off('update');
+          socket.off('forceLogout');
         };
+      }, [isAuthenticated, fetchData, fetchSettings]);
 
-        let ws = null;
+      const handleLogout = () => {
+        document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        setIsAuthenticated(false);
+        setUserData(null);
+      };
 
-        // JWT Token Validation
-        function isTokenValid(token) {
-            try {
-                const decoded = jwt_decode(token);
-                return decoded.exp * 1000 > Date.now();
-            } catch (e) {
-                console.error('Token validation error:', e);
-                return false;
-            }
+      return (
+        <BrowserRouter>
+          <Routes>
+            <Route
+              path="/affiliate"
+              element={
+                isAuthenticated ? (
+                  <Dashboard
+                    userData={userData}
+                    settings={settings}
+                    staticPages={staticPages}
+                    notifications={notifications}
+                    setNotifications={setNotifications}
+                    handleLogout={handleLogout}
+                    setPopup={setPopup}
+                    fetchData={fetchData}
+                  />
+                ) : (
+                  <Auth setIsAuthenticated={setIsAuthenticated} setUserData={setUserData} />
+                )
+              }
+            />
+            <Route path="/affiliate-:slug" element={<StaticPage staticPages={staticPages} />} />
+          </Routes>
+          {popup && (
+            <Popup
+              message={popup.message}
+              type={popup.type}
+              onClose={() => setPopup(null)}
+            />
+          )}
+        </BrowserRouter>
+      );
+    };
+
+    // Auth Component (Login/Signup)
+    const Auth = ({ setIsAuthenticated, setUserData }) => {
+      const [isLogin, setIsLogin] = useState(true);
+      const [formData, setFormData] = useState({
+        name: '', email: '', password: '', terms: false,
+      });
+      const [errors, setErrors] = useState({});
+      const [loading, setLoading] = useState(false);
+      const [showPassword, setShowPassword] = useState(false);
+
+      const validateForm = () => {
+        const newErrors = {};
+        if (!isLogin) {
+          if (!formData.name || formData.name.split(' ').filter(Boolean).length < 2) {
+            newErrors.name = 'Full name must contain at least 2 words';
+          }
+          if (!formData.terms) {
+            newErrors.terms = 'You must agree to the terms';
+          }
         }
-
-        // Axios Interceptor
-        axios.interceptors.request.use(
-            (config) => {
-                if (state.token) config.headers.Authorization = `Bearer ${state.token}`;
-                config.headers['x-device-id'] = navigator.userAgent;
-                return config;
-            },
-            (error) => {
-                console.error('Axios request error:', error);
-                return Promise.reject(error);
-            }
-        );
-
-        // WebSocket Connection
-        function connectWebSocket() {
-            if (!state.user.email || !state.token) return;
-            ws = new WebSocket(`${WS_URL}?token=${state.token}`);
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'linkClick') {
-                    state.user.linkClicks = data.count;
-                    render();
-                } else if (data.type === 'notification') {
-                    state.notifications = [[new Date().toISOString(), data.message, false], ...state.notifications];
-                    state.unreadCount++;
-                    render();
-                } else if (data.type === 'popup') {
-                    state.modal = { isOpen: true, title: 'Urgent Message', content: data.message, className: '' };
-                    render();
-                } else if (data.type === 'logout') {
-                    logout();
-                }
-            };
-            ws.onclose = () => {
-                if (isTokenValid(state.token)) {
-                    setTimeout(connectWebSocket, 5000);
-                }
-            };
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
+        if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
+          newErrors.email = 'Valid email is required';
         }
-
-        // Show Toast
-        function showToast(message, isError) {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.classList.remove('hidden', 'bg-green-600', 'bg-red-600');
-            toast.classList.add(isError ? 'bg-red-600' : 'bg-green-600');
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
+        if (!formData.password || formData.password.length < 8 || !/[a-zA-Z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
+          newErrors.password = 'Password must be 8+ characters with letters and numbers';
         }
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+      };
 
-        // Show Modal
-        function showModal(title, content, className = '') {
-            const modal = document.getElementById('modal');
-            const modalTitle = document.getElementById('modal-title');
-            const modalBody = document.getElementById('modal-body');
-            modalTitle.textContent = title;
-            modalBody.innerHTML = content;
-            modal.classList.remove('hidden');
-            modal.classList.add(className);
-            document.getElementById('modal-close').onclick = () => {
-                modal.classList.add('hidden');
-                state.modal.isOpen = false;
-                render();
-            };
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!validateForm()) return;
+        setLoading(true);
+        try {
+          const endpoint = isLogin ? '/api/affiliate/login' : '/api/affiliate/register';
+          const payload = isLogin
+            ? { email: formData.email, password: formData.password }
+            : { name: formData.name, email: formData.email, password: formData.password, terms: formData.terms };
+          const response = await axios.post(endpoint, payload);
+          setCookie('jwt', response.data.token, 1);
+          setUserData({ name: response.data.name, refCode: response.data.refCode });
+          setIsAuthenticated(true);
+        } catch (err) {
+          setErrors({ server: err.response?.data?.error || 'An error occurred' });
+        } finally {
+          setLoading(false);
         }
+      };
 
-        // Cookie Consent
-        function initCookieConsent() {
-            if (localStorage.getItem('cookieConsent')) return;
-            const cookieConsent = document.getElementById('cookie-consent');
-            cookieConsent.classList.remove('hidden');
-            document.getElementById('cookie-accept').onclick = () => {
-                localStorage.setItem('cookieConsent', 'true');
-                cookieConsent.classList.add('hidden');
-            };
+      return (
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-6 text-center">
+              {isLogin ? 'Login' : 'Sign Up'}
+            </h2>
+            <form onSubmit={handleSubmit}>
+              {!isLogin && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+                </div>
+              )}
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Email</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                />
+                {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+              </div>
+              <div className="mb-4 relative">
+                <label className="block text-sm font-medium mb-1">Password</label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-9 text-gray-500"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+                {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+              </div>
+              {!isLogin && (
+                <div className="mb-4">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.terms}
+                      onChange={(e) => setFormData({ ...formData, terms: e.target.checked })}
+                      className="mr-2"
+                    />
+                    I agree to the <a href="/affiliate-terms" className="text-blue-500 ml-1">Terms & Conditions</a>
+                  </label>
+                  {errors.terms && <p className="text-red-500 text-sm mt-1">{errors.terms}</p>}
+                </div>
+              )}
+              {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+              >
+                {loading ? 'Processing...' : isLogin ? 'Login' : 'Create Account'}
+              </button>
+            </form>
+            <p className="text-center mt-4">
+              {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
+              <button
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setFormData({ name: '', email: '', password: '', terms: false });
+                  setErrors({});
+                }}
+                className="text-blue-500"
+              >
+                {isLogin ? 'Sign Up' : 'Login'}
+              </button>
+            </p>
+          </div>
+        </div>
+      );
+    };
+
+    // Dashboard Component
+    const Dashboard = ({ userData, settings, staticPages, notifications, setNotifications, handleLogout, setPopup, fetchData }) => {
+      const [activeTab, setActiveTab] = useState('home');
+      const [showNotifications, setShowNotifications] = useState(false);
+      const [showSettings, setShowSettings] = useState(false);
+      const navigate = useNavigate();
+
+      const unreadCount = notifications.filter(n => !n.read).length;
+
+      return (
+        <div className="min-h-screen">
+          <header className="bg-blue-600 text-white p-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-xl font-bold">Deriv Bot Store Affiliates</h1>
+              <p>Welcome, {userData?.name}</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <a href={settings.whatsappLink} target="_blank" rel="noopener noreferrer">
+                <img src="/assets/whatsapp.png" alt="WhatsApp" className="w-6 h-6" />
+              </a>
+              <div className="relative">
+                <button onClick={() => setShowNotifications(!showNotifications)} className="relative">
+                  <img src="/assets/bell.png" alt="Notifications" className="w-6 h-6" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+                {showNotifications && (
+                  <NotificationDropdown
+                    notifications={notifications}
+                    setNotifications={setNotifications}
+                    setShowNotifications={setShowNotifications}
+                  />
+                )}
+              </div>
+              <div className="relative">
+                <button onClick={() => setShowSettings(!showSettings)}>
+                  <img src="/assets/settings.png" alt="Settings" className="w-6 h-6" />
+                </button>
+                {showSettings && (
+                  <SettingsDropdown
+                    setShowSettings={setShowSettings}
+                    handleLogout={handleLogout}
+                    setPopup={setPopup}
+                    fetchData={fetchData}
+                    navigate={navigate}
+                  />
+                )}
+              </div>
+            </div>
+          </header>
+          <nav className="bg-gray-200 dark:bg-gray-800 p-4">
+            <ul className="flex space-x-4 overflow-x-auto">
+              {['Home', 'Withdrawals', 'Withdrawal History', 'Rewards History', 'Leaderboard'].map(tab => (
+                <li key={tab}>
+                  <button
+                    onClick={() => setActiveTab(tab.toLowerCase().replace(' ', '-'))}
+                    className={`px-4 py-2 rounded ${activeTab === tab.toLowerCase().replace(' ', '-') ? 'bg-blue-500 text-white' : 'text-gray-700 dark:text-gray-300'}`}
+                  >
+                    {tab}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <main className="p-4 max-w-7xl mx-auto">
+            {activeTab === 'home' && <HomeTab userData={userData} settings={settings} setPopup={setPopup} fetchData={fetchData} />}
+            {activeTab === 'withdrawals' && <WithdrawalsTab userData={userData} setPopup={setPopup} fetchData={fetchData} />}
+            {activeTab === 'withdrawal-history' && <WithdrawalHistoryTab withdrawals={userData?.withdrawals || []} />}
+            {activeTab === 'rewards-history' && <RewardsHistoryTab rewards={userData?.rewards || []} />}
+            {activeTab === 'leaderboard' && <LeaderboardTab leaderboard={userData?.leaderboard || []} />}
+          </main>
+          <footer className="bg-gray-800 text-white p-4 text-center">
+            <p>{settings.copyrightText || 'Deriv Bot Store Affiliates 2025'}</p>
+            <div className="mt-2">
+              {staticPages.map(page => (
+                <Link key={page.slug} to={page.slug} className="text-blue-400 mx-2">
+                  {page.title}
+                </Link>
+              ))}
+            </div>
+          </footer>
+        </div>
+      );
+    };
+
+    // Home Tab
+    const HomeTab = ({ userData, settings, setPopup, fetchData }) => {
+      const [showCommissionInfo, setShowCommissionInfo] = useState(false);
+      const affiliateLink = `https://botblitz.store?ref=${userData?.refCode}`;
+
+      const copyLink = () => {
+        navigator.clipboard.writeText(affiliateLink);
+        setPopup({ message: 'Link copied to clipboard!', type: 'success' });
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+            <h2 className="text-xl font-bold mb-4">Your Affiliate Link</h2>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={affiliateLink}
+                readOnly
+                className="flex-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+              <button onClick={copyLink} className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+                Copy
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold">Link Clicks</h3>
+              <p className="text-2xl font-bold animate-pulse">{userData?.linkClicks || 0}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold">Total Sales</h3>
+              <p className="text-2xl font-bold">{userData?.saleCount || 0}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold">Current Balance</h3>
+              <p className="text-2xl font-bold">KES {userData?.currentBalance?.toFixed(2) || '0.00'}</p>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+            <h2 className="text-xl font-bold mb-4 flex items-center">
+              How Commission is Calculated?
+              <button
+                onClick={() => setShowCommissionInfo(!showCommissionInfo)}
+                className="ml-2 text-blue-500"
+              >
+                ℹ️
+              </button>
+            </h2>
+            {showCommissionInfo && (
+              <p>
+                You earn a {settings.commissionRate * 100 || 20}% commission on each confirmed sale made through your affiliate link. Commissions are calculated based on the sale amount and credited to your balance upon confirmation.
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Withdrawals Tab
+    const WithdrawalsTab = ({ userData, setPopup, fetchData }) => {
+      const [formData, setFormData] = useState({
+        amount: '',
+        mpesaNumber: '',
+        mpesaName: '',
+        reuse: false,
+        password: '',
+      });
+      const [errors, setErrors] = useState({});
+      const [loading, setLoading] = useState(false);
+
+      const validateForm = () => {
+        const newErrors = {};
+        if (!formData.amount || formData.amount <= 0) {
+          newErrors.amount = 'Amount must be positive';
+        } else if (formData.amount > userData.currentBalance) {
+          newErrors.amount = 'Amount exceeds balance';
         }
-
-        // Fetch Dashboard Data
-        async function fetchDashboardData() {
-            state.loading = true;
-            state.error = '';
-            render();
-            try {
-                const res = await axios.get(`${API_URL}/data`);
-                state.user = { ...state.user, ...res.data };
-                const commissionRate = res.data.totalSales > 0 ? res.data.monthlyCommission / res.data.totalSales : 0.2;
-                state.settings = {
-                    commissionRate: commissionRate || 0.2,
-                    supportEmail: res.data.supportEmail || 'support@botblitz.store',
-                    copyrightText: res.data.copyrightText || '© 2025 BotBlitz',
-                    whatsappLink: res.data.whatsappLink || '#',
-                };
-                state.staticPages = res.data.staticPages || [];
-                state.notifications = res.data.notifications || [];
-                state.withdrawals = res.data.withdrawals || [];
-                state.rewards = res.data.rewards || [];
-                state.leaderboard = res.data.leaderboard || [];
-                state.unreadCount = res.data.unreadCount || 0;
-                state.user.email = res.data.email;
-                state.user.pendingWithdrawals = res.data.pendingWithdrawals || 0;
-                connectWebSocket();
-            } catch (err) {
-                state.error = err.response?.data?.error || 'Failed to load data';
-                showToast(state.error, true);
-                if (err.response?.status === 403) {
-                    logout();
-                }
-            } finally {
-                state.loading = false;
-                render();
-            }
+        if (!formData.mpesaNumber || !/^\+254\d{9}$/.test(formData.mpesaNumber)) {
+          newErrors.mpesaNumber = 'Valid Mpesa number required';
         }
-
-        // Validate Form Inputs
-        function validateForm() {
-            const fullName = document.getElementById('full-name')?.value?.trim().replace(/\s+/g, ' ') || '';
-            const email = document.getElementById('email')?.value?.trim() || '';
-            const password = document.getElementById('password')?.value || '';
-            const terms = document.getElementById('terms')?.checked || false;
-
-            if (state.isLogin) {
-                state.formValid = email.length > 0 && password.length > 0;
-            } else {
-                const names = fullName.split(' ').filter(name => name.length > 0);
-                const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-                const passwordValid = password.length >= 8 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
-                state.formValid = names.length >= 2 && emailValid && passwordValid && terms;
-            }
-
-            // Update submit button state without re-rendering
-            const authSubmit = document.getElementById('auth-submit');
-            if (authSubmit) {
-                authSubmit.disabled = !state.formValid;
-                authSubmit.classList.toggle('bg-gray-400', !state.formValid);
-                authSubmit.classList.toggle('bg-blue-600', state.formValid);
-            }
+        if (!formData.mpesaName) {
+          newErrors.mpesaName = 'Mpesa name required';
         }
-
-        // Handle Signup/Login
-        async function handleAuth(e) {
-            e.preventDefault();
-            state.error = '';
-            state.loading = true;
-            render();
-
-            const fullName = document.getElementById('full-name')?.value?.trim().replace(/\s+/g, ' ') || '';
-            const email = document.getElementById('email')?.value?.trim() || '';
-            const password = document.getElementById('password')?.value || '';
-            const terms = document.getElementById('terms')?.checked || false;
-
-            console.log('Auth Inputs:', { fullName, email, password, terms });
-
-            // Client-side Validation
-            if (state.isLogin) {
-                if (!email || !password) {
-                    state.error = 'Email and password are required';
-                    showToast(state.error, true);
-                    state.loading = false;
-                    render();
-                    return;
-                }
-            } else {
-                const names = fullName.split(' ').filter(name => name.length > 0);
-                if (names.length < 2) {
-                    state.error = 'Full name must include first and last name (e.g., John Doe)';
-                    showToast(state.error, true);
-                    state.loading = false;
-                    render();
-                    return;
-                }
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                    state.error = 'Invalid email format';
-                    showToast(state.error, true);
-                    state.loading = false;
-                    render();
-                    return;
-                }
-                if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-                    state.error = 'Password must be 8+ characters with letters and numbers';
-                    showToast(state.error, true);
-                    state.loading = false;
-                    render();
-                    return;
-                }
-                if (!terms) {
-                    state.error = 'You must accept the terms';
-                    showToast(state.error, true);
-                    state.loading = false;
-                    render();
-                    return;
-                }
-            }
-
-            try {
-                const endpoint = state.isLogin ? '/login' : '/register';
-                const payload = state.isLogin
-                    ? { email, password }
-                    : { fullName, email, password, termsAccepted: terms };
-                const res = await axios.post(`${API_URL}${endpoint}`, payload);
-                state.token = res.data.token;
-                state.isAuthenticated = true;
-                localStorage.setItem('affiliateToken', res.data.token);
-                localStorage.setItem('affiliateName', res.data.name);
-                localStorage.setItem('affiliateRefCode', res.data.refCode);
-                showToast(state.isLogin ? 'Login successful' : 'Account created successfully', false);
-            } catch (err) {
-                state.error = err.response?.data?.error || 'An error occurred';
-                showToast(state.error, true);
-            } finally {
-                state.loading = false;
-                render();
-            }
+        if (!formData.password) {
+          newErrors.password = 'Password required';
         }
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+      };
 
-        // Handle Withdrawal
-        async function handleWithdrawal(e) {
-            e.preventDefault();
-            state.error = '';
-            state.loading = true;
-            render();
-
-            const amount = document.getElementById('withdrawal-amount')?.value;
-            const mpesaNumber = document.getElementById('mpesa-number')?.value;
-            const mpesaName = document.getElementById('mpesa-name')?.value;
-            const reuseDetails = document.getElementById('reuse-details')?.checked;
-            const password = document.getElementById('withdrawal-password')?.value;
-
-            if (!amount || parseFloat(amount) > state.user.currentBalance) {
-                state.error = 'Amount exceeds current balance';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-                return;
-            }
-            if (!mpesaNumber || !/^07[0-9]{8}$/.test(mpesaNumber)) {
-                state.error = 'Invalid M-PESA number (must be 07XXXXXXXX)';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-                return;
-            }
-            if (!mpesaName) {
-                state.error = 'M-PESA name is required';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-                return;
-            }
-            if (!password) {
-                state.error = 'Password is required for withdrawal';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-                return;
-            }
-
-            try {
-                const res = await axios.post(`${API_URL}/request-withdrawal`, {
-                    amount,
-                    mpesaNumber,
-                    mpesaName,
-                    reuseDetails,
-                    password,
-                });
-                state.user.currentBalance -= parseFloat(amount);
-                state.withdrawals = [
-                    [new Date().toISOString(), amount, mpesaNumber, mpesaName, 'Pending', '', reuseDetails],
-                    ...state.withdrawals,
-                ];
-                state.user.pendingWithdrawals += 1;
-                showModal(
-                    'Withdrawal Submitted',
-                    `
-                    <div class="text-center">
-                        <i class="fas fa-check-circle text-4xl text-green-500 mb-4 tick-icon"></i>
-                        <p>Your withdrawal request has been submitted successfully. You will receive it as soon as it is processed.</p>
-                    </div>
-                `,
-                    'text-center'
-                );
-                showToast('Withdrawal request submitted', false);
-            } catch (err) {
-                state.error = err.response?.data?.error || 'Withdrawal failed';
-                showToast(state.error, true);
-            } finally {
-                state.loading = false;
-                render();
-            }
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!validateForm()) return;
+        setLoading(true);
+        try {
+          await axios.post(
+            '/api/affiliate/request-withdrawal',
+            formData,
+            { headers: { Authorization: `Bearer ${getCookie('jwt')}` } }
+          );
+          setPopup({ message: 'Withdrawal submitted. You’ll receive it soon. ✅', type: 'success' });
+          setFormData({ amount: '', mpesaNumber: '', mpesaName: '', reuse: false, password: '' });
+          fetchData();
+        } catch (err) {
+          setErrors({ server: err.response?.data?.error || 'An error occurred' });
+        } finally {
+          setLoading(false);
         }
+      };
 
-        // Copy Affiliate Link
-        function copyLink() {
-            navigator.clipboard.writeText(`https://botblitz.store?ref=${state.user.refCode || ''}`);
-            showToast('Link copied to clipboard', false);
+      return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h2 className="text-xl font-bold mb-4">Request Withdrawal</h2>
+          {userData.currentBalance <= 0 ? (
+            <p className="text-red-500">Insufficient balance to request a withdrawal.</p>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Amount (KES)</label>
+                <input
+                  type="number"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                  disabled={userData.currentBalance <= 0}
+                />
+                {errors.amount && <p className="text-red-500 text-sm mt-1">{errors.amount}</p>}
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Mpesa Number</label>
+                <input
+                  type="text"
+                  value={formData.mpesaNumber}
+                  onChange={(e) => setFormData({ ...formData, mpesaNumber: e.target.value })}
+                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                />
+                {errors.mpesaNumber && <p className="text-red-500 text-sm mt-1">{errors.mpesaNumber}</p>}
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Mpesa Name</label>
+                <input
+                  type="text"
+                  value={formData.mpesaName}
+                  onChange={(e) => setFormData({ ...formData, mpesaName: e.target.value })}
+                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                />
+                {errors.mpesaName && <p className="text-red-500 text-sm mt-1">{errors.mpesaName}</p>}
+              </div>
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.reuse}
+                    onChange={(e) => setFormData({ ...formData, reuse: e.target.checked })}
+                    className="mr-2"
+                  />
+                  Reuse these details for future withdrawals
+                </label>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Account Password</label>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                />
+                {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+              </div>
+              {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
+              <button
+                type="submit"
+                disabled={loading || userData.currentBalance <= 0}
+                className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+              >
+                {loading ? 'Processing...' : 'Request Withdrawal'}
+              </button>
+            </form>
+          )}
+        </div>
+      );
+    };
+
+    // Withdrawal History Tab
+    const WithdrawalHistoryTab = ({ withdrawals }) => {
+      const [page, setPage] = useState(1);
+      const perPage = 20;
+      const totalPages = Math.ceil(withdrawals.length / perPage);
+      const paginatedWithdrawals = withdrawals.slice((page - 1) * perPage, page * perPage);
+
+      return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h2 className="text-xl font-bold mb-4">Withdrawal History</h2>
+          <table className="w-full table-auto">
+            <thead>
+              <tr className="bg-gray-200 dark:bg-gray-700">
+                <th className="p-2">Date</th>
+                <th className="p-2">Amount</th>
+                <th className="p-2">Mpesa Number</th>
+                <th className="p-2">Mpesa Name</th>
+                <th className="p-2">Status</th>
+                <th className="p-2">Mpesa Ref</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedWithdrawals.map((w, i) => (
+                <tr key={i} className="border-b dark:border-gray-700">
+                  <td className="p-2">{new Date(w.timestamp).toLocaleString()}</td>
+                  <td className="p-2">KES {w.amount.toFixed(2)}</td>
+                  <td className="p-2">{w.mpesaNumber}</td>
+                  <td className="p-2">{w.mpesaName}</td>
+                  <td className="p-2">{w.status}</td>
+                  <td className="p-2">{w.mpesaRef || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex justify-between mt-4">
+            <button
+              onClick={() => setPage(p => Math.max(p - 1, 1))}
+              disabled={page === 1}
+              className="bg-blue-500 text-white p-2 rounded disabled:bg-gray-400"
+            >
+              Previous
+            </button>
+            <span>Page {page} of {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+              disabled={page === totalPages}
+              className="bg-blue-500 text-white p-2 rounded disabled:bg-gray-400"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // Rewards History Tab
+    const RewardsHistoryTab = ({ rewards }) => {
+      return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h2 className="text-xl font-bold mb-4">Rewards History</h2>
+          <table className="w-full table-auto">
+            <thead>
+              <tr className="bg-gray-200 dark:bg-gray-700">
+                <th className="p-2">Date</th>
+                <th className="p-2">Type</th>
+                <th className="p-2">Amount</th>
+                <th className="p-2">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rewards.map((r, i) => (
+                <tr key={i} className="border-b dark:border-gray-700">
+                  <td className="p-2">{new Date(r.timestamp).toLocaleString()}</td>
+                  <td className="p-2">{r.rewardType}</td>
+                  <td className="p-2">KES {r.rewardValue.toFixed(2)}</td>
+                  <td className="p-2">{r.duration ? `Valid until ${r.endDate}` : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    };
+
+    // Leaderboard Tab
+    const LeaderboardTab = ({ leaderboard }) => {
+      return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h2 className="text-xl font-bold mb-4">Leaderboard</h2>
+          <table className="w-full table-auto">
+            <thead>
+              <tr className="bg-gray-200 dark:bg-gray-700">
+                <th className="p-2">Rank</th>
+                <th className="p-2">Affiliate Name</th>
+                <th className="p-2">Total Sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((a, i) => (
+                <tr key={i} className="border-b dark:border-gray-700">
+                  <td className="p-2">{i + 1}</td>
+                  <td className="p-2">{a.name}</td>
+                  <td className="p-2">{a.saleCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    };
+
+    // Notification Dropdown
+    const NotificationDropdown = ({ notifications, setNotifications, setShowNotifications }) => {
+      const markAsRead = async (index) => {
+        try {
+          const updatedNotifications = [...notifications];
+          updatedNotifications[index].read = true;
+          setNotifications(updatedNotifications);
+          await axios.post(
+            '/api/affiliate/notifications/mark-read',
+            { timestamp: notifications[index].timestamp },
+            { headers: { Authorization: `Bearer ${getCookie('jwt')}` } }
+          );
+        } catch (err) {
+          console.error('Failed to mark notification as read:', err);
         }
+      };
 
-        // Mark Notification as Read
-        async function markNotificationRead(index) {
-            const notification = state.notifications[index];
-            if (notification[2] === true || notification[2] === 'true') return;
-            try {
-                await axios.post(`${API_URL}/mark-notification`, { timestamp: notification[0] });
-                state.notifications.splice(index, 1); // Delete the notification
-                state.unreadCount = state.notifications.filter((n) => n[2] !== 'true' && n[2] !== true).length;
-                showToast('Notification marked as read', false);
-                render();
-            } catch (err) {
-                showToast('Failed to mark notification', true);
-            }
+      return (
+        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 z-10">
+          <h3 className="text-lg font-semibold mb-2">Notifications</h3>
+          {notifications.length === 0 ? (
+            <p>No notifications</p>
+          ) : (
+            notifications.map((n, i) => (
+              <div key={i} className="mb-2 p-2 border-b dark:border-gray-700">
+                <p>{n.message}</p>
+                <p className="text-sm text-gray-500">{new Date(n.timestamp).toLocaleString()}</p>
+                {!n.read && (
+                  <button
+                    onClick={() => markAsRead(i)}
+                    className="text-blue-500 text-sm"
+                  >
+                    Mark as Read
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+          <button
+            onClick={() => setShowNotifications(false)}
+            className="w-full bg-gray-300 dark:bg-gray-700 p-2 rounded mt-2"
+          >
+            Close
+          </button>
+        </div>
+      );
+    };
+
+    // Settings Dropdown
+    const SettingsDropdown = ({ setShowSettings, handleLogout, setPopup, fetchData, navigate }) => {
+      const [showChangePassword, setShowChangePassword] = useState(false);
+      const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+      const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
+      const [deleteForm, setDeleteForm] = useState({ password: '' });
+      const [errors, setErrors] = useState({});
+      const [loading, setLoading] = useState(false);
+
+      const validatePasswordForm = () => {
+        const newErrors = {};
+        if (!passwordForm.currentPassword) {
+          newErrors.currentPassword = 'Current password required';
         }
-
-        // Handle Password Update
-        async function handlePasswordUpdate(e) {
-            e.preventDefault();
-            state.error = '';
-            state.loading = true;
-            render();
-
-            const currentPassword = document.getElementById('current-password')?.value;
-            const newPassword = document.getElementById('new-password')?.value;
-
-            if (!currentPassword || !newPassword) {
-                state.error = 'Both current and new passwords are required';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-                return;
-            }
-
-            try {
-                await axios.post(`${API_URL}/update-password`, { oldPassword: currentPassword, newPassword });
-                showToast('Password updated successfully', false);
-                logout();
-            } catch (err) {
-                state.error = err.response?.data?.error || 'Password update failed';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-            }
+        if (!passwordForm.newPassword || passwordForm.newPassword.length < 8 || !/[a-zA-Z]/.test(passwordForm.newPassword) || !/[0-9]/.test(passwordForm.newPassword)) {
+          newErrors.newPassword = 'New password must be 8+ characters with letters and numbers';
         }
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+      };
 
-        // Handle Account Deletion
-        async function handleDeleteAccount(e) {
-            e.preventDefault();
-            state.error = '';
-            state.loading = true;
-            render();
-
-            const deletePassword = document.getElementById('delete-password')?.value;
-
-            if (!deletePassword) {
-                state.error = 'Password is required to delete account';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-                return;
-            }
-
-            if (state.user.currentBalance > 0) {
-                state.error = 'Cannot delete account with a non-zero balance';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-                return;
-            }
-
-            if (state.user.pendingWithdrawals > 0) {
-                state.error = 'Cannot delete account with pending withdrawals';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-                return;
-            }
-
-            try {
-                await axios.post(`${API_URL}/delete-account`, { password: deletePassword });
-                showToast('Account deleted successfully', false);
-                logout();
-            } catch (err) {
-                state.error = err.response?.data?.error || 'Account deletion failed';
-                showToast(state.error, true);
-                state.loading = false;
-                render();
-            }
+      const handleChangePassword = async (e) => {
+        e.preventDefault();
+        if (!validatePasswordForm()) return;
+        setLoading(true);
+        try {
+          await axios.post(
+            '/api/affiliate/update-password',
+            passwordForm,
+            { headers: { Authorization: `Bearer ${getCookie('jwt')}` } }
+          );
+          setPopup({ message: 'Password updated. Please log in again.', type: 'success' });
+          handleLogout();
+          navigate('/affiliate');
+        } catch (err) {
+          setErrors({ server: err.response?.data?.error || 'An error occurred' });
+        } finally {
+          setLoading(false);
         }
+      };
 
-        // Logout
-        function logout() {
-            if (ws) ws.close();
-            localStorage.clear();
-            state.token = null;
-            state.isAuthenticated = false;
-            state.user = { fullName: '', email: '', refCode: '', linkClicks: 0, totalSales: 0, currentBalance: 0, pendingWithdrawals: 0 };
-            state.notifications = [];
-            state.unreadCount = 0;
-            render();
+      const validateDeleteForm = () => {
+        const newErrors = {};
+        if (!deleteForm.password) {
+          newErrors.password = 'Password required';
         }
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+      };
 
-        // Attach Event Listeners Safely
-        function attachEventListeners() {
-            // Auth Form
-            const authForm = document.getElementById('auth-form');
-            const showPasswordBtn = document.getElementById('show-password');
-            const toggleAuthMode = document.getElementById('toggle-auth-mode');
-            if (authForm) {
-                ['full-name', 'email', 'password', 'terms'].forEach(id => {
-                    const element = document.getElementById(id);
-                    if (element) element.oninput = validateForm;
-                });
-                authForm.onsubmit = handleAuth;
-            }
-            if (showPasswordBtn) showPasswordBtn.onclick = () => {
-                state.showPassword = !state.showPassword;
-                render();
-            };
-            if (toggleAuthMode) toggleAuthMode.onclick = () => {
-                state.isLogin = !state.isLogin;
-                state.error = '';
-                validateForm();
-                render();
-            };
-
-            // Dashboard
-            const tabHome = document.getElementById('tab-home');
-            const tabWithdrawals = document.getElementById('tab-withdrawals');
-            const tabRewards = document.getElementById('tab-rewards');
-            const tabLeaderboard = document.getElementById('tab-leaderboard');
-            const copyLinkBtn = document.getElementById('copy-link');
-            const commissionInfoBtn = document.getElementById('commission-info');
-            const withdrawalForm = document.getElementById('withdrawal-form');
-            const prevPageBtn = document.getElementById('prev-page');
-            const nextPageBtn = document.getElementById('next-page');
-            const notificationsBtn = document.getElementById('notifications-btn');
-            const settingsBtn = document.getElementById('settings-btn');
-            const logoutBtn = document.getElementById('logout-btn');
-
-            if (tabHome) tabHome.onclick = () => {
-                state.currentTab = 'home';
-                render();
-            };
-            if (tabWithdrawals) tabWithdrawals.onclick = () => {
-                state.currentTab = 'withdrawals';
-                state.currentPage = 1;
-                render();
-            };
-            if (tabRewards) tabRewards.onclick = () => {
-                state.currentTab = 'rewards';
-                render();
-            };
-            if (tabLeaderboard) tabLeaderboard.onclick = () => {
-                state.currentTab = 'leaderboard';
-                render();
-            };
-            if (copyLinkBtn) copyLinkBtn.onclick = copyLink;
-            if (commissionInfoBtn) commissionInfoBtn.onclick = () => showModal(
-                'Commission Explanation',
-                `
-                <p>We pay <strong>${(state.settings.commissionRate * 100).toFixed(2)}%</strong> commission on each confirmed sale through your affiliate link.</p>
-                <p class="mt-2">Your affiliate link must be clicked within the last 24 hours for a sale to be credited to you.</p>
-            `
-            );
-            if (withdrawalForm) withdrawalForm.onsubmit = handleWithdrawal;
-            if (prevPageBtn) prevPageBtn.onclick = () => {
-                state.currentPage--;
-                render();
-            };
-            if (nextPageBtn) nextPageBtn.onclick = () => {
-                state.currentPage++;
-                render();
-            };
-            if (notificationsBtn) notificationsBtn.onclick = () => {
-                showModal(
-                    'Notifications',
-                    `
-                    <div class="max-h-96 overflow-y-auto">
-                        ${
-                            state.notifications.length
-                                ? state.notifications
-                                      .map(
-                                          (n, index) => `
-                                        <div class="p-4 border-b flex justify-between items-center">
-                                            <div>
-                                                <p class="${n[2] === 'true' || n[2] === true ? 'text-gray-600' : 'font-semibold'}">${
-                                              n[1] || 'No message'
-                                          }</p>
-                                                <p class="text-sm text-gray-500">${new Date(
-                                                    n[0] || Date.now()
-                                                ).toLocaleString()}</p>
-                                            </div>
-                                            <button class="mark-read-btn text-blue-500 hover:underline" data-index="${index}">${
-                                                n[2] === 'true' || n[2] === true ? 'Read' : 'Mark as Read'
-                                            }</button>
-                                        </div>
-                                    `
-                                      )
-                                      .join('')
-                                : '<p>No notifications.</p>'
-                        }
-                    </div>
-                `
-                );
-                setTimeout(() => {
-                    document.querySelectorAll('.mark-read-btn').forEach((btn) => {
-                        btn.onclick = () => markNotificationRead(parseInt(btn.dataset.index));
-                    });
-                }, 0);
-            };
-            if (settingsBtn) settingsBtn.onclick = () => {
-                showModal(
-                    'Settings',
-                    `
-                    <div>
-                        <h3 class="text-lg font-semibold mb-4">Update Password</h3>
-                        <form id="password-form">
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-gray-700">Current Password</label>
-                                <input type="password" id="current-password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
-                            </div>
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-gray-700">New Password</label>
-                                <input type="password" id="new-password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
-                            </div>
-                            <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Update Password</button>
-                        </form>
-                        <h3 class="text-lg font-semibold mt-6 mb-4">Delete Account</h3>
-                        <form id="delete-account-form">
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-gray-700">Password</label>
-                                <input type="password" id="delete-password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
-                            </div>
-                            <button type="button" id="delete-account-btn" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Delete Account</button>
-                        </form>
-                    </div>
-                `
-                );
-                setTimeout(() => {
-                    const passwordFormInner = document.getElementById('password-form');
-                    const deleteAccountFormInner = document.getElementById('delete-account-form');
-                    const deleteAccountBtn = document.getElementById('delete-account-btn');
-                    if (passwordFormInner) passwordFormInner.onsubmit = handlePasswordUpdate;
-                    if (deleteAccountBtn) deleteAccountBtn.onclick = () => {
-                        showModal(
-                            'Confirm Deletion',
-                            `
-                            <div class="text-center">
-                                <p class="mb-4">Are you sure you want to delete your account?</p>
-                                <button id="delete-no" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 mr-2">No</button>
-                                <button id="delete-yes" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Yes</button>
-                            </div>
-                        `,
-                            'text-center'
-                        );
-                        setTimeout(() => {
-                            const deleteNo = document.getElementById('delete-no');
-                            const deleteYes = document.getElementById('delete-yes');
-                            if (deleteNo) deleteNo.onclick = () => {
-                                document.getElementById('modal').classList.add('hidden');
-                                state.modal.isOpen = false;
-                                render();
-                            };
-                            if (deleteYes) deleteYes.onclick = (e) => handleDeleteAccount(e);
-                        }, 0);
-                    };
-                }, 0);
-            };
-            if (logoutBtn) logoutBtn.onclick = logout;
+      const handleDeleteAccount = async () => {
+        if (!validateDeleteForm()) return;
+        setLoading(true);
+        try {
+          await axios.post(
+            '/api/affiliate/delete-account',
+            { password: deleteForm.password },
+            { headers: { Authorization: `Bearer ${getCookie('jwt')}` } }
+          );
+          setPopup({ message: 'Account deleted successfully.', type: 'success' });
+          handleLogout();
+          navigate('/affiliate');
+        } catch (err) {
+          setErrors({ server: err.response?.data?.error || 'An error occurred' });
+        } finally {
+          setLoading(false);
         }
+      };
 
-        // Render
-        function render() {
-            const app = document.getElementById('app');
+      return (
+        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 z-10">
+          <button
+            onClick={() => setShowChangePassword(true)}
+            className="w-full text-left p-2 hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            Change Password
+          </button>
+          <button
+            onClick={() => setShowDeleteAccount(true)}
+            className="w-full text-left p-2 hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            Delete Account
+          </button>
+          <button
+            onClick={() => {
+              handleLogout();
+              navigate('/affiliate');
+            }}
+            className="w-full text-left p-2 hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            Logout
+          </button>
+          {showChangePassword && (
+            <div className="absolute inset-0 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+              <h3 className="text-lg font-semibold mb-2">Change Password</h3>
+              <form onSubmit={handleChangePassword}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Current Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  {errors.currentPassword && <p className="text-red-500 text-sm mt-1">{errors.currentPassword}</p>}
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  {errors.newPassword && <p className="text-red-500 text-sm mt-1">{errors.newPassword}</p>}
+                </div>
+                {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
+                <div className="flex space-x-2">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+                  >
+                    {loading ? 'Processing...' : 'Update'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowChangePassword(false)}
+                    className="bg-gray-300 dark:bg-gray-700 p-2 rounded"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+          {showDeleteAccount && (
+            <div className="absolute inset-0 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+              <h3 className="text-lg font-semibold mb-2">Delete Account</h3>
+              <p className="mb-4">Are you sure? This action cannot be undone.</p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Password</label>
+                <input
+                  type="password"
+                  value={deleteForm.password}
+                  onChange={(e) => setDeleteForm({ ...deleteForm, password: e.target.value })}
+                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                />
+                {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+              </div>
+              {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={loading}
+                  className="bg-red-500 text-white p-2 rounded hover:bg-red-600 disabled:bg-gray-400"
+                >
+                  {loading ? 'Processing...' : 'Delete'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteAccount(false)}
+                  className="bg-gray-300 dark:bg-gray-700 p-2 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
 
-            if (state.isAuthenticated && isTokenValid(state.token)) {
-                app.innerHTML = `
-                    <div class="min-h-screen bg-gray-100">
-                        <!-- Navigation -->
-                        <nav class="bg-white shadow-md">
-                            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                                <div class="flex justify-between h-16">
-                                    <div class="flex items-center">
-                                        <span class="text-xl font-bold text-gray-800">Deriv Bot Store Affiliates</span>
-                                    </div>
-                                    <div class="flex items-center nav-icons space-x-4">
-                                        <a href="${state.settings.whatsappLink || '#'}" target="_blank" class="text-2xl text-green-500">
-                                            <i class="fab fa-whatsapp"></i>
-                                        </a>
-                                        <div class="relative">
-                                            <button id="notifications-btn" class="relative focus:outline-none">
-                                                <i class="fas fa-bell text-2xl text-gray-600"></i>
-                                                ${
-                                                    state.unreadCount > 0
-                                                        ? `<span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full px-2">${state.unreadCount}</span>`
-                                                        : ''
-                                                }
-                                            </button>
-                                        </div>
-                                        <button id="settings-btn" class="focus:outline-none">
-                                            <i class="fas fa-cog text-2xl text-gray-600"></i>
-                                        </button>
-                                        <button id="logout-btn" class="focus:outline-none">
-                                            <i class="fas fa-sign-out-alt text-2xl text-gray-600"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </nav>
+    // Static Page Component
+    const StaticPage = ({ staticPages }) => {
+      const { slug } = useParams();
+      const page = staticPages.find(p => p.slug === `/affiliate-${slug}`);
 
-                        <!-- Main Content -->
-                        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 main-content">
-                            <h1 class="text-3xl font-bold mb-8 text-gray-800">Welcome, ${state.user.fullName || 'User'}</h1>
-                            <div class="flex flex-wrap space-x-4 mb-8">
-                                <button id="tab-home" class="tab-btn px-4 py-2 rounded-md focus:outline-none ${
-                                    state.currentTab === 'home' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
-                                }">Home</button>
-                                <button id="tab-withdrawals" class="tab-btn px-4 py-2 rounded-md focus:outline-none ${
-                                    state.currentTab === 'withdrawals'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-200 text-gray-700'
-                                }">Withdrawal History</button>
-                                <button id="tab-rewards" class="tab-btn px-4 py-2 rounded-md focus:outline-none ${
-                                    state.currentTab === 'rewards'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-200 text-gray-700'
-                                }">Rewards</button>
-                                <button id="tab-leaderboard" class="tab-btn px-4 py-2 rounded-md focus:outline-none ${
-                                    state.currentTab === 'leaderboard'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-200 text-gray-700'
-                                }">Leaderboard</button>
-                            </div>
-                            ${
-                                state.loading
-                                    ? `
-                                <div class="flex justify-center items-center">
-                                    <i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i>
-                                </div>
-                            `
-                                    : state.error
-                                    ? `
-                                <p class="text-red-600">${state.error}</p>
-                            `
-                                    : `
-                                ${
-                                    state.currentTab === 'home'
-                                        ? `
-                                    <div>
-                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                                            <div class="bg-white p-6 rounded-lg shadow">
-                                                <h2 class="text-xl font-bold mb-4 text-gray-800">Affiliate Link</h2>
-                                                <p class="text-blue-500 break-all mb-2">https://botblitz.store?ref=${
-                                                    state.user.refCode || ''
-                                                }</p>
-                                                <button id="copy-link" class="btn bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Copy Link</button>
-                                            </div>
-                                            <div class="bg-white p-6 rounded-lg shadow">
-                                                <h2 class="text-xl font-bold mb-4 text-gray-800">Statistics</h2>
-                                                <p><strong>Live Link Clicks:</strong> <span class="live-clicks font-semibold">${
-                                                    state.user.linkClicks || 0
-                                                }</span></p>
-                                                <p><strong>Total Sales:</strong> <span class="font-semibold">${
-                                                    state.user.totalSales || 0
-                                                }</span></p>
-                                                <p><strong>Current Balance:</strong> <span class="font-semibold">${
-                                                    (state.user.currentBalance || 0).toFixed(2)
-                                                } KES</span></p>
-                                                <button id="commission-info" class="mt-2 text-blue-500 hover:underline">How is commission calculated?</button>
-                                            </div>
-                                        </div>
-                                        <div class="bg-white p-6 rounded-lg shadow mb-8">
-                                            <h2 class="text-xl font-bold mb-4 text-gray-800">Withdraw Commission</h2>
-                                            ${state.error ? `<p class="text-red-500 mb-4">${state.error}</p>` : ''}
-                                            <form id="withdrawal-form">
-                                                <div class="mb-4">
-                                                    <label class="block text-sm font-medium text-gray-700">Amount (KES)</label>
-                                                    <input type="number" id="withdrawal-amount" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" min="1" value="${
-                                                        state.user.currentBalance || 0
-                                                    }" required />
-                                                </div>
-                                                <div class="mb-4">
-                                                    <label class="block text-sm font-medium text-gray-700">M-PESA Number</label>
-                                                    <input type="text" id="mpesa-number" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" value="${
-                                                        state.user.mpesaNumber || ''
-                                                    }" pattern="^07[0-9]{8}$" required />
-                                                </div>
-                                                <div class="mb-4">
-                                                    <label class="block text-sm font-medium text-gray-700">M-PESA Name</label>
-                                                    <input type="text" id="mpesa-name" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" value="${
-                                                        state.user.mpesaName || ''
-                                                    }" required />
-                                                </div>
-                                                <div class="mb-4 flex items-center">
-                                                    <input type="checkbox" id="reuse-details" class="mr-2" ${
-                                                        state.user.reuseDetails ? 'checked' : ''
-                                                    } />
-                                                    <label class="text-sm text-gray-700">Save M-PESA details for future withdrawals</label>
-                                                </div>
-                                                <div class="mb-4">
-                                                    <label class="block text-sm font-medium text-gray-700">Password</label>
-                                                    <input type="password" id="withdrawal-password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
-                                                </div>
-                                                <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400" ${
-                                                    state.user.currentBalance <= 0 ? 'disabled' : ''
-                                                }>
-                                                    ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : 'Withdraw'}
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                `
-                                        : state.currentTab === 'withdrawals'
-                                        ? `
-                                    <div class="bg-white p-6 rounded-lg shadow">
-                                        <h2 class="text-xl font-bold mb-4 text-gray-800">Withdrawal History</h2>
-                                        <div class="table-container">
-                                            <table class="min-w-full bg-white">
-                                                <thead>
-                                                    <tr>
-                                                        <th class="py-2 px-4 border-b text-left">Amount (KES)</th>
-                                                        <th class="py-2 px-4 border-b text-left">M-PESA Number</th>
-                                                        <th class="py-2 px-4 border-b text-left">M-PESA Name</th>
-                                                        <th class="py-2 px-4 border-b text-left">Status</th>
-                                                        <th class="py-2 px-4 border-b text-left">Requested At</th>
-                                                        <th class="py-2 px-4 border-b text-left">M-PESA Ref</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${state.withdrawals
-                                                        .slice(
-                                                            (state.currentPage - 1) * pageSize,
-                                                            state.currentPage * pageSize
-                                                        )
-                                                        .map(
-                                                            (w) => `
-                                                        <tr>
-                                                            <td class="py-2 px-4 border-b">${parseFloat(
-                                                                w[1] || 0
-                                                            ).toFixed(2)}</td>
-                                                            <td class="py-2 px-4 border-b">${w[2] || '-'}</td>
-                                                            <td class="py-2 px-4 border-b">${w[3] || '-'}</td>
-                                                            <td class="py-2 px-4 border-b">${w[4] || 'Pending'}</td>
-                                                            <td class="py-2 px-4 border-b">${new Date(
-                                                                w[0] || Date.now()
-                                                            ).toLocaleString()}</td>
-                                                            <td class="py-2 px-4 border-b">${w[5] || '-'}</td>
-                                                        </tr>
-                                                    `
-                                                        )
-                                                        .join('')}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div class="mt-4 flex justify-between">
-                                            <button id="prev-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" ${
-                                                state.currentPage === 1 ? 'disabled' : ''
-                                            }>Previous</button>
-                                            <span class="text-gray-700">Page ${
-                                                state.currentPage
-                                            } of ${Math.ceil(state.withdrawals.length / pageSize)}</span>
-                                            <button id="next-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" ${
-                                                state.currentPage >=
-                                                Math.ceil(state.withdrawals.length / pageSize)
-                                                    ? 'disabled'
-                                                    : ''
-                                            }>Next</button>
-                                        </div>
-                                    </div>
-                                `
-                                        : state.currentTab === 'rewards'
-                                        ? `
-                                    <div class="bg-white p-6 rounded-lg shadow">
-                                        <h2 class="text-xl font-bold mb-4 text-gray-800">Rewards History</h2>
-                                        <div class="table-container">
-                                            <table class="min-w-full bg-white">
-                                                <thead>
-                                                    <tr>
-                                                        <th class="py-2 px-4 border-b text-left">Amount (KES)</th>
-                                                        <th class="py-2 px-4 border-b text-left">Description</th>
-                                                        <th class="py-2 px-4 border-b text-left">Received At</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${state.rewards
-                                                        .map(
-                                                            (r) => `
-                                                        <tr>
-                                                            <td class="py-2 px-4 border-b">${parseFloat(
-                                                                r[2] || 0
-                                                            ).toFixed(2)}</td>
-                                                            <td class="py-2 px-4 border-b">${r[3] || '-'}</td>
-                                                            <td class="py-2 px-4 border-b">${new Date(
-                                                                r[0] || Date.now()
-                                                            ).toLocaleString()}</td>
-                                                        </tr>
-                                                    `
-                                                        )
-                                                        .join('')}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                `
-                                        : state.currentTab === 'leaderboard'
-                                        ? `
-                                    <div class="bg-white p-6 rounded-lg shadow">
-                                        <h2 class="text-xl font-bold mb-4 text-gray-800">Leaderboard</h2>
-                                        <div class="table-container">
-                                            <table class="min-w-full bg-white">
-                                                <thead>
-                                                    <tr>
-                                                        <th class="py-2 px-4 border-b text-left">Rank</th>
-                                                        <th class="py-2 px-4 border-b text-left">Name</th>
-                                                        <th class="py-2 px-4 border-b text-left">Total Sales</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${state.leaderboard
-                                                        .map(
-                                                            (l, index) => `
-                                                        <tr>
-                                                            <td class="py-2 px-4 border-b">${index + 1}</td>
-                                                            <td class="py-2 px-4 border-b">${l.name || 'Unknown'}</td>
-                                                            <td class="py-2 px-4 border-b">${l.totalSales || 0}</td>
-                                                        </tr>
-                                                    `
-                                                        )
-                                                        .join('')}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                `
-                                        : ''
-                                }
-                            `}
-                        </main>
+      if (!page) return <div className="p-4 text-center">Page not found</div>;
 
-                        <!-- Footer -->
-                        <footer class="bg-white shadow-inner">
-                            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                                <p class="text-center text-gray-600">${state.settings.copyrightText || '© 2025 BotBlitz'}</p>
-                                <div class="flex justify-center space-x-4 mt-2">
-                                    ${state.staticPages.map(page => `
-                                        <a href="${page.slug || '#'}" class="text-gray-600 hover:underline">${page.title || 'Page'}</a>
-                                    `).join('')}
-                                    <a href="mailto:${state.settings.supportEmail || 'support@botblitz.store'}" class="text-gray-600 hover:underline">Support</a>
-                                </div>
-                            </div>
-                        </footer>
-                    </div>
-                `;
-            } else {
-                app.innerHTML = `
-                    <div class="min-h-screen bg-gray-100 flex items-center justify-center">
-                        <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full auth-card">
-                            <h1 class="text-2xl font-bold mb-6 text-gray-800 text-center">${
-                                state.isLogin ? 'Login to BotBlitz Affiliate' : 'Join BotBlitz Affiliate Program'
-                            }</h1>
-                            ${state.error ? `<p class="text-red-500 mb-4 text-center font-semibold">${state.error}</p>` : ''}
-                            <form id="auth-form">
-                                ${
-                                    !state.isLogin
-                                        ? `
-                                    <div class="mb-4">
-                                        <label class="block text-sm font-medium text-gray-700">Full Name</label>
-                                        <input type="text" id="full-name" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
-                                    </div>
-                                `
-                                        : ''
-                                }
-                                <div class="mb-4">
-                                    <label class="block text-sm font-medium text-gray-700">Email</label>
-                                    <input type="email" id="email" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
-                                </div>
-                                <div class="mb-4 relative">
-                                    <label class="block text-sm font-medium text-gray-700">Password</label>
-                                    <input type="${state.showPassword ? 'text' : 'password'}" id="password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
-                                    <button type="button" id="show-password" class="absolute right-2 top-8 text-gray-600 focus:outline-none">
-                                        <i class="fas ${state.showPassword ? 'fa-eye-slash' : 'fa-eye'}"></i>
-                                    </button>
-                                </div>
-                                ${
-                                    !state.isLogin
-                                        ? `
-                                    <div class="mb-4 flex items-center">
-                                        <input type="checkbox" id="terms" class="mr-2" required />
-                                        <label class="text-sm text-gray-700">I accept the <a href="/affiliate-terms" class="text-blue-500 hover:underline">terms and conditions</a></label>
-                                    </div>
-                                `
-                                        : ''
-                                }
-                                <button type="submit" id="auth-submit" class="btn w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400" disabled>
-                                    ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : state.isLogin ? 'Login' : 'Create Account'}
-                                </button>
-                            </form>
-                            <p class="mt-4 text-center text-gray-600">
-                                ${state.isLogin ? 'Already have an account?' : 'Don’t have an account?'}
-                                <button id="toggle-auth-mode" class="text-blue-500 hover:underline focus:outline-none">${
-                                    state.isLogin ? 'Sign Up' : 'Login'
-                                }</button>
-                            </p>
-                        </div>
-                    </div>
-                    <footer class="bg-white shadow-inner">
-                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                            <p class="text-center text-gray-600">${state.settings.copyrightText || '© 2025 BotBlitz'}</p>
-                            <div class="flex justify-center space-x-4 mt-2">
-                                ${state.staticPages.map(page => `
-                                    <a href="${page.slug || '#'}" class="text-gray-600 hover:underline">${page.title || 'Page'}</a>
-                                `).join('')}
-                                <a href="mailto:${state.settings.supportEmail || 'support@botblitz.store'}" class="text-gray-600 hover:underline">Support</a>
-                            </div>
-                        </div>
-                    </footer>
-                `;
-            }
+      return (
+        <div className="min-h-screen p-4 max-w-7xl mx-auto">
+          <h1 className="text-2xl font-bold mb-4">{page.title}</h1>
+          <div dangerouslySetInnerHTML={{ __html: page.content }} className="prose dark:prose-invert" />
+          <button
+            onClick={() => window.history.back()}
+            className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+          >
+            Back
+          </button>
+        </div>
+      );
+    };
 
-            if (state.modal.isOpen) {
-                showModal(state.modal.title, state.modal.content, state.modal.className);
-            }
+    // Popup Component
+    const Popup = ({ message, type, onClose }) => {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">
+              {type === 'success' ? 'Success' : type === 'error' ? 'Error' : 'Notice'}
+            </h3>
+            <p>{message}</p>
+            <button
+              onClick={onClose}
+              className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      );
+    };
 
-            setTimeout(attachEventListeners, 0);
-        }
-
-        // Initialize
-        initCookieConsent();
-        if (state.isAuthenticated && isTokenValid(state.token)) {
-            fetchDashboardData();
-        }
-        render();
-    </script>
+    // Render App
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
 </body>
 </html>
