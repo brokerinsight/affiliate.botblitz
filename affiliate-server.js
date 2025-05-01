@@ -28,18 +28,22 @@ const io = new Server(server, {
 });
 
 // Middleware
-app.use(helmet());
-app.use(cors({ origin: 'https://affiliate-botblitz.onrender.com', credentials: true }));
-app.use(express.json());
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: true, sameSite: 'strict', maxAge: 24 * 60 * 60 * 1000 },
-}));
-
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'", 'wss://affiliate-botblitz.onrender.com'],
+        fontSrc: ["'self'", '/assets/webfonts'],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+  })
+);
 // Rate limiter for login endpoints
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
