@@ -7,8 +7,8 @@
     <link rel="stylesheet" href="/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="icon" href="https://botblitz.store/favicon.ico">
-    <script src="/assets/axios.min.js"></script>
-    <script src="/assets/jwt-decode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/lib/jwt-decode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -64,7 +64,7 @@
                 mpesaName: '',
                 reuseDetails: false,
             },
-            settings: { commissionRate: 20, supportEmail: 'support@botblitz.store', copyrightText: '© 2025 BotBlitz', whatsappLink: '#' },
+            settings: { commissionRate: 0.2, supportEmail: 'support@botblitz.store', copyrightText: '© 2025 BotBlitz', whatsappLink: '#' },
             staticPages: [],
             notifications: [],
             withdrawals: [],
@@ -180,13 +180,20 @@
             try {
                 const res = await axios.get(`${API_URL}/data`);
                 state.user = { ...state.user, ...res.data };
-                state.settings = res.data.settings;
-                state.staticPages = res.data.staticPages;
+                // Compute commissionRate from monthlyCommission and totalSales
+                const commissionRate = res.data.totalSales > 0 ? res.data.monthlyCommission / res.data.totalSales : 0.2;
+                state.settings = {
+                    commissionRate: commissionRate || 0.2, // Fallback to 0.2 if undefined
+                    supportEmail: res.data.supportEmail || 'support@botblitz.store',
+                    copyrightText: res.data.copyrightText || '© 2025 BotBlitz',
+                    whatsappLink: res.data.whatsappLink || '#',
+                };
+                state.staticPages = res.data.staticPages || [];
                 state.notifications = res.data.notifications || [];
                 state.withdrawals = res.data.withdrawals || [];
                 state.rewards = res.data.rewards || [];
                 state.leaderboard = res.data.leaderboard || [];
-                state.unreadCount = state.notifications.filter((n) => !n[2]).length;
+                state.unreadCount = res.data.unreadCount || 0;
                 state.user.email = res.data.email;
                 connectWebSocket();
             } catch (err) {
@@ -345,11 +352,11 @@
         // Mark Notification as Read
         async function markNotificationRead(index) {
             const notification = state.notifications[index];
-            if (notification[2]) return;
+            if (notification[2] === 'true') return;
             try {
                 await axios.post(`${API_URL}/mark-notification`, { timestamp: notification[0] });
-                state.notifications[index][2] = true;
-                state.unreadCount--;
+                state.notifications[index][2] = 'true';
+                state.unreadCount = state.notifications.filter((n) => n[2] !== 'true').length;
                 showToast('Notification marked as read', false);
                 render();
             } catch (err) {
@@ -703,43 +710,59 @@
                         </footer>
                     </div>
                 `;
-                document.getElementById('tab-home').onclick = () => {
-                    state.currentTab = 'home';
-                    render();
-                };
-                document.getElementById('tab-withdrawals').onclick = () => {
-                    state.currentTab = 'withdrawals';
-                    state.currentPage = 1;
-                    render();
-                };
-                document.getElementById('tab-rewards').onclick = () => {
-                    state.currentTab = 'rewards';
-                    render();
-                };
-                document.getElementById('tab-leaderboard').onclick = () => {
-                    state.currentTab = 'leaderboard';
-                    render();
-                };
-                document.getElementById('copy-link')?.onclick = copyLink;
-                document.getElementById('commission-info')?.onclick = () =>
-                    showModal(
+
+                // Attach event listeners after DOM is rendered
+                setTimeout(() => {
+                    const tabHome = document.getElementById('tab-home');
+                    const tabWithdrawals = document.getElementById('tab-withdrawals');
+                    const tabRewards = document.getElementById('tab-rewards');
+                    const tabLeaderboard = document.getElementById('tab-leaderboard');
+                    const copyLinkBtn = document.getElementById('copy-link');
+                    const commissionInfoBtn = document.getElementById('commission-info');
+                    const withdrawalForm = document.getElementById('withdrawal-form');
+                    const prevPageBtn = document.getElementById('prev-page');
+                    const nextPageBtn = document.getElementById('next-page');
+                    const notificationsBtn = document.getElementById('notifications-btn');
+                    const settingsBtn = document.getElementById('settings-btn');
+                    const logoutBtn = document.getElementById('logout-btn');
+                    const passwordForm = document.getElementById('password-form');
+                    const deleteAccountBtn = document.getElementById('delete-account');
+
+                    if (tabHome) tabHome.onclick = () => {
+                        state.currentTab = 'home';
+                        render();
+                    };
+                    if (tabWithdrawals) tabWithdrawals.onclick = () => {
+                        state.currentTab = 'withdrawals';
+                        state.currentPage = 1;
+                        render();
+                    };
+                    if (tabRewards) tabRewards.onclick = () => {
+                        state.currentTab = 'rewards';
+                        render();
+                    };
+                    if (tabLeaderboard) tabLeaderboard.onclick = () => {
+                        state.currentTab = 'leaderboard';
+                        render();
+                    };
+                    if (copyLinkBtn) copyLinkBtn.onclick = copyLink;
+                    if (commissionInfoBtn) commissionInfoBtn.onclick = () => showModal(
                         'Commission Explanation',
                         `
-                        <p>We pay <strong>${state.settings.commissionRate * 100}%</strong> commission on each confirmed sale through your affiliate link.</p>
+                        <p>We pay <strong>${(state.settings.commissionRate * 100).toFixed(2)}%</strong> commission on each confirmed sale through your affiliate link.</p>
                         <p class="mt-2">Your affiliate link must be clicked within the last 24 hours for a sale to be credited to you.</p>
                     `
                     );
-                document.getElementById('withdrawal-form')?.onsubmit = handleWithdrawal;
-                document.getElementById('prev-page')?.onclick = () => {
-                    state.currentPage--;
-                    render();
-                };
-                document.getElementById('next-page')?.onclick = () => {
-                    state.currentPage++;
-                    render();
-                };
-                document.getElementById('notifications-btn').onclick = () =>
-                    showModal(
+                    if (withdrawalForm) withdrawalForm.onsubmit = handleWithdrawal;
+                    if (prevPageBtn) prevPageBtn.onclick = () => {
+                        state.currentPage--;
+                        render();
+                    };
+                    if (nextPageBtn) nextPageBtn.onclick = () => {
+                        state.currentPage++;
+                        render();
+                    };
+                    if (notificationsBtn) notificationsBtn.onclick = () => showModal(
                         'Notifications',
                         `
                         <div class="max-h-96 overflow-y-auto">
@@ -750,7 +773,7 @@
                                               (n, index) => `
                                             <div class="p-4 border-b flex justify-between items-center">
                                                 <div>
-                                                    <p class="${n[2] ? 'text-gray-600' : 'font-semibold'}">${
+                                                    <p class="${n[2] === 'true' ? 'text-gray-600' : 'font-semibold'}">${
                                                   n[1]
                                               }</p>
                                                     <p class="text-sm text-gray-500">${new Date(
@@ -758,7 +781,7 @@
                                                     ).toLocaleString()}</p>
                                                 </div>
                                                 <button class="mark-read-btn text-blue-500 hover:underline" data-index="${index}">${
-                                                    n[2] ? 'Read' : 'Mark as Read'
+                                                    n[2] === 'true' ? 'Read' : 'Mark as Read'
                                                 }</button>
                                             </div>
                                         `
@@ -769,11 +792,10 @@
                         </div>
                     `
                     );
-                document.querySelectorAll('.mark-read-btn').forEach((btn) =>
-                    btn.onclick = () => markNotificationRead(btn.dataset.index)
-                );
-                document.getElementById('settings-btn').onclick = () =>
-                    showModal(
+                    document.querySelectorAll('.mark-read-btn').forEach((btn) =>
+                        btn.onclick = () => markNotificationRead(btn.dataset.index)
+                    );
+                    if (settingsBtn) settingsBtn.onclick = () => showModal(
                         'Settings',
                         `
                         <div>
@@ -798,9 +820,10 @@
                         </div>
                     `
                     );
-                document.getElementById('password-form')?.onsubmit = handlePasswordUpdate;
-                document.getElementById('delete-account')?.onclick = handleDeleteAccount;
-                document.getElementById('logout-btn').onclick = logout;
+                    if (passwordForm) passwordForm.onsubmit = handlePasswordUpdate;
+                    if (deleteAccountBtn) deleteAccountBtn.onclick = handleDeleteAccount;
+                    if (logoutBtn) logoutBtn.onclick = logout;
+                }, 0);
             } else {
                 state.isLogin = route === '/login';
                 app.innerHTML = `
@@ -852,7 +875,8 @@
                         </div>
                     </div>
                 `;
-                document.getElementById('auth-form').onsubmit = handleAuth;
+                const authForm = document.getElementById('auth-form');
+                if (authForm) authForm.onsubmit = handleAuth;
             }
 
             if (state.modal.isOpen) {
