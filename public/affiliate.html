@@ -18,6 +18,8 @@
         .live-clicks { animation: pulse 2s infinite; }
         .toast { transition: opacity 0.5s ease; }
         .tick-icon { animation: tick 0.5s ease-in-out; }
+        .form-input { transition: border-color 0.2s ease; }
+        .form-input:focus { border-color: #2563eb; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes tick { 0% { transform: scale(0); } 100% { transform: scale(1); } }
         @media (max-width: 640px) {
@@ -26,7 +28,15 @@
             .popup { max-width: 90%; }
             .grid-cols-2 { grid-template-columns: 1fr; }
             .nav-icons { flex-direction: row; gap: 1rem; }
-            .auth-card { max-width: 90%; }
+            .auth-card { max-width: 90%; padding: 1rem; }
+            .form-input { font-size: 0.875rem; }
+            .main-content { padding: 1rem; }
+            .tab-btn { font-size: 0.875rem; padding: 0.5rem 1rem; }
+        }
+        @media (min-width: 641px) and (max-width: 1024px) {
+            .auth-card { max-width: 75%; }
+            .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+            .main-content { padding: 2rem; }
         }
     </style>
 </head>
@@ -52,6 +62,7 @@
         // State
         let state = {
             isLogin: true,
+            isAuthenticated: !!localStorage.getItem('affiliateToken'),
             token: localStorage.getItem('affiliateToken'),
             user: {
                 fullName: localStorage.getItem('affiliateName') || '',
@@ -63,6 +74,7 @@
                 mpesaNumber: '',
                 mpesaName: '',
                 reuseDetails: false,
+                pendingWithdrawals: 0,
             },
             settings: { commissionRate: 0.2, supportEmail: 'support@botblitz.store', copyrightText: '© 2025 BotBlitz', whatsappLink: '#' },
             staticPages: [],
@@ -196,6 +208,7 @@
                 state.leaderboard = res.data.leaderboard || [];
                 state.unreadCount = res.data.unreadCount || 0;
                 state.user.email = res.data.email;
+                state.user.pendingWithdrawals = res.data.pendingWithdrawals || 0;
                 connectWebSocket();
             } catch (err) {
                 state.error = err.response?.data?.error || 'Failed to load data';
@@ -224,7 +237,14 @@
                 const passwordValid = password.length >= 8 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
                 state.formValid = names.length >= 2 && emailValid && passwordValid && terms;
             }
-            render();
+
+            // Update submit button state without re-rendering
+            const authSubmit = document.getElementById('auth-submit');
+            if (authSubmit) {
+                authSubmit.disabled = !state.formValid;
+                authSubmit.classList.toggle('bg-gray-400', !state.formValid);
+                authSubmit.classList.toggle('bg-blue-600', state.formValid);
+            }
         }
 
         // Handle Signup/Login
@@ -245,7 +265,6 @@
             if (state.isLogin) {
                 if (!email || !password) {
                     state.error = 'Email and password are required';
-                    console.log('Login validation failed:', { email, password });
                     showToast(state.error, true);
                     state.loading = false;
                     render();
@@ -253,7 +272,6 @@
                 }
             } else {
                 const names = fullName.split(' ').filter(name => name.length > 0);
-                console.log('Names after split:', names);
                 if (names.length < 2) {
                     state.error = 'Full name must include first and last name (e.g., John Doe)';
                     showToast(state.error, true);
@@ -291,11 +309,11 @@
                     : { fullName, email, password, termsAccepted: terms };
                 const res = await axios.post(`${API_URL}${endpoint}`, payload);
                 state.token = res.data.token;
+                state.isAuthenticated = true;
                 localStorage.setItem('affiliateToken', res.data.token);
                 localStorage.setItem('affiliateName', res.data.name);
                 localStorage.setItem('affiliateRefCode', res.data.refCode);
                 showToast(state.isLogin ? 'Login successful' : 'Account created successfully', false);
-                window.location.hash = '/dashboard';
             } catch (err) {
                 state.error = err.response?.data?.error || 'An error occurred';
                 showToast(state.error, true);
@@ -360,6 +378,7 @@
                     [new Date().toISOString(), amount, mpesaNumber, mpesaName, 'Pending', '', reuseDetails],
                     ...state.withdrawals,
                 ];
+                state.user.pendingWithdrawals += 1;
                 showModal(
                     'Withdrawal Submitted',
                     `
@@ -392,7 +411,7 @@
             if (notification[2] === true || notification[2] === 'true') return;
             try {
                 await axios.post(`${API_URL}/mark-notification`, { timestamp: notification[0] });
-                state.notifications[index][2] = 'true';
+                state.notifications.splice(index, 1); // Delete the notification
                 state.unreadCount = state.notifications.filter((n) => n[2] !== 'true' && n[2] !== true).length;
                 showToast('Notification marked as read', false);
                 render();
@@ -448,6 +467,22 @@
                 return;
             }
 
+            if (state.user.currentBalance > 0) {
+                state.error = 'Cannot delete account with a non-zero balance';
+                showToast(state.error, true);
+                state.loading = false;
+                render();
+                return;
+            }
+
+            if (state.user.pendingWithdrawals > 0) {
+                state.error = 'Cannot delete account with pending withdrawals';
+                showToast(state.error, true);
+                state.loading = false;
+                render();
+                return;
+            }
+
             try {
                 await axios.post(`${API_URL}/delete-account`, { password: deletePassword });
                 showToast('Account deleted successfully', false);
@@ -465,25 +500,38 @@
             if (ws) ws.close();
             localStorage.clear();
             state.token = null;
-            state.user = { fullName: '', email: '', refCode: '', linkClicks: 0, totalSales: 0, currentBalance: 0 };
+            state.isAuthenticated = false;
+            state.user = { fullName: '', email: '', refCode: '', linkClicks: 0, totalSales: 0, currentBalance: 0, pendingWithdrawals: 0 };
             state.notifications = [];
             state.unreadCount = 0;
-            window.location.hash = '/login';
-        }
-
-        // Routing
-        function getCurrentRoute() {
-            const hash = window.location.hash || '#/login';
-            if (state.token && isTokenValid(state.token)) {
-                if (hash === '#/login' || hash === '#/signup') return '/dashboard';
-                return hash.slice(1);
-            }
-            if (hash === '#/dashboard') return '/login';
-            return hash.slice(1);
+            render();
         }
 
         // Attach Event Listeners Safely
         function attachEventListeners() {
+            // Auth Form
+            const authForm = document.getElementById('auth-form');
+            const showPasswordBtn = document.getElementById('show-password');
+            const toggleAuthMode = document.getElementById('toggle-auth-mode');
+            if (authForm) {
+                ['full-name', 'email', 'password', 'terms'].forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) element.oninput = validateForm;
+                });
+                authForm.onsubmit = handleAuth;
+            }
+            if (showPasswordBtn) showPasswordBtn.onclick = () => {
+                state.showPassword = !state.showPassword;
+                render();
+            };
+            if (toggleAuthMode) toggleAuthMode.onclick = () => {
+                state.isLogin = !state.isLogin;
+                state.error = '';
+                validateForm();
+                render();
+            };
+
+            // Dashboard
             const tabHome = document.getElementById('tab-home');
             const tabWithdrawals = document.getElementById('tab-withdrawals');
             const tabRewards = document.getElementById('tab-rewards');
@@ -496,8 +544,6 @@
             const notificationsBtn = document.getElementById('notifications-btn');
             const settingsBtn = document.getElementById('settings-btn');
             const logoutBtn = document.getElementById('logout-btn');
-            const passwordForm = document.getElementById('password-form');
-            const deleteAccountForm = document.getElementById('delete-account-form');
 
             if (tabHome) tabHome.onclick = () => {
                 state.currentTab = 'home';
@@ -579,11 +625,11 @@
                         <form id="password-form">
                             <div class="mb-4">
                                 <label class="block text-sm font-medium text-gray-700">Current Password</label>
-                                <input type="password" id="current-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                <input type="password" id="current-password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
                             </div>
                             <div class="mb-4">
                                 <label class="block text-sm font-medium text-gray-700">New Password</label>
-                                <input type="password" id="new-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                <input type="password" id="new-password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
                             </div>
                             <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Update Password</button>
                         </form>
@@ -591,7 +637,7 @@
                         <form id="delete-account-form">
                             <div class="mb-4">
                                 <label class="block text-sm font-medium text-gray-700">Password</label>
-                                <input type="password" id="delete-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                <input type="password" id="delete-password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
                             </div>
                             <button type="button" id="delete-account-btn" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Delete Account</button>
                         </form>
@@ -634,9 +680,8 @@
         // Render
         function render() {
             const app = document.getElementById('app');
-            const route = getCurrentRoute();
 
-            if (route === '/dashboard') {
+            if (state.isAuthenticated && isTokenValid(state.token)) {
                 app.innerHTML = `
                     <div class="min-h-screen bg-gray-100">
                         <!-- Navigation -->
@@ -644,7 +689,7 @@
                             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                                 <div class="flex justify-between h-16">
                                     <div class="flex items-center">
-                                        <span class="text-xl font-bold text-gray-800">BotBlitz Affiliates</span>
+                                        <span class="text-xl font-bold text-gray-800">Deriv Bot Store Affiliates</span>
                                     </div>
                                     <div class="flex items-center nav-icons space-x-4">
                                         <a href="${state.settings.whatsappLink || '#'}" target="_blank" class="text-2xl text-green-500">
@@ -672,23 +717,23 @@
                         </nav>
 
                         <!-- Main Content -->
-                        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 main-content">
                             <h1 class="text-3xl font-bold mb-8 text-gray-800">Welcome, ${state.user.fullName || 'User'}</h1>
                             <div class="flex flex-wrap space-x-4 mb-8">
-                                <button id="tab-home" class="px-4 py-2 rounded-md focus:outline-none ${
+                                <button id="tab-home" class="tab-btn px-4 py-2 rounded-md focus:outline-none ${
                                     state.currentTab === 'home' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
                                 }">Home</button>
-                                <button id="tab-withdrawals" class="px-4 py-2 rounded-md focus:outline-none ${
+                                <button id="tab-withdrawals" class="tab-btn px-4 py-2 rounded-md focus:outline-none ${
                                     state.currentTab === 'withdrawals'
                                         ? 'bg-blue-600 text-white'
                                         : 'bg-gray-200 text-gray-700'
                                 }">Withdrawal History</button>
-                                <button id="tab-rewards" class="px-4 py-2 rounded-md focus:outline-none ${
+                                <button id="tab-rewards" class="tab-btn px-4 py-2 rounded-md focus:outline-none ${
                                     state.currentTab === 'rewards'
                                         ? 'bg-blue-600 text-white'
                                         : 'bg-gray-200 text-gray-700'
                                 }">Rewards</button>
-                                <button id="tab-leaderboard" class="px-4 py-2 rounded-md focus:outline-none ${
+                                <button id="tab-leaderboard" class="tab-btn px-4 py-2 rounded-md focus:outline-none ${
                                     state.currentTab === 'leaderboard'
                                         ? 'bg-blue-600 text-white'
                                         : 'bg-gray-200 text-gray-700'
@@ -738,19 +783,19 @@
                                             <form id="withdrawal-form">
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">Amount (KES)</label>
-                                                    <input type="number" id="withdrawal-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" value="${
+                                                    <input type="number" id="withdrawal-amount" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" min="1" value="${
                                                         state.user.currentBalance || 0
                                                     }" required />
                                                 </div>
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">M-PESA Number</label>
-                                                    <input type="text" id="mpesa-number" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" value="${
+                                                    <input type="text" id="mpesa-number" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" value="${
                                                         state.user.mpesaNumber || ''
                                                     }" pattern="^07[0-9]{8}$" required />
                                                 </div>
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">M-PESA Name</label>
-                                                    <input type="text" id="mpesa-name" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" value="${
+                                                    <input type="text" id="mpesa-name" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" value="${
                                                         state.user.mpesaName || ''
                                                     }" required />
                                                 </div>
@@ -762,7 +807,7 @@
                                                 </div>
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">Password</label>
-                                                    <input type="password" id="withdrawal-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                                    <input type="password" id="withdrawal-password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
                                                 </div>
                                                 <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400" ${
                                                     state.user.currentBalance <= 0 ? 'disabled' : ''
@@ -914,34 +959,32 @@
                         </footer>
                     </div>
                 `;
-                setTimeout(attachEventListeners, 0);
             } else {
-                state.isLogin = route === '/login';
                 app.innerHTML = `
                     <div class="min-h-screen bg-gray-100 flex items-center justify-center">
                         <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full auth-card">
                             <h1 class="text-2xl font-bold mb-6 text-gray-800 text-center">${
-                                state.isLogin ? 'Login' : 'Sign Up'
+                                state.isLogin ? 'Login to BotBlitz Affiliate' : 'Join BotBlitz Affiliate Program'
                             }</h1>
-                            ${state.error ? `<p class="text-red-500 mb-4 text-center">${state.error}</p>` : ''}
+                            ${state.error ? `<p class="text-red-500 mb-4 text-center font-semibold">${state.error}</p>` : ''}
                             <form id="auth-form">
                                 ${
                                     !state.isLogin
                                         ? `
                                     <div class="mb-4">
                                         <label class="block text-sm font-medium text-gray-700">Full Name</label>
-                                        <input type="text" id="full-name" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                        <input type="text" id="full-name" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
                                     </div>
                                 `
                                         : ''
                                 }
                                 <div class="mb-4">
                                     <label class="block text-sm font-medium text-gray-700">Email</label>
-                                    <input type="email" id="email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                    <input type="email" id="email" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
                                 </div>
                                 <div class="mb-4 relative">
                                     <label class="block text-sm font-medium text-gray-700">Password</label>
-                                    <input type="${state.showPassword ? 'text' : 'password'}" id="password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+                                    <input type="${state.showPassword ? 'text' : 'password'}" id="password" class="mt-1 p-2 w-full border rounded-md form-input focus:ring-blue-500 focus:border-blue-500" required />
                                     <button type="button" id="show-password" class="absolute right-2 top-8 text-gray-600 focus:outline-none">
                                         <i class="fas ${state.showPassword ? 'fa-eye-slash' : 'fa-eye'}"></i>
                                     </button>
@@ -956,17 +999,15 @@
                                 `
                                         : ''
                                 }
-                                <button type="submit" class="btn w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400" ${
-                                    state.formValid ? '' : 'disabled'
-                                }>
+                                <button type="submit" id="auth-submit" class="btn w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400" disabled>
                                     ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : state.isLogin ? 'Login' : 'Create Account'}
                                 </button>
                             </form>
                             <p class="mt-4 text-center text-gray-600">
-                                ${state.isLogin ? "Don't have an account?" : 'Already have an account?'}
-                                <a href="${state.isLogin ? '#/signup' : '#/login'}" class="text-blue-500 hover:underline">${
+                                ${state.isLogin ? 'Already have an account?' : 'Don’t have an account?'}
+                                <button id="toggle-auth-mode" class="text-blue-500 hover:underline focus:outline-none">${
                                     state.isLogin ? 'Sign Up' : 'Login'
-                                }</a>
+                                }</button>
                             </p>
                         </div>
                     </div>
@@ -982,32 +1023,18 @@
                         </div>
                     </footer>
                 `;
-                setTimeout(() => {
-                    const authForm = document.getElementById('auth-form');
-                    const showPasswordBtn = document.getElementById('show-password');
-                    if (authForm) {
-                        ['full-name', 'email', 'password', 'terms'].forEach(id => {
-                            const element = document.getElementById(id);
-                            if (element) element.oninput = validateForm;
-                        });
-                        authForm.onsubmit = handleAuth;
-                    }
-                    if (showPasswordBtn) showPasswordBtn.onclick = () => {
-                        state.showPassword = !state.showPassword;
-                        render();
-                    };
-                }, 0);
             }
 
             if (state.modal.isOpen) {
                 showModal(state.modal.title, state.modal.content, state.modal.className);
             }
+
+            setTimeout(attachEventListeners, 0);
         }
 
         // Initialize
-        window.onhashchange = render;
         initCookieConsent();
-        if (state.token && isTokenValid(state.token)) {
+        if (state.isAuthenticated && isTokenValid(state.token)) {
             fetchDashboardData();
         }
         render();
