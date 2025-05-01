@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotBlitz Affiliate Program</title>
     <link rel="stylesheet" href="/output.css">
-    <link rel="stylesheet" href="/assets/font-awesome.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="icon" href="https://botblitz.store/favicon.ico">
     <script src="/assets/axios.min.js"></script>
     <script src="/assets/jwt-decode.min.js"></script>
@@ -45,8 +45,8 @@
         <button id="cookie-accept" class="mt-2 btn bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Accept</button>
     </div>
     <script>
-        const API_URL = 'https://botblitz.store:10001/api/affiliate';
-        const WS_URL = 'wss://botblitz.store:10001';
+        const API_URL = 'https://affiliate-botblitz.onrender.com/api/affiliate';
+        const WS_URL = 'wss://affiliate-botblitz.onrender.com';
         const pageSize = 20;
 
         // State
@@ -212,7 +212,8 @@
 
             // Client-side Validation
             if (!state.isLogin) {
-                if (fullName.split(' ').length < 2) {
+                const names = fullName.split(' ').filter(name => name.trim() !== '');
+                if (names.length < 2) {
                     state.error = 'Full name must include first and last name';
                     showToast(state.error, true);
                     state.loading = false;
