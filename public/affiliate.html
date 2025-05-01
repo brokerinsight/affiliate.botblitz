@@ -62,7 +62,7 @@
                 currentBalance: 0,
                 mpesaNumber: '',
                 mpesaName: '',
-                reuseDetails: false
+                reuseDetails: false,
             },
             settings: { commissionRate: 20, supportEmail: 'support@botblitz.store', copyrightText: '© 2025 BotBlitz', whatsappLink: '#' },
             staticPages: [],
@@ -75,7 +75,7 @@
             currentPage: 1,
             loading: false,
             error: '',
-            modal: { isOpen: false, title: '', content: '', className: '' }
+            modal: { isOpen: false, title: '', content: '', className: '' },
         };
 
         let ws = null;
@@ -92,14 +92,17 @@
         }
 
         // Axios Interceptor
-        axios.interceptors.request.use(config => {
-            if (state.token) config.headers.Authorization = `Bearer ${state.token}`;
-            config.headers['x-device-id'] = navigator.userAgent;
-            return config;
-        }, error => {
-            console.error('Axios request error:', error);
-            return Promise.reject(error);
-        });
+        axios.interceptors.request.use(
+            (config) => {
+                if (state.token) config.headers.Authorization = `Bearer ${state.token}`;
+                config.headers['x-device-id'] = navigator.userAgent;
+                return config;
+            },
+            (error) => {
+                console.error('Axios request error:', error);
+                return Promise.reject(error);
+            }
+        );
 
         // WebSocket Connection
         function connectWebSocket() {
@@ -183,7 +186,7 @@
                 state.withdrawals = res.data.withdrawals || [];
                 state.rewards = res.data.rewards || [];
                 state.leaderboard = res.data.leaderboard || [];
-                state.unreadCount = state.notifications.filter(n => !n[2]).length;
+                state.unreadCount = state.notifications.filter((n) => !n[2]).length;
                 state.user.email = res.data.email;
                 connectWebSocket();
             } catch (err) {
@@ -205,16 +208,24 @@
             state.loading = true;
             render();
 
-            const fullName = document.getElementById('full-name')?.value.trim();
+            const fullName = document.getElementById('full-name')?.value.trim().replace(/\s+/g, ' ');
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const terms = document.getElementById('terms')?.checked;
 
             // Client-side Validation
-            if (!state.isLogin) {
-                const names = fullName.split(' ').filter(name => name.trim() !== '');
-                if (names.length < 2) {
-                    state.error = 'Full name must include first and last name';
+            if (state.isLogin) {
+                if (!email || !password) {
+                    state.error = 'Email and password are required';
+                    showToast(state.error, true);
+                    state.loading = false;
+                    render();
+                    return;
+                }
+            } else {
+                const names = fullName?.split(' ').filter((name) => name.trim() !== '') || [];
+                if (!fullName || names.length < 2) {
+                    state.error = 'Full name must include first and last name (e.g., John Doe)';
                     showToast(state.error, true);
                     state.loading = false;
                     render();
@@ -298,16 +309,23 @@
                     mpesaNumber,
                     mpesaName,
                     reuseDetails,
-                    password
+                    password,
                 });
                 state.user.currentBalance -= parseFloat(amount);
-                state.withdrawals = [[new Date().toISOString(), amount, mpesaNumber, mpesaName, 'Pending', '', reuseDetails], ...state.withdrawals];
-                showModal('Withdrawal Submitted', `
+                state.withdrawals = [
+                    [new Date().toISOString(), amount, mpesaNumber, mpesaName, 'Pending', '', reuseDetails],
+                    ...state.withdrawals,
+                ];
+                showModal(
+                    'Withdrawal Submitted',
+                    `
                     <div class="text-center">
                         <i class="fas fa-check-circle text-4xl text-green-500 mb-4 tick-icon"></i>
                         <p>Your withdrawal request has been submitted successfully. You will receive it as soon as it is processed.</p>
                     </div>
-                `, 'text-center');
+                `,
+                    'text-center'
+                );
                 showToast('Withdrawal request submitted', false);
             } catch (err) {
                 state.error = err.response?.data?.error || 'Withdrawal failed';
@@ -350,7 +368,7 @@
             const newPassword = document.getElementById('new-password').value;
 
             try {
-                await axios.post(`${API_URL}/update-password`, { currentPassword, newPassword });
+                await axios.post(`${API_URL}/update-password`, { oldPassword: currentPassword, newPassword });
                 showToast('Password updated successfully', false);
                 logout();
             } catch (err) {
@@ -425,7 +443,11 @@
                                         <div class="relative">
                                             <button id="notifications-btn" class="relative focus:outline-none">
                                                 <i class="fas fa-bell text-2xl text-gray-600"></i>
-                                                ${state.unreadCount > 0 ? `<span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full px-2">${state.unreadCount}</span>` : ''}
+                                                ${
+                                                    state.unreadCount > 0
+                                                        ? `<span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full px-2">${state.unreadCount}</span>`
+                                                        : ''
+                                                }
                                             </button>
                                         </div>
                                         <button id="settings-btn" class="focus:outline-none">
@@ -443,31 +465,60 @@
                         <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                             <h1 class="text-3xl font-bold mb-8 text-gray-800">Welcome, ${state.user.fullName}</h1>
                             <div class="flex space-x-4 mb-8">
-                                <button id="tab-home" class="px-4 py-2 rounded-md focus:outline-none ${state.currentTab === 'home' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}">Home</button>
-                                <button id="tab-withdrawals" class="px-4 py-2 rounded-md focus:outline-none ${state.currentTab === 'withdrawals' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}">Withdrawal History</button>
-                                <button id="tab-rewards" class="px-4 py-2 rounded-md focus:outline-none ${state.currentTab === 'rewards' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}">Rewards</button>
-                                <button id="tab-leaderboard" class="px-4 py-2 rounded-md focus:outline-none ${state.currentTab === 'leaderboard' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}">Leaderboard</button>
+                                <button id="tab-home" class="px-4 py-2 rounded-md focus:outline-none ${
+                                    state.currentTab === 'home' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+                                }">Home</button>
+                                <button id="tab-withdrawals" class="px-4 py-2 rounded-md focus:outline-none ${
+                                    state.currentTab === 'withdrawals'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-200 text-gray-700'
+                                }">Withdrawal History</button>
+                                <button id="tab-rewards" class="px-4 py-2 rounded-md focus:outline-none ${
+                                    state.currentTab === 'rewards'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-200 text-gray-700'
+                                }">Rewards</button>
+                                <button id="tab-leaderboard" class="px-4 py-2 rounded-md focus:outline-none ${
+                                    state.currentTab === 'leaderboard'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-200 text-gray-700'
+                                }">Leaderboard</button>
                             </div>
-                            ${state.loading ? `
+                            ${
+                                state.loading
+                                    ? `
                                 <div class="flex justify-center items-center">
                                     <i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i>
                                 </div>
-                            ` : state.error ? `
+                            `
+                                    : state.error
+                                    ? `
                                 <p class="text-red-600">${state.error}</p>
-                            ` : `
-                                ${state.currentTab === 'home' ? `
+                            `
+                                    : `
+                                ${
+                                    state.currentTab === 'home'
+                                        ? `
                                     <div>
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                                             <div class="bg-white p-6 rounded-lg shadow">
                                                 <h2 class="text-xl font-bold mb-4 text-gray-800">Affiliate Link</h2>
-                                                <p class="text-blue-500 break-all mb-2">https://botblitz.store?ref=${state.user.refCode}</p>
+                                                <p class="text-blue-500 break-all mb-2">https://botblitz.store?ref=${
+                                                    state.user.refCode
+                                                }</p>
                                                 <button id="copy-link" class="btn bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Copy Link</button>
                                             </div>
                                             <div class="bg-white p-6 rounded-lg shadow">
                                                 <h2 class="text-xl font-bold mb-4 text-gray-800">Statistics</h2>
-                                                <p><strong>Live Link Clicks:</strong> <span class="live-clicks font-semibold">${state.user.linkClicks || 0}</span></p>
-                                                <p><strong>Total Sales:</strong> <span class="font-semibold">${state.user.totalSales || 0}</span></p>
-                                                <p><strong>Current Balance:</strong> <span class="font-semibold">${(state.user.currentBalance || 0).toFixed(2)} KES</span></p>
+                                                <p><strong>Live Link Clicks:</strong> <span class="live-clicks font-semibold">${
+                                                    state.user.linkClicks || 0
+                                                }</span></p>
+                                                <p><strong>Total Sales:</strong> <span class="font-semibold">${
+                                                    state.user.totalSales || 0
+                                                }</span></p>
+                                                <p><strong>Current Balance:</strong> <span class="font-semibold">${
+                                                    (state.user.currentBalance || 0).toFixed(2)
+                                                } KES</span></p>
                                                 <button id="commission-info" class="mt-2 text-blue-500 hover:underline">How is commission calculated?</button>
                                             </div>
                                         </div>
@@ -477,31 +528,43 @@
                                             <form id="withdrawal-form">
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">Amount (KES)</label>
-                                                    <input type="number" id="withdrawal-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" max="${state.user.currentBalance || 0}" required />
+                                                    <input type="number" id="withdrawal-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" max="${
+                                                        state.user.currentBalance || 0
+                                                    }" required />
                                                 </div>
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">M-PESA Number</label>
-                                                    <input type="text" id="mpesa-number" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" value="${state.user.mpesaNumber}" pattern="^07[0-9]{8}$" required />
+                                                    <input type="text" id="mpesa-number" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" value="${
+                                                        state.user.mpesaNumber
+                                                    }" pattern="^07[0-9]{8}$" required />
                                                 </div>
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">M-PESA Name</label>
-                                                    <input type="text" id="mpesa-name" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" value="${state.user.mpesaName}" required />
+                                                    <input type="text" id="mpesa-name" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" value="${
+                                                        state.user.mpesaName
+                                                    }" required />
                                                 </div>
                                                 <div class="mb-4 flex items-center">
-                                                    <input type="checkbox" id="reuse-details" class="mr-2" ${state.user.reuseDetails ? 'checked' : ''} />
+                                                    <input type="checkbox" id="reuse-details" class="mr-2" ${
+                                                        state.user.reuseDetails ? 'checked' : ''
+                                                    } />
                                                     <label class="text-sm text-gray-700">Save M-PESA details for future withdrawals</label>
                                                 </div>
                                                 <div class="mb-4">
                                                     <label class="block text-sm font-medium text-gray-700">Password</label>
                                                     <input type="password" id="withdrawal-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
                                                 </div>
-                                                <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400" ${state.user.currentBalance <= 0 ? 'disabled' : ''}>
+                                                <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400" ${
+                                                    state.user.currentBalance <= 0 ? 'disabled' : ''
+                                                }>
                                                     ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : 'Withdraw'}
                                                 </button>
                                             </form>
                                         </div>
                                     </div>
-                                ` : state.currentTab === 'withdrawals' ? `
+                                `
+                                        : state.currentTab === 'withdrawals'
+                                        ? `
                                     <div class="bg-white p-6 rounded-lg shadow">
                                         <h2 class="text-xl font-bold mb-4 text-gray-800">Withdrawal History</h2>
                                         <div class="table-container">
@@ -517,26 +580,49 @@
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    ${state.withdrawals.slice((state.currentPage - 1) * pageSize, state.currentPage * pageSize).map(w => `
+                                                    ${state.withdrawals
+                                                        .slice(
+                                                            (state.currentPage - 1) * pageSize,
+                                                            state.currentPage * pageSize
+                                                        )
+                                                        .map(
+                                                            (w) => `
                                                         <tr>
-                                                            <td class="py-2 px-4 border-b">${parseFloat(w[1]).toFixed(2)}</td>
+                                                            <td class="py-2 px-4 border-b">${parseFloat(
+                                                                w[1]
+                                                            ).toFixed(2)}</td>
                                                             <td class="py-2 px-4 border-b">${w[2]}</td>
                                                             <td class="py-2 px-4 border-b">${w[3]}</td>
                                                             <td class="py-2 px-4 border-b">${w[4]}</td>
-                                                            <td class="py-2 px-4 border-b">${new Date(w[0]).toLocaleString()}</td>
+                                                            <td class="py-2 px-4 border-b">${new Date(
+                                                                w[0]
+                                                            ).toLocaleString()}</td>
                                                             <td class="py-2 px-4 border-b">${w[5] || '-'}</td>
                                                         </tr>
-                                                    `).join('')}
+                                                    `
+                                                        )
+                                                        .join('')}
                                                 </tbody>
                                             </table>
                                         </div>
                                         <div class="mt-4 flex justify-between">
-                                            <button id="prev-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" ${state.currentPage === 1 ? 'disabled' : ''}>Previous</button>
-                                            <span class="text-gray-700">Page ${state.currentPage} of ${Math.ceil(state.withdrawals.length / pageSize)}</span>
-                                            <button id="next-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" ${state.currentPage >= Math.ceil(state.withdrawals.length / pageSize) ? 'disabled' : ''}>Next</button>
+                                            <button id="prev-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" ${
+                                                state.currentPage === 1 ? 'disabled' : ''
+                                            }>Previous</button>
+                                            <span class="text-gray-700">Page ${
+                                                state.currentPage
+                                            } of ${Math.ceil(state.withdrawals.length / pageSize)}</span>
+                                            <button id="next-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" ${
+                                                state.currentPage >=
+                                                Math.ceil(state.withdrawals.length / pageSize)
+                                                    ? 'disabled'
+                                                    : ''
+                                            }>Next</button>
                                         </div>
                                     </div>
-                                ` : state.currentTab === 'rewards' ? `
+                                `
+                                        : state.currentTab === 'rewards'
+                                        ? `
                                     <div class="bg-white p-6 rounded-lg shadow">
                                         <h2 class="text-xl font-bold mb-4 text-gray-800">Rewards History</h2>
                                         <div class="table-container">
@@ -549,20 +635,30 @@
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    ${state.rewards.map(r => `
+                                                    ${state.rewards
+                                                        .map(
+                                                            (r) => `
                                                         <tr>
-                                                            <td class="py-2 px-4 border-b">${parseFloat(r[2]).toFixed(2)}</td>
+                                                            <td class="py-2 px-4 border-b">${parseFloat(
+                                                                r[2]
+                                                            ).toFixed(2)}</td>
                                                             <td class="py-2 px-4 border-b">${r[3]}</td>
-                                                            <td class="py-2 px-4 border-b">${new Date(r[0]).toLocaleString()}</td>
+                                                            <td class="py-2 px-4 border-b">${new Date(
+                                                                r[0]
+                                                            ).toLocaleString()}</td>
                                                         </tr>
-                                                    `).join('')}
+                                                    `
+                                                        )
+                                                        .join('')}
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
-                                ` : state.currentTab === 'leaderboard' ? `
+                                `
+                                        : state.currentTab === 'leaderboard'
+                                        ? `
                                     <div class="bg-white p-6 rounded-lg shadow">
-                                        <h2 class="text-xl font-bold mb-4 text-gray-800">Top 10 Affiliates</h2>
+                                        <h2 class="text-xl font-bold mb-4 text-gray-800">Leaderboard</h2>
                                         <div class="table-container">
                                             <table class="min-w-full bg-white">
                                                 <thead>
@@ -573,194 +669,190 @@
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    ${state.leaderboard.map((l, i) => `
+                                                    ${state.leaderboard
+                                                        .map(
+                                                            (l, index) => `
                                                         <tr>
-                                                            <td class="py-2 px-4 border-b">${i + 1}</td>
+                                                            <td class="py-2 px-4 border-b">${index + 1}</td>
                                                             <td class="py-2 px-4 border-b">${l.name}</td>
                                                             <td class="py-2 px-4 border-b">${l.totalSales}</td>
                                                         </tr>
-                                                    `).join('')}
+                                                    `
+                                                        )
+                                                        .join('')}
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
-                                ` : ''}
+                                `
+                                        : ''
+                                }
                             `}
                         </main>
 
                         <!-- Footer -->
-                        <footer class="bg-white shadow-md mt-8 py-4">
-                            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-600">
-                                <div class="mb-2 flex flex-wrap justify-center gap-2">
-                                    ${state.staticPages.map(page => `<a href="/${page.slug}" class="text-blue-500 hover:underline" target="_blank">${page.title}</a>`).join(' ')}
+                        <footer class="bg-white shadow-inner">
+                            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                                <p class="text-center text-gray-600">${state.settings.copyrightText}</p>
+                                <div class="flex justify-center space-x-4 mt-2">
+                                    <a href="/terms" class="text-gray-600 hover:underline">Terms</a>
+                                    <a href="/privacy" class="text-gray-600 hover:underline">Privacy</a>
+                                    <a href="mailto:${state.settings.supportEmail}" class="text-gray-600 hover:underline">Support</a>
                                 </div>
-                                <p>${state.settings.copyrightText}</p>
                             </div>
                         </footer>
                     </div>
                 `;
-
-                // Event Listeners for Dashboard
-                document.getElementById('tab-home')?.addEventListener('click', () => {
+                document.getElementById('tab-home').onclick = () => {
                     state.currentTab = 'home';
                     render();
-                });
-                document.getElementById('tab-withdrawals')?.addEventListener('click', () => {
+                };
+                document.getElementById('tab-withdrawals').onclick = () => {
                     state.currentTab = 'withdrawals';
+                    state.currentPage = 1;
                     render();
-                });
-                document.getElementById('tab-rewards')?.addEventListener('click', () => {
+                };
+                document.getElementById('tab-rewards').onclick = () => {
                     state.currentTab = 'rewards';
                     render();
-                });
-                document.getElementById('tab-leaderboard')?.addEventListener('click', () => {
+                };
+                document.getElementById('tab-leaderboard').onclick = () => {
                     state.currentTab = 'leaderboard';
                     render();
-                });
-                document.getElementById('copy-link')?.addEventListener('click', copyLink);
-                document.getElementById('commission-info')?.addEventListener('click', () => {
-                    showModal('How Commission is Calculated', `Commission is calculated as ${state.settings.commissionRate}% of each confirmed sale. For example, a 1000 KES sale earns ${(state.settings.commissionRate / 100 * 1000).toFixed(2)} KES.`);
-                });
-                document.getElementById('withdrawal-form')?.addEventListener('submit', handleWithdrawal);
-                document.getElementById('prev-page')?.addEventListener('click', () => {
+                };
+                document.getElementById('copy-link')?.onclick = copyLink;
+                document.getElementById('commission-info')?.onclick = () =>
+                    showModal(
+                        'Commission Explanation',
+                        `
+                        <p>We pay <strong>${state.settings.commissionRate * 100}%</strong> commission on each confirmed sale through your affiliate link.</p>
+                        <p class="mt-2">Your affiliate link must be clicked within the last 24 hours for a sale to be credited to you.</p>
+                    `
+                    );
+                document.getElementById('withdrawal-form')?.onsubmit = handleWithdrawal;
+                document.getElementById('prev-page')?.onclick = () => {
                     state.currentPage--;
                     render();
-                });
-                document.getElementById('next-page')?.addEventListener('click', () => {
+                };
+                document.getElementById('next-page')?.onclick = () => {
                     state.currentPage++;
                     render();
-                });
-                document.getElementById('notifications-btn')?.addEventListener('click', () => {
-                    showModal('Notifications', `
-                        <div class="max-h-64 overflow-y-auto">
-                            ${state.notifications.length ? state.notifications.map((n, i) => `
-                                <div class="mb-2 p-2 bg-gray-100 rounded flex justify-between items-center">
-                                    <p class="${n[2] ? 'text-gray-600' : 'text-gray-800 font-semibold'}">${n[1]}</p>
-                                    ${!n[2] ? `<button class="text-blue-500 hover:underline mark-read" data-index="${i}">Mark as Read</button>` : ''}
-                                </div>
-                            `).join('') : '<p>No notifications</p>'}
+                };
+                document.getElementById('notifications-btn').onclick = () =>
+                    showModal(
+                        'Notifications',
+                        `
+                        <div class="max-h-96 overflow-y-auto">
+                            ${
+                                state.notifications.length
+                                    ? state.notifications
+                                          .map(
+                                              (n, index) => `
+                                            <div class="p-4 border-b flex justify-between items-center">
+                                                <div>
+                                                    <p class="${n[2] ? 'text-gray-600' : 'font-semibold'}">${
+                                                  n[1]
+                                              }</p>
+                                                    <p class="text-sm text-gray-500">${new Date(
+                                                        n[0]
+                                                    ).toLocaleString()}</p>
+                                                </div>
+                                                <button class="mark-read-btn text-blue-500 hover:underline" data-index="${index}">${
+                                                    n[2] ? 'Read' : 'Mark as Read'
+                                                }</button>
+                                            </div>
+                                        `
+                                          )
+                                          .join('')
+                                    : '<p>No notifications.</p>'
+                            }
                         </div>
-                    `);
-                    document.querySelectorAll('.mark-read').forEach(btn => {
-                        btn.addEventListener('click', () => markNotificationRead(btn.dataset.index));
-                    });
-                });
-                document.getElementById('settings-btn')?.addEventListener('click', () => {
-                    showModal('Settings', `
+                    `
+                    );
+                document.querySelectorAll('.mark-read-btn').forEach((btn) =>
+                    btn.onclick = () => markNotificationRead(btn.dataset.index)
+                );
+                document.getElementById('settings-btn').onclick = () =>
+                    showModal(
+                        'Settings',
+                        `
                         <div>
-                            <form id="password-form" class="mb-4">
-                                <h3 class="text-lg font-semibold mb-2">Change Password</h3>
+                            <h3 class="text-lg font-semibold mb-4">Update Password</h3>
+                            <form id="password-form">
                                 <div class="mb-4">
                                     <label class="block text-sm font-medium text-gray-700">Current Password</label>
                                     <input type="password" id="current-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
                                 </div>
                                 <div class="mb-4">
                                     <label class="block text-sm font-medium text-gray-700">New Password</label>
-                                    <input type="password" id="new-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" minlength="8" required />
+                                    <input type="password" id="new-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
                                 </div>
-                                <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">
-                                    ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : 'Update Password'}
-                                </button>
+                                <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Update Password</button>
                             </form>
-                            <div>
-                                <h3 class="text-lg font-semibold mb-2">Delete Account</h3>
-                                <button id="delete-account" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Delete Account</button>
+                            <h3 class="text-lg font-semibold mt-6 mb-4">Delete Account</h3>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700">Password</label>
+                                <input type="password" id="delete-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
                             </div>
+                            <button id="delete-account" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Delete Account</button>
                         </div>
-                    `);
-                    document.getElementById('password-form').addEventListener('submit', handlePasswordUpdate);
-                    document.getElementById('delete-account').addEventListener('click', () => {
-                        showModal('Confirm Account Deletion', `
-                            <div>
-                                <p class="text-gray-600 mb-4">Are you sure you want to delete your account? This action cannot be undone.</p>
-                                <div class="mb-4">
-                                    <label class="block text-sm font-medium text-gray-700">Password</label>
-                                    <input type="password" id="delete-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
-                                </div>
-                                <div class="flex justify-end space-x-4">
-                                    <button id="cancel-delete" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">No</button>
-                                    <button id="confirm-delete" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">
-                                        ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : 'Yes'}
-                                    </button>
-                                </div>
-                            </div>
-                        `);
-                        document.getElementById('cancel-delete').onclick = () => {
-                            document.getElementById('modal').classList.add('hidden');
-                            state.modal.isOpen = false;
-                            render();
-                        };
-                        document.getElementById('confirm-delete').onclick = handleDeleteAccount;
-                    });
-                });
-                document.getElementById('logout-btn')?.addEventListener('click', () => {
-                    showToast('Logged out successfully', false);
-                    logout();
-                });
+                    `
+                    );
+                document.getElementById('password-form')?.onsubmit = handlePasswordUpdate;
+                document.getElementById('delete-account')?.onclick = handleDeleteAccount;
+                document.getElementById('logout-btn').onclick = logout;
             } else {
                 state.isLogin = route === '/login';
                 app.innerHTML = `
-                    <div class="min-h-screen flex items-center justify-center bg-gray-900">
-                        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md auth-card">
-                            <h1 class="text-2xl font-bold mb-6 text-center">${state.isLogin ? 'Affiliate Login' : 'Affiliate Sign Up'}</h1>
+                    <div class="min-h-screen bg-gray-100 flex items-center justify-center">
+                        <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full auth-card">
+                            <h1 class="text-2xl font-bold mb-6 text-gray-800 text-center">${
+                                state.isLogin ? 'Login' : 'Sign Up'
+                            }</h1>
                             ${state.error ? `<p class="text-red-500 mb-4 text-center">${state.error}</p>` : ''}
-                            ${state.loading ? `
-                                <div class="flex justify-center items-center">
-                                    <i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i>
-                                </div>
-                            ` : ''}
-                            <form id="auth-form" class="${state.loading ? 'hidden' : ''}">
-                                ${!state.isLogin ? `
+                            <form id="auth-form">
+                                ${
+                                    !state.isLogin
+                                        ? `
                                     <div class="mb-4">
                                         <label class="block text-sm font-medium text-gray-700">Full Name</label>
                                         <input type="text" id="full-name" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
                                     </div>
-                                ` : ''}
+                                `
+                                        : ''
+                                }
                                 <div class="mb-4">
                                     <label class="block text-sm font-medium text-gray-700">Email</label>
                                     <input type="email" id="email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
                                 </div>
-                                <div class="mb-4 relative">
+                                <div class="mb-4">
                                     <label class="block text-sm font-medium text-gray-700">Password</label>
-                                    <input type="password" id="password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" minlength="8" required />
-                                    <button type="button" id="toggle-password" class="absolute right-2 top-8 text-gray-500">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
+                                    <input type="password" id="password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required />
                                 </div>
-                                ${!state.isLogin ? `
+                                ${
+                                    !state.isLogin
+                                        ? `
                                     <div class="mb-4 flex items-center">
                                         <input type="checkbox" id="terms" class="mr-2" required />
-                                        <label class="text-sm text-gray-700">
-                                            I agree to the <a href="/page/botblitz/affiliate-terms" class="text-blue-500 hover:underline" target="_blank">Terms and Conditions</a>
-                                        </label>
+                                        <label class="text-sm text-gray-700">I accept the <a href="/terms" class="text-blue-500 hover:underline">terms and conditions</a></label>
                                     </div>
-                                ` : ''}
-                                <button type="submit" class="w-full btn bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">
-                                    ${state.isLogin ? 'Login' : 'Create Account'}
+                                `
+                                        : ''
+                                }
+                                <button type="submit" class="btn w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                                    ${state.loading ? '<i class="fas fa-spinner fa-spin"></i>' : state.isLogin ? 'Login' : 'Sign Up'}
                                 </button>
-                                <p class="mt-4 text-center text-sm text-gray-600">
-                                    ${state.isLogin ? 'Need an account?' : 'Already have an account?'}
-                                    <a href="#${state.isLogin ? '/signup' : '/login'}" id="toggle-auth" class="text-blue-500 hover:underline">${state.isLogin ? 'Sign Up' : 'Login'}</a>
-                                </p>
                             </form>
-                            <footer class="mt-8 text-center text-sm text-gray-600">
-                                <div class="mb-2 flex flex-wrap justify-center gap-2">
-                                    ${state.staticPages.map(page => `<a href="/${page.slug}" class="text-blue-500 hover:underline" target="_blank">${page.title}</a>`).join(' ')}
-                                </div>
-                                <p>${state.settings.copyrightText}</p>
-                            </footer>
+                            <p class="mt-4 text-center text-gray-600">
+                                ${state.isLogin ? "Don't have an account?" : 'Already have an account?'}
+                                <a href="${state.isLogin ? '#/signup' : '#/login'}" class="text-blue-500 hover:underline">${
+                                    state.isLogin ? 'Sign Up' : 'Login'
+                                }</a>
+                            </p>
                         </div>
                     </div>
                 `;
-
-                // Event Listeners for Auth Page
-                document.getElementById('auth-form').addEventListener('submit', handleAuth);
-                document.getElementById('toggle-password').addEventListener('click', () => {
-                    const passwordInput = document.getElementById('password');
-                    const isVisible = passwordInput.type === 'text';
-                    passwordInput.type = isVisible ? 'password' : 'text';
-                    document.getElementById('toggle-password').innerHTML = `<i class="fas ${isVisible ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
-                });
+                document.getElementById('auth-form').onsubmit = handleAuth;
             }
 
             if (state.modal.isOpen) {
@@ -768,19 +860,13 @@
             }
         }
 
-        // Initial Setup
-        document.addEventListener('DOMContentLoaded', () => {
-            if (state.token && isTokenValid(state.token)) {
-                window.location.hash = '/dashboard';
-                fetchDashboardData();
-            } else {
-                window.location.hash = '/login';
-            }
-            initCookieConsent();
-            render();
-        });
-
-        window.addEventListener('hashchange', render);
+        // Initialize
+        window.onhashchange = render;
+        initCookieConsent();
+        if (state.token && isTokenValid(state.token)) {
+            fetchDashboardData();
+        }
+        render();
     </script>
 </body>
 </html>
