@@ -3,1300 +3,1090 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BotBlitz Affiliate Admin Panel</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <link rel="icon" href="https://botblitz.store/favicon.ico">
-  <style>
-    body { font-family: 'Inter', sans-serif; }
-    .popup { transition: opacity 0.3s ease, transform 0.3s ease; }
-    .table-container { max-height: 500px; overflow-y: auto; }
-    .btn { min-width: 120px; transition: all 0.2s ease; }
-    .toast { transition: opacity 0.5s ease; }
-    .dropdown-menu { display: none; position: absolute; right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 0.375rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 10; }
-    .dropdown.active .dropdown-menu { display: block; }
-    .notification-bell { position: fixed; top: 20px; right: 20px; cursor: pointer; }
-    .notification-bell .badge { position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; }
-    .notifications { position: fixed; top: 50px; right: 20px; background-color: white; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); border-radius: 5px; max-height: 400px; overflow-y: auto; width: 300px; display: none; }
-    .notification { padding: 10px; border-bottom: 1px solid #ddd; cursor: pointer; }
-    .notification.unread { background-color: #f0f8ff; }
-    @media (max-width: 640px) {
-      .table-container { max-height: 300px; }
-      .btn { min-width: 100px; font-size: 0.875rem; }
-      .popup { max-width: 90%; }
-      .grid-cols-2 { grid-template-columns: 1fr; }
-      .tabs { flex-direction: column; gap: 0.5rem; }
-      .tab-btn { width: 100%; text-align: left; }
-      th, td { font-size: 0.75rem; padding: 0.5rem; }
-      .notifications { width: 90%; right: 5%; }
-    }
-  </style>
+  <title>Admin Panel - Deriv Bot Store Affiliates</title>
+  <link href="/output.css" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
-<body class="bg-gray-100">
-  <!-- Login Page -->
-  <div id="login-page" class="min-h-screen flex items-center justify-center bg-gray-900">
-    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-      <h1 class="text-2xl font-bold mb-6 text-center text-gray-800">Admin Login</h1>
-      <div id="login-error" class="hidden text-red-500 mb-4 text-center"></div>
-      <div id="loading" class="hidden text-center">
-        <i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i>
-      </div>
-      <form id="login-form">
-        <div class="mb-4">
-          <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-          <input type="email" id="email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
-        </div>
-        <div class="mb-4 relative">
-          <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-          <input type="password" id="password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" minlength="8" required>
-          <button type="button" id="show-password" class="absolute right-2 top-8 text-gray-500">
-            <i class="fas fa-eye"></i>
+<body class="bg-gray-100 dark:bg-gray-900 min-h-screen">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Custom Popup Component
+    const Popup = ({ message, type, onClose }) => (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
+          <div className="flex items-center mb-4">
+            <i className={`fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} text-${type === 'success' ? 'green' : type === 'error' ? 'red' : 'blue'}-500 mr-2`}></i>
+            <p className="text-gray-900 dark:text-white">{message}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
+          >
+            OK
           </button>
         </div>
-        <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition disabled:bg-gray-400" disabled>Login</button>
-      </form>
-      <footer class="mt-8 text-center text-sm text-gray-600">
-        <div id="footer-links" class="mb-2 flex flex-wrap justify-center gap-2"></div>
-        <p id="copyright"></p>
-      </footer>
-    </div>
-  </div>
+      </div>
+    );
 
-  <!-- Admin Dashboard -->
-  <div id="admin-page" class="hidden min-h-screen bg-gray-100">
-    <nav class="bg-white shadow-md">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center">
-            <span class="text-xl font-bold text-gray-800">Affiliate Admin Panel</span>
-          </div>
-          <div class="flex items-center space-x-4">
-            <button id="logout-btn" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Logout</button>
+    // Login Form Component
+    const LoginForm = ({ handleLogin, error, loading, attemptsLeft }) => {
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [showPassword, setShowPassword] = useState(false);
+
+      return (
+        <div className="flex items-center justify-center min-h-screen px-4">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-6">Admin Login</h2>
+            {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+            {attemptsLeft < 5 && (
+              <p className="text-yellow-500 text-center mb-4">{attemptsLeft} login attempts remaining</p>
+            )}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              handleLogin({ email, password });
+            }}>
+              <div className="mb-4">
+                <label className="block text-gray-700 dark:text-gray-200 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  required
+                />
+              </div>
+              <div className="mb-4 relative">
+                <label className="block text-gray-700 dark:text-gray-200 mb-1">Password</label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-9 text-gray-500 dark:text-gray-300"
+                >
+                  <i className={`fas fa-eye${showPassword ? '-slash' : ''}`}></i>
+                </button>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 transition duration-200"
+                disabled={loading || attemptsLeft === 0}
+              >
+                {loading ? 'Logging in...' : 'Login'}
+              </button>
+            </form>
           </div>
         </div>
-      </div>
-    </nav>
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 class="text-3xl font-bold mb-8 text-gray-800">Affiliate Management</h1>
-      <div class="flex tabs space-x-4 mb-8 overflow-x-auto">
-        <button id="home-tab" class="tab-btn px-4 py-2 bg-blue-600 text-white rounded-md focus:outline-none whitespace-nowrap">Home</button>
-        <button id="affiliates-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Affiliates</button>
-        <button id="withdrawals-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Withdrawals</button>
-        <button id="rewards-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Rewards</button>
-        <button id="static-pages-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Static Pages</button>
-        <button id="communication-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Communication</button>
-        <button id="settings-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Settings</button>
-      </div>
-      <div id="home-content">
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">General Settings</h2>
-          <form id="settings-form">
-            <div class="mb-4">
-              <label for="support-email" class="block text-sm font-medium text-gray-700">Support Email</label>
-              <input type="email" id="support-email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+      );
+    };
+
+    // Admin Dashboard Component
+    const AdminDashboard = ({ setIsLoggedIn }) => {
+      const [activeTab, setActiveTab] = useState('home');
+      const [settings, setSettings] = useState({});
+      const [affiliates, setAffiliates] = useState([]);
+      const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
+      const [sortedWithdrawals, setSortedWithdrawals] = useState([]);
+      const [staticPages, setStaticPages] = useState([]);
+      const [leaderboard, setLeaderboard] = useState([]);
+      const [error, setError] = useState('');
+      const [success, setSuccess] = useState('');
+      const [popup, setPopup] = useState(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [sortBy, setSortBy] = useState('sales');
+      const [currentPage, setCurrentPage] = useState(1);
+      const [rewardForm, setRewardForm] = useState({
+        topN: 5,
+        rewardType: 'fixed',
+        rewardValue: '',
+        duration: 30,
+      });
+      const [saleRewardForm, setSaleRewardForm] = useState({
+        threshold: 10,
+        rewardType: 'fixed',
+        rewardValue: '',
+        duration: 30,
+      });
+      const [notificationForm, setNotificationForm] = useState({
+        message: '',
+        filter: 'all',
+        saleCount: '',
+      });
+      const [urgentPopupForm, setUrgentPopupForm] = useState({ message: '', enabled: false });
+      const [newPageForm, setNewPageForm] = useState({ title: '', content: '' });
+      const [editPage, setEditPage] = useState(null);
+      const [settingsForm, setSettingsForm] = useState({
+        supportEmail: '',
+        whatsappLink: '',
+        copyrightText: '',
+        adminEmail: '',
+        adminPassword: '',
+        commissionRate: '',
+      });
+      const itemsPerPage = 20;
+
+      // Fetch initial data
+      useEffect(() => {
+        const token = document.cookie.split('; ').find(row => row.startsWith('jwt='))?.split('=')[1];
+        axios.get('/api/admin/affiliate/data', { withCredentials: true })
+          .then(res => {
+            setSettings(res.data.settings);
+            setAffiliates(res.data.affiliates);
+            setPendingWithdrawals(res.data.pendingWithdrawals);
+            setSortedWithdrawals(res.data.sortedWithdrawals);
+            setStaticPages(res.data.staticPages);
+            setLeaderboard(res.data.leaderboard);
+            setUrgentPopupForm(res.data.settings.urgentPopup || { message: '', enabled: false });
+            setSettingsForm({
+              supportEmail: res.data.settings.supportEmail || '',
+              whatsappLink: res.data.settings.whatsappLink || '',
+              copyrightText: res.data.settings.copyrightText || '',
+              adminEmail: res.data.settings.adminEmail || '',
+              adminPassword: '',
+              commissionRate: (res.data.settings.commissionRate * 100) || '',
+            });
+          })
+          .catch(err => {
+            setError(err.response?.data?.error || 'Failed to fetch data');
+            setIsLoggedIn(false);
+          });
+
+        // WebSocket setup
+        const socket = io('https://affiliate-botblitz.onrender.com', { auth: { token } });
+        socket.on('update', (newData) => {
+          setSettings(newData.settings || settings);
+          setAffiliates(newData.affiliates || affiliates);
+          setPendingWithdrawals(newData.pendingWithdrawals || pendingWithdrawals);
+          setSortedWithdrawals(newData.sortedWithdrawals || sortedWithdrawals);
+          setStaticPages(newData.staticPages || staticPages);
+          setLeaderboard(newData.leaderboard || leaderboard);
+        });
+        socket.on('forceLogout', () => {
+          setPopup({ message: 'Session terminated by admin', type: 'error' });
+          setTimeout(() => {
+            document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            setIsLoggedIn(false);
+          }, 2000);
+        });
+        return () => socket.disconnect();
+      }, []);
+
+      // Handle settings update
+      const handleSettingsUpdate = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+        try {
+          if (settingsForm.adminPassword && (settingsForm.adminPassword.length < 8 || !/[a-zA-Z]/.test(settingsForm.adminPassword) || !/[0-9]/.test(settingsForm.adminPassword))) {
+            throw new Error('Password must be 8+ characters with letters and numbers');
+          }
+          if (settingsForm.commissionRate && (settingsForm.commissionRate <= 0 || settingsForm.commissionRate > 100)) {
+            throw new Error('Commission rate must be between 1 and 100%');
+          }
+          const payload = {
+            ...settingsForm,
+            commissionRate: settingsForm.commissionRate ? settingsForm.commissionRate / 100 : settings.commissionRate,
+          };
+          await axios.post('/api/admin/affiliate/settings', payload, { withCredentials: true });
+          setSuccess('Settings updated successfully');
+          setSettingsForm(prev => ({ ...prev, adminPassword: '' }));
+          if (payload.adminPassword) setIsLoggedIn(false); // Force re-login after password change
+        } catch (err) {
+          setError(err.response?.data?.error || err.message || 'Failed to update settings');
+        }
+      };
+
+      // Handle affiliate actions (block/delete)
+      const handleAffiliateAction = async (email, action) => {
+        setError('');
+        setSuccess('');
+        try {
+          await axios.post(`/api/admin/affiliate/${action}`, { email }, { withCredentials: true });
+          setSuccess(`${action.charAt(0).toUpperCase() + action.slice(1)} successful`);
+          setAffiliates(prev => prev.filter(a => a.email !== email));
+        } catch (err) {
+          setError(err.response?.data?.error || `Failed to ${action} affiliate`);
+        }
+      };
+
+      // Handle withdrawal confirmation
+      const handleWithdrawalConfirm = async (withdrawal, mpesaRef) => {
+        setError('');
+        setSuccess('');
+        try {
+          await axios.post('/api/admin/affiliate/withdrawals/confirm', { ...withdrawal, mpesaRef }, { withCredentials: true });
+          setSuccess('Withdrawal confirmed');
+          setPendingWithdrawals(prev => prev.filter(w => w.email !== withdrawal.email || w.timestamp !== withdrawal.timestamp));
+        } catch (err) {
+          setError(err.response?.data?.error || 'Failed to confirm withdrawal');
+        }
+      };
+
+      // Handle withdrawal dispute
+      const handleWithdrawalDispute = async (withdrawal) => {
+        setError('');
+        setSuccess('');
+        try {
+          await axios.post('/api/admin/affiliate/withdrawals/dispute', withdrawal, { withCredentials: true });
+          setSuccess('Withdrawal disputed and refunded');
+          setPendingWithdrawals(prev => prev.filter(w => w.email !== withdrawal.email || w.timestamp !== withdrawal.timestamp));
+        } catch (err) {
+          setError(err.response?.data?.error || 'Failed to dispute withdrawal');
+        }
+      };
+
+      // Handle reward submission
+      const handleRewardSubmit = async (e, type) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+        try {
+          const formData = type === 'leaderboard' ? rewardForm : saleRewardForm;
+          if (formData.rewardValue <= 0) throw new Error('Reward value must be positive');
+          await axios.post(`/api/admin/affiliate/rewards`, { ...formData, type }, { withCredentials: true });
+          setSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} reward applied`);
+          if (type === 'leaderboard') {
+            setRewardForm({ topN: 5, rewardType: 'fixed', rewardValue: '', duration: 30 });
+          } else {
+            setSaleRewardForm({ threshold: 10, rewardType: 'fixed', rewardValue: '', duration: 30 });
+          }
+        } catch (err) {
+          setError(err.response?.data?.error || `Failed to apply ${type} reward`);
+        }
+      };
+
+      // Terminate ongoing reward
+      const handleTerminateReward = async (rewardId) => {
+        setError('');
+        setSuccess('');
+        try {
+          await axios.post('/api/admin/affiliate/rewards/terminate', { rewardId }, { withCredentials: true });
+          setSuccess('Reward terminated');
+          setLeaderboard(prev => prev.filter(r => r.rewardId !== rewardId));
+        } catch (err) {
+          setError(err.response?.data?.error || 'Failed to terminate reward');
+        }
+      };
+
+      // Handle notification submission
+      const handleNotificationSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+        try {
+          if (!notificationForm.message) throw new Error('Notification message is required');
+          await axios.post('/api/admin/affiliate/communication', { type: 'notification', ...notificationForm }, { withCredentials: true });
+          setSuccess('Notification sent');
+          setNotificationForm({ message: '', filter: 'all', saleCount: '' });
+        } catch (err) {
+          setError(err.response?.data?.error || 'Failed to send notification');
+        }
+      };
+
+      // Handle urgent popup update
+      const handleUrgentPopupUpdate = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+        try {
+          if (!urgentPopupForm.message && urgentPopupForm.enabled) throw new Error('Popup message is required when enabled');
+          await axios.post('/api/admin/affiliate/communication', { type: 'popup', ...urgentPopupForm }, { withCredentials: true });
+          setSuccess('Urgent popup updated');
+        } catch (err) {
+          setError(err.response?.data?.error || 'Failed to update popup');
+        }
+      };
+
+      // Handle static page actions
+      const handlePageAction = async (action, pageData) => {
+        setError('');
+        setSuccess('');
+        try {
+          await axios.post(`/api/admin/affiliate/staticpages`, { action, ...pageData }, { withCredentials: true });
+          setSuccess(`${action.charAt(0).toUpperCase() + action.slice(1)} page successful`);
+          setNewPageForm({ title: '', content: '' });
+          setEditPage(null);
+          if (action !== 'edit') {
+            axios.get('/api/admin/affiliate/staticpages', { withCredentials: true })
+              .then(res => setStaticPages(res.data));
+          }
+        } catch (err) {
+          setError(err.response?.data?.error || `Failed to ${action} page`);
+        }
+      };
+
+      // Filter and sort affiliates
+      const filteredAffiliates = affiliates
+        .filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        .sort((a, b) => {
+          if (sortBy === 'sales') return b.saleCount - a.saleCount;
+          if (sortBy === 'withdrawals') return b.withdrawnTotal - a.withdrawnTotal;
+          return b.linkClicks - a.linkClicks;
+        });
+
+      // Pagination for sorted withdrawals
+      const paginatedSortedWithdrawals = sortedWithdrawals.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+      );
+
+      return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {popup && <Popup message={popup.message} type={popup.type} onClose={() => setPopup(null)} />}
+          <header className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Affiliate Admin Panel</h1>
+            <button
+              onClick={() => {
+                document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+                setIsLoggedIn(false);
+              }}
+              className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+            >
+              <i className="fas fa-sign-out-alt mr-2"></i> Logout
+            </button>
+          </header>
+          <nav className="flex flex-wrap gap-2 mb-6">
+            {['home', 'affiliates', 'pending-withdrawals', 'sorted-withdrawals', 'rewards', 'static-pages', 'communication', 'settings'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => { setActiveTab(tab); setCurrentPage(1); setError(''); setSuccess(''); }}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition duration-200 ${
+                  activeTab === tab
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {tab.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+              </button>
+            ))}
+          </nav>
+          {success && (
+            <div className="mb-4 p-4 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-md">
+              {success}
             </div>
-            <div class="mb-4">
-              <label for="copyright-text" class="block text-sm font-medium text-gray-700">Copyright Text</label>
-              <input type="text" id="copyright-text" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+          )}
+          {error && (
+            <div className="mb-4 p-4 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-md">
+              {error}
             </div>
-            <div class="mb-4">
-              <label for="whatsapp-link" class="block text-sm font-medium text-gray-700">WhatsApp Link</label>
-              <input type="url" id="whatsapp-link" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
-            </div>
-            <div class="mb-4">
-              <label for="commission-rate" class="block text-sm font-medium text-gray-700">Affiliate Commission Rate (%)</label>
-              <input type="number" id="commission-rate" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0" max="100" step="0.1" required>
-            </div>
-            <div class="mb-4">
-              <label for="urgent-message" class="block text-sm font-medium text-gray-700">Urgent Message</label>
-              <textarea id="urgent-message" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4"></textarea>
-              <div class="mt-2 flex items-center">
-                <input type="checkbox" id="urgent-enabled" class="mr-2">
-                <label for="urgent-enabled" class="text-sm text-gray-700">Enable Urgent Message</label>
+          )}
+          {activeTab === 'home' && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Global Settings</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Support Email</label>
+                  <input
+                    type="email"
+                    value={settings.supportEmail || ''}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    disabled
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Copyright Text</label>
+                  <input
+                    type="text"
+                    value={settings.copyrightText || ''}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    disabled
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">WhatsApp Link</label>
+                  <input
+                    type="url"
+                    value={settings.whatsappLink || ''}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    disabled
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Commission Rate (%)</label>
+                  <input
+                    type="number"
+                    value={settings.commissionRate * 100 || ''}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    disabled
+                    step="0.1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Admin Email</label>
+                  <input
+                    type="email"
+                    value={settings.adminEmail || ''}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    disabled
+                  />
+                </div>
+                <p className="text-gray-600 dark:text-gray-300 text-sm">To update settings, use the Settings tab.</p>
               </div>
             </div>
-            <button type="submit" id="save-settings-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Save Settings</button>
-          </form>
-        </div>
-      </div>
-      <div id="affiliates-content" class="hidden">
-        <div class="bg-white p-6 rounded-lg shadow">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Affiliates</h2>
-          <div class="mb-4 flex items-center space-x-2">
-            <input type="text" id="affiliate-search" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 flex-grow" placeholder="Search by name...">
-            <select id="sort-affiliates" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
-              <option value="sales-desc">Sales (High to Low)</option>
-              <option value="balance-desc">Current Balance (High to Low)</option>
-              <option value="clicks-asc">Link Clicks (Low to High)</option>
-            </select>
-          </div>
-          <div class="table-container">
-            <table class="min-w-full bg-white">
-              <thead>
-                <tr>
-                  <th class="py-2 px-4 border-b text-left">Name</th>
-                  <th class="py-2 px-4 border-b text-left">Email</th>
-                  <th class="py-2 px-4 border-b text-left">Created At</th>
-                  <th class="py-2 px-4 border-b text-left">Link Clicks</th>
-                  <th class="py-2 px-4 border-b text-left">Total Sales</th>
-                  <th class="py-2 px-4 border-b text-left">Current Balance</th>
-                  <th class="py-2 px-4 border-b text-left">Status</th>
-                  <th class="py-2 px-4 border-b text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="affiliates-table"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div id="withdrawals-content" class="hidden">
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Pending Withdrawals</h2>
-          <div class="table-container">
-            <table class="min-w-full bg-white">
-              <thead>
-                <tr>
-                  <th class="py-2 px-4 border-b text-left">Time</th>
-                  <th class="py-2 px-4 border-b text-left">Date</th>
-                  <th class="py-2 px-4 border-b text-left">Affiliate</th>
-                  <th class="py-2 px-4 border-b text-left">M-PESA Number</th>
-                  <th class="py-2 px-4 border-b text-left">M-PESA Name</th>
-                  <th class="py-2 px-4 border-b text-left">Amount (KES)</th>
-                  <th class="py-2 px-4 border-b text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="withdrawals-table"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Sorted Withdrawals</h2>
-          <div class="table-container">
-            <table class="min-w-full bg-white">
-              <thead>
-                <tr>
-                  <th class="py-2 px-4 border-b text-left">Time</th>
-                  <th class="py-2 px-4 border-b text-left">Date</th>
-                  <th class="py-2 px-4 border-b text-left">Affiliate</th>
-                  <th class="py-2 px-4 border-b text-left">M-PESA Number</th>
-                  <th class="py-2 px-4 border-b text-left">M-PESA Name</th>
-                  <th class="py-2 px-4 border-b text-left">Amount (KES)</th>
-                  <th class="py-2 px-4 border-b text-left">Status</th>
-                  <th class="py-2 px-4 border-b text-left">M-PESA Ref</th>
-                </tr>
-              </thead>
-              <tbody id="sorted-withdrawals-table"></tbody>
-            </table>
-          </div>
-          <div class="mt-4 flex justify-between">
-            <button id="prev-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" disabled>Previous</button>
-            <span id="page-info" class="text-gray-700"></span>
-            <button id="next-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" disabled>Next</button>
-          </div>
-        </div>
-      </div>
-      <div id="rewards-content" class="hidden">
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Leaderboard Rewards</h2>
-          <form id="leaderboard-reward-form">
-            <div class="mb-4">
-              <label for="leaderboard-range" class="block text-sm font-medium text-gray-700">Top Affiliates (1-10)</label>
-              <input type="range" id="leaderboard-range" min="1" max="10" value="1" class="w-full">
-              <span id="leaderboard-range-value" class="text-sm text-gray-600">1</span>
+          )}
+          {activeTab === 'affiliates' && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Affiliates</h2>
+              <div className="flex flex-col sm:flex-row justify-between mb-4">
+                <input
+                  type="text"
+                  placeholder="Search by name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full sm:w-1/3 p-2 border rounded-md dark:bg-gray-700 dark:text-white mb-2 sm:mb-0"
+                />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full sm:w-1/4 p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="sales">Sort by Sales</option>
+                  <option value="withdrawals">Sort by Withdrawals</option>
+                  <option value="clicks">Sort by Link Clicks</option>
+                </select>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead>
+                    <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                      <th className="p-3 text-left text-sm">Name</th>
+                      <th className="p-3 text-left text-sm">Email</th>
+                      <th className="p-3 text-left text-sm">Join Date</th>
+                      <th className="p-3 text-left text-sm">Link Clicks</th>
+                      <th className="p-3 text-left text-sm">Sale Count</th>
+                      <th className="p-3 text-left text-sm">Total Earnings</th>
+                      <th className="p-3 text-left text-sm">Withdrawn</th>
+                      <th className="p-3 text-left text-sm">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAffiliates.map(a => (
+                      <tr key={a.email} className="border-b dark:border-gray-700">
+                        <td className="p-3 text-gray-900 dark:text-white text-sm">{a.name}</td>
+                        <td className="p-3 text-gray-900 dark:text-white text-sm">{a.email}</td>
+                        <td className="p-3 text-gray-900 dark:text-white text-sm">{new Date(a.joinDate).toLocaleDateString()}</td>
+                        <td className="p-3 text-gray-900 dark:text-white text-sm">{a.linkClicks}</td>
+                        <td className="p-3 text-gray-900 dark:text-white text-sm">{a.saleCount}</td>
+                        <td className="p-3 text-gray-900 dark:text-white text-sm">KES {a.totalEarnings.toFixed(2)}</td>
+                        <td className="p-3 text-gray-900 dark:text-white text-sm">KES {a.withdrawnTotal.toFixed(2)}</td>
+                        <td className="p-3 text-sm">
+                          <button
+                            onClick={() => handleAffiliateAction(a.email, 'block')}
+                            className="text-yellow-600 hover:text-yellow-700 mr-2"
+                            title="Block"
+                          >
+                            <i className="fas fa-ban"></i>
+                          </button>
+                          <button
+                            onClick={() => handleAffiliateAction(a.email, 'delete')}
+                            className="text-red-600 hover:text-red-700"
+                            title="Delete"
+                          >
+                            <i className="fas fa-trash"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {filteredAffiliates.length === 0 && (
+                <p className="text-gray-600 dark:text-gray-300 mt-4">No affiliates found.</p>
+              )}
             </div>
-            <div class="mb-4">
-              <label for="reward-type" class="block text-sm font-medium text-gray-700">Reward Type</label>
-              <select id="reward-type" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
-                <option value="fixed">Fixed Amount (KES)</option>
-                <option value="percentage">Commission Percentage Increase</option>
-                <option value="monthly">Monthly Commission Bonus</option>
-              </select>
+          )}
+          {activeTab === 'pending-withdrawals' && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Pending Withdrawals</h2>
+              {pendingWithdrawals.length === 0 ? (
+                <p className="text-gray-600 dark:text-gray-300">No pending withdrawals.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full table-auto">
+                    <thead>
+                      <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                        <th className="p-3 text-left text-sm">Email</th>
+                        <th className="p-3 text-left text-sm">Timestamp</th>
+                        <th className="p-3 text-left text-sm">Amount</th>
+                        <th className="p-3 text-left text-sm">Mpesa Number</th>
+                        <th className="p-3 text-left text-sm">Mpesa Name</th>
+                        <th className="p-3 text-left text-sm">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingWithdrawals.map(w => (
+                        <tr key={`${w.email}-${w.timestamp}`} className="border-b dark:border-gray-700">
+                          <td className="p-3 text-gray-900 dark:text-white text-sm">{w.email}</td>
+                          <td className="p-3 text-gray-900 dark:text-white text-sm">{new Date(w.timestamp).toLocaleString()}</td>
+                          <td className="p-3 text-gray-900 dark:text-white text-sm">KES {w.amount.toFixed(2)}</td>
+                          <td className="p-3 text-gray-900 dark:text-white text-sm">
+                            {w.mpesaNumber}
+                            <button
+                              onClick={() => navigator.clipboard.write(w.mpesaNumber).then(() => setSuccess('Mpesa number copied'))}
+                              className="ml-2 text-blue-600 hover:text-blue-700"
+                              title="Copy"
+                            >
+                              <i className="fas fa-copy"></i>
+                            </button>
+                          </td>
+                          <td className="p-3 text-gray-900 dark:text-white text-sm">{w.mpesaName}</td>
+                          <td className="p-3 text-sm">
+                            <select
+                              onChange={(e) => {
+                                if (e.target.value === 'done') {
+                                  const mpesaRef = prompt('Enter Mpesa Reference Code:');
+                                  if (mpesaRef) handleWithdrawalConfirm(w, mpesaRef);
+                                } else if (e.target.value === 'dispute') {
+                                  handleWithdrawalDispute(w);
+                                }
+                                e.target.value = '';
+                              }}
+                              className="p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                            >
+                              <option value="">Select Action</option>
+                              <option value="done">Done</option>
+                              <option value="dispute">Dispute</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-            <div class="mb-4">
-              <label for="reward-amount" class="block text-sm font-medium text-gray-700">Amount/Value</label>
-              <input type="number" id="reward-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0" step="0.1" required>
+          )}
+          {activeTab === 'sorted-withdrawals' && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Sorted Withdrawals</h2>
+              {paginatedSortedWithdrawals.length === 0 ? (
+                <p className="text-gray-600 dark:text-gray-300">No sorted withdrawals.</p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                          <th className="p-3 text-left text-sm">Email</th>
+                          <th className="p-3 text-left text-sm">Timestamp</th>
+                          <th className="p-3 text-left text-sm">Amount</th>
+                          <th className="p-3 text-left text-sm">Mpesa Number</th>
+                          <th className="p-3 text-left text-sm">Mpesa Name</th>
+                          <th className="p-3 text-left text-sm">Status</th>
+                          <th className="p-3 text-left text-sm">Mpesa Ref</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedSortedWithdrawals.map(w => (
+                          <tr key={`${w.email}-${w.timestamp}`} className="border-b dark:border-gray-700">
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{w.email}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{new Date(w.timestamp).toLocaleString()}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">KES {w.amount.toFixed(2)}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{w.mpesaNumber}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{w.mpesaName}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{w.status}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{w.mpesaRef || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex justify-between mt-4">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => prev + 1)}
+                      disabled={currentPage * itemsPerPage >= sortedWithdrawals.length}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-            <div class="mb-4">
-              <label for="reward-duration" class="block text-sm font-medium text-gray-700">Duration (Days, if applicable)</label>
-              <input type="number" id="reward-duration" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0">
-            </div>
-            <div class="mb-4">
-              <label for="reward-description" class="block text-sm font-medium text-gray-700">Description</label>
-              <textarea id="reward-description" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4" required></textarea>
-            </div>
-            <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Apply Reward</button>
-          </form>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Sales-Based Rewards</h2>
-          <form id="sales-reward-form">
-            <div class="mb-4">
-              <label for="sales-threshold" class="block text-sm font-medium text-gray-700">Minimum Sales Count (1-<span id="max-sales">100</span>)</label>
-              <input type="range" id="sales-threshold" min="1" max="100" value="1" class="w-full">
-              <span id="sales-threshold-value" class="text-sm text-gray-600">1</span>
-            </div>
-            <div class="mb-4">
-              <label for="sales-reward-type" class="block text-sm font-medium text-gray-700">Reward Type</label>
-              <select id="sales-reward-type" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
-                <option value="fixed">Fixed Amount (KES)</option>
-                <option value="percentage">Commission Percentage Increase</option>
-                <option value="monthly">Monthly Commission Bonus</option>
-              </select>
-            </div>
-            <div class="mb-4">
-              <label for="sales-reward-amount" class="block text-sm font-medium text-gray-700">Amount/Value</label>
-              <input type="number" id="sales-reward-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0" step="0.1" required>
-            </div>
-            <div class="mb-4">
-              <label for="sales-reward-duration" class="block text-sm font-medium text-gray-700">Duration (Days, if applicable)</label>
-              <input type="number" id="sales-reward-duration" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0">
-            </div>
-            <div class="mb-4">
-              <label for="sales-reward-description" class="block text-sm font-medium text-gray-700">Description</label>
-              <textarea id="sales-reward-description" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4" required></textarea>
-            </div>
-            <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Apply Reward</button>
-          </form>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Ongoing Rewards</h2>
-          <div class="table-container">
-            <table class="min-w-full bg-white">
-              <thead>
-                <tr>
-                  <th class="py-2 px-4 border-b text-left">Type</th>
-                  <th class="py-2 px-4 border-b text-left">Amount/Value</th>
-                  <th class="py-2 px-4 border-b text-left">Duration (Days)</th>
-                  <th class="py-2 px-4 border-b text-left">Description</th>
-                  <th class="py-2 px-4 border-b text-left">Applied At</th>
-                  <th class="py-2 px-4 border-b text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="ongoing-rewards-table"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div id="static-pages-content" class="hidden">
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Add/Edit Static Page</h2>
-          <form id="static-page-form">
-            <div class="mb-4">
-              <label for="page-title" class="block text-sm font-medium text-gray-700">Title</label>
-              <input type="text" id="page-title" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
-            </div>
-            <div class="mb-4">
-              <label for="page-slug" class="block text-sm font-medium text-gray-700">Slug (Auto-generated)</label>
-              <input type="text" id="page-slug" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" readonly>
-            </div>
-            <div class="mb-4">
-              <label for="page-content" class="block text-sm font-medium text-gray-700">Content (HTML)</label>
-              <textarea id="page-content" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="6" required></textarea>
-            </div>
-            <button type="submit" id="save-page-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Save Page</button>
-          </form>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Existing Pages</h2>
-          <div class="table-container">
-            <table class="min-w-full bg-white">
-              <thead>
-                <tr>
-                  <th class="py-2 px-4 border-b text-left">Title</th>
-                  <th class="py-2 px-4 border-b text-left">Slug</th>
-                  <th class="py-2 px-4 border-b text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="static-pages-table"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div id="communication-content" class="hidden">
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Send Notification</h2>
-          <form id="notification-form">
-            <div class="mb-4">
-              <label for="notification-message" class="block text-sm font-medium text-gray-700">Message</label>
-              <textarea id="notification-message" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4" required></textarea>
-            </div>
-            <div class="mb-4">
-              <label for="notification-recipients" class="block text-sm font-medium text-gray-700">Recipients</label>
-              <select id="notification-recipients" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
-                <option value="all">All Affiliates</option>
-                <option value="low-sales">Low Sales (≤ 5)</option>
-                <option value="zero-sales">Zero Sales</option>
-              </select>
-            </div>
-            <button type="submit" id="send-notification-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Send Notification</button>
-          </form>
-        </div>
-      </div>
-      <div id="settings-content" class="hidden">
-        <div class="bg-white p-6 rounded-lg shadow">
-          <h2 class="text-xl font-bold mb-4 text-gray-800">Account Settings</h2>
-          <form id="account-form">
-            <div class="mb-4">
-              <label for="admin-email" class="block text-sm font-medium text-gray-700">Admin Email</label>
-              <input type="email" id="admin-email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
-            </div>
-            <div class="mb-4">
-              <label for="current-password" class="block text-sm font-medium text-gray-700">Current Password</label>
-              <input type="password" id="current-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
-            </div>
-            <div class="mb-4">
-              <label for="admin-password" class="block text-sm font-medium text-gray-700">New Password</label>
-              <input type="password" id="admin-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" minlength="8">
-            </div>
-            <button type="submit" id="update-account-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Update Account</button>
-          </form>
-        </div>
-      </div>
-    </main>
-    <footer class="bg-white shadow-md mt-8 py-4">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-600">
-        <div id="admin-footer-links" class="mb-2 flex flex-wrap justify-center gap-2"></div>
-        <p id="admin-copyright"></p>
-      </div>
-    </footer>
-  </div>
-
-  <!-- Popups -->
-  <div id="withdrawal-popup" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-    <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full popup">
-      <h2 class="text-xl font-bold mb-4 text-gray-800">Process Withdrawal</h2>
-      <p id="withdrawal-details" class="text-gray-600 mb-4"></p>
-      <form id="withdrawal-process-form">
-        <div class="mb-4">
-          <label for="withdrawal-status" class="block text-sm font-medium text-gray-700">Status</label>
-          <select id="withdrawal-status" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
-            <option value="Done">Done</option>
-            <option value="Disputed">Dispute</option>
-          </select>
-        </div>
-        <div id="mpesa-ref-field" class="mb-4 hidden">
-          <label for="mpesa-ref" class="block text-sm font-medium text-gray-700">M-PESA Ref</label>
-          <input type="text" id="mpesa-ref" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
-        </div>
-        <div class="flex justify-end space-x-4">
-          <button type="button" id="cancel-withdrawal" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">Cancel</button>
-          <button type="submit" id="process-withdrawal-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Process</button>
-        </div>
-      </form>
-    </div>
-  </div>
-  <div id="urgent-popup" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-    <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full popup">
-      <h2 class="text-xl font-bold mb-4 text-gray-800">Urgent Message</h2>
-      <p id="urgent-message-text" class="text-gray-600 mb-4"></p>
-      <div class="flex justify-end">
-        <button id="close-urgent-popup" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">OK</button>
-      </div>
-    </div>
-  </div>
-  <div id="toast" class="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-md hidden toast"></div>
-
-  <!-- Notifications -->
-  <div class="notification-bell" id="notification-bell">
-    🔔 <span class="badge" id="unread-count">0</span>
-  </div>
-  <div class="notifications" id="notifications">
-    <div id="notification-list"></div>
-  </div>
-
-  <script>
-    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:10001/api' : 'https://botblitz.store/api';
-    let sessionId = localStorage.getItem('adminSessionId');
-    let ws = null;
-    let settings = { settings: { supportEmail: '', copyrightText: '', whatsappLink: '', commissionRate: 20, urgentMessage: { text: '', enabled: false } }, staticPages: [] };
-    let affiliates = [];
-    let withdrawals = [];
-    let staticPages = [];
-    let ongoingRewards = [];
-    let notifications = [];
-    let withdrawalPage = 1;
-    const rowsPerPage = 20;
-    let maxSales = 100;
-
-    // Debounce utility
-    function debounce(func, wait) {
-      let timeout;
-      return function (...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-      };
-    }
-
-    // Show toast notification
-    function showToast(message, isError = false) {
-      const toast = document.getElementById('toast');
-      toast.textContent = message;
-      toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded-md ${isError ? 'bg-red-600' : 'bg-green-600'} text-white toast`;
-      toast.classList.remove('hidden');
-      setTimeout(() => toast.classList.add('hidden'), 3000);
-    }
-
-    // Show urgent popup
-    function showUrgentPopup(message) {
-      document.getElementById('urgent-message-text').textContent = message;
-      document.getElementById('urgent-popup').classList.remove('hidden');
-    }
-
-    // Fetch settings
-    async function fetchSettings() {
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/settings`, {
-          headers: { 'Authorization': `Bearer ${sessionId}` }
-        });
-        if (!response.ok) throw new Error('Failed to fetch settings');
-        settings = await response.json();
-        document.getElementById('copyright').textContent = settings.settings.copyrightText;
-        document.getElementById('admin-copyright').textContent = settings.settings.copyrightText;
-        const footerLinks = document.getElementById('footer-links');
-        const adminFooterLinks = document.getElementById('admin-footer-links');
-        footerLinks.innerHTML = '';
-        adminFooterLinks.innerHTML = '';
-        settings.staticPages.forEach(page => {
-          if (!page.slug.includes('payment-modal') && !page.slug.includes('ref-code-modal')) {
-            const link = document.createElement('a');
-            link.href = `/page${page.slug}`;
-            link.textContent = page.title;
-            link.className = 'text-blue-500 hover:underline';
-            link.target = '_blank';
-            footerLinks.appendChild(link);
-            adminFooterLinks.appendChild(link.cloneNode(true));
-          }
-        });
-        document.getElementById('support-email').value = settings.settings.supportEmail;
-        document.getElementById('copyright-text').value = settings.settings.copyrightText;
-        document.getElementById('whatsapp-link').value = settings.settings.whatsappLink;
-        document.getElementById('commission-rate').value = settings.settings.commissionRate;
-        document.getElementById('urgent-message').value = settings.settings.urgentMessage.text;
-        document.getElementById('urgent-enabled').checked = settings.settings.urgentMessage.enabled;
-        staticPages = settings.staticPages;
-        updateStaticPages();
-      } catch (error) {
-        console.error('Error fetching settings:', error);
-        showToast('Failed to load settings. Please check server configuration.', true);
-      }
-    }
-
-    // Fetch affiliates
-    async function fetchAffiliates() {
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/affiliates`, {
-          headers: { 'Authorization': `Bearer ${sessionId}` }
-        });
-        if (!response.ok) throw new Error('Failed to load affiliates');
-        affiliates = (await response.json()).affiliates;
-        maxSales = Math.max(...affiliates.map(a => parseInt(a.totalSales) || 0), 100);
-        document.getElementById('max-sales').textContent = maxSales;
-        document.getElementById('sales-threshold').max = maxSales;
-        updateAffiliates();
-      } catch (error) {
-        console.error('Error fetching affiliates:', error);
-        showToast('Error loading affiliates. Please check server configuration.', true);
-      }
-    }
-
-    // Fetch withdrawals
-    async function fetchWithdrawals() {
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/withdrawals`, {
-          headers: { 'Authorization': `Bearer ${sessionId}` }
-        });
-        if (!response.ok) throw new Error('Failed to load withdrawals');
-        withdrawals = (await response.json()).withdrawals;
-        updateWithdrawals();
-      } catch (error) {
-        console.error('Error fetching withdrawals:', error);
-        showToast('Error loading withdrawals. Please check server configuration.', true);
-      }
-    }
-
-    // Fetch ongoing rewards
-    async function fetchOngoingRewards() {
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/rewards`, {
-          headers: { 'Authorization': `Bearer ${sessionId}` }
-        });
-        if (!response.ok) throw new Error('Failed to load ongoing rewards');
-        ongoingRewards = (await response.json()).rewards;
-        updateOngoingRewards();
-      } catch (error) {
-        console.error('Error fetching ongoing rewards:', error);
-        showToast('Error loading ongoing rewards. Please check server configuration.', true);
-      }
-    }
-
-    // Fetch notifications
-    async function fetchNotifications() {
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/notifications`, {
-          headers: { 'Authorization': `Bearer ${sessionId}` }
-        });
-        if (!response.ok) throw new Error('Failed to load notifications');
-        const data = await response.json();
-        notifications = data.notifications;
-        updateNotifications();
-      } catch (error) {
-        console.error('Error fetching notifications:', error);
-        showToast('Error loading notifications. Please check server configuration.', true);
-      }
-    }
-
-    // Check session
-    async function checkSession() {
-      if (!sessionId) {
-        showLoginPage();
-        return;
-      }
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/check-session`, {
-          headers: { 'Authorization': `Bearer ${sessionId}` }
-        });
-        if (response.ok) {
-          showAdminPage();
-          await Promise.all([fetchSettings(), fetchAffiliates(), fetchWithdrawals(), fetchOngoingRewards(), fetchNotifications()]);
-          setupWebSocket();
-        } else {
-          showToast('Session expired. Please log in again.', true);
-          localStorage.removeItem('adminSessionId');
-          showLoginPage();
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
-        showToast('Session check failed. Please check server configuration.', true);
-        showLoginPage();
-      }
-    }
-
-    // Setup WebSocket
-    function setupWebSocket() {
-      ws = new WebSocket(`ws://${API_BASE.split('://')[1]}/admin?token=${sessionId}`);
-      ws.onopen = () => console.log('WebSocket connected');
-      ws.onmessage = async (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'withdrawalUpdate') {
-            await fetchWithdrawals();
-            showToast('New withdrawal update received');
-            await fetchNotifications();
-          } else if (data.type === 'notification') {
-            await fetchNotifications();
-          } else if (data.type === 'urgentPopup') {
-            if (data.active) {
-              showUrgentPopup(data.message);
-            }
-          }
-        } catch (error) {
-          console.error('WebSocket message parsing error:', error);
-        }
-      };
-      ws.onclose = () => {
-        console.error('WebSocket disconnected, retrying...');
-        setTimeout(setupWebSocket, 5000);
-      };
-    }
-
-    // Show login page
-    function showLoginPage() {
-      document.getElementById('login-page').classList.remove('hidden');
-      document.getElementById('admin-page').classList.add('hidden');
-    }
-
-    // Show admin page
-    function showAdminPage() {
-      document.getElementById('login-page').classList.add('hidden');
-      document.getElementById('admin-page').classList.remove('hidden');
-    }
-
-    // Update affiliates table
-    function updateAffiliates() {
-      const tbody = document.getElementById('affiliates-table');
-      const search = document.getElementById('affiliate-search').value.toLowerCase();
-      const sort = document.getElementById('sort-affiliates').value;
-      let filteredAffiliates = affiliates.filter(a => a.name.toLowerCase().includes(search));
-      if (sort === 'sales-desc') {
-        filteredAffiliates.sort((a, b) => (parseInt(b.totalSales) || 0) - (parseInt(a.totalSales) || 0));
-      } else if (sort === 'balance-desc') {
-        filteredAffiliates.sort((a, b) => (parseFloat(b.currentBalance) || 0) - (parseFloat(a.currentBalance) || 0));
-      } else if (sort === 'clicks-asc') {
-        filteredAffiliates.sort((a, b) => (parseInt(a.linkClicks) || 0) - (parseInt(b.linkClicks) || 0));
-      }
-      tbody.innerHTML = '';
-      filteredAffiliates.forEach(a => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="py-2 px-4 border-b">${a.name}</td>
-          <td class="py-2 px-4 border-b">${a.email}</td>
-          <td class="py-2 px-4 border-b">${new Date(a.createdAt).toLocaleDateString()}</td>
-          <td class="py-2 px-4 border-b">${a.linkClicks || 0}</td>
-          <td class="py-2 px-4 border-b">${a.totalSales || 0}</td>
-          <td class="py-2 px-4 border-b">${a.currentBalance.toFixed(2)} KES</td>
-          <td class="py-2 px-4 border-b">${a.status}</td>
-          <td class="py-2 px-4 border-b">
-            <div class="dropdown">
-              <button class="dropdown-toggle text-blue-500 hover:underline">Actions</button>
-              <div class="dropdown-menu">
-                <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 action-block" data-email="${a.email}">Block</button>
-                <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 action-delete" data-email="${a.email}">Delete</button>
+          )}
+          {activeTab === 'rewards' && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Rewards Management</h2>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Leaderboard Rewards</h3>
+                <form onSubmit={(e) => handleRewardSubmit(e, 'leaderboard')} className="space-y-4">
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Top N Affiliates</label>
+                    <input
+                      type="number"
+                      value={rewardForm.topN}
+                      onChange={(e) => setRewardForm({ ...rewardForm, topN: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                      required
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Reward Type</label>
+                    <select
+                      value={rewardForm.rewardType}
+                      onChange={(e) => setRewardForm({ ...rewardForm, rewardType: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    >
+                      <option value="fixed">Fixed KES</option>
+                      <option value="percentage">Percentage of Commission</option>
+                      <option value="commission">Increase Commission Rate</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Reward Value</label>
+                    <input
+                      type="number"
+                      value={rewardForm.rewardValue}
+                      onChange={(e) => setRewardForm({ ...rewardForm, rewardValue: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                      required
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Duration (days)</label>
+                    <input
+                      type="number"
+                      value={rewardForm.duration}
+                      onChange={(e) => setRewardForm({ ...rewardForm, duration: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                      required
+                      min="1"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Apply Leaderboard Reward
+                  </button>
+                </form>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Sale Count Rewards</h3>
+                <form onSubmit={(e) => handleRewardSubmit(e, 'sale')} className="space-y-4">
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Sale Threshold</label>
+                    <input
+                      type="number"
+                      value={saleRewardForm.threshold}
+                      onChange={(e) => setSaleRewardForm({ ...saleRewardForm, threshold: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                      required
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Reward Type</label>
+                    <select
+                      value={saleRewardForm.rewardType}
+                      onChange={(e) => setSaleRewardForm({ ...saleRewardForm, rewardType: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    >
+                      <option value="fixed">Fixed KES</option>
+                      <option value="percentage">Percentage of Commission</option>
+                      <option value="commission">Increase Commission Rate</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Reward Value</label>
+                    <input
+                      type="number"
+                      value={saleRewardForm.rewardValue}
+                      onChange={(e) => setSaleRewardForm({ ...saleRewardForm, rewardValue: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                      required
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Duration (days)</label>
+                    <input
+                      type="number"
+                      value={saleRewardForm.duration}
+                      onChange={(e) => setSaleRewardForm({ ...saleRewardForm, duration: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                      required
+                      min="1"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Apply Sale Reward
+                  </button>
+                </form>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Ongoing Rewards</h3>
+                {leaderboard.filter(r => r.ongoing).length === 0 ? (
+                  <p className="text-gray-600 dark:text-gray-300">No ongoing rewards.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                          <th className="p-3 text-left text-sm">Affiliate</th>
+                          <th className="p-3 text-left text-sm">Reward Type</th>
+                          <th className="p-3 text-left text-sm">Value</th>
+                          <th className="p-3 text-left text-sm">End Date</th>
+                          <th className="p-3 text-left text-sm">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leaderboard.filter(r => r.ongoing).map(r => (
+                          <tr key={r.rewardId} className="border-b dark:border-gray-700">
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{r.affiliateName}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{r.rewardType}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{r.rewardValue}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{new Date(r.endDate).toLocaleDateString()}</td>
+                            <td className="p-3 text-sm">
+                              <button
+                                onClick={() => handleTerminateReward(r.rewardId)}
+                                className="text-red-600 hover:text-red-700"
+                                title="Terminate"
+                              >
+                                <i className="fas fa-times"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
+          )}
+          {activeTab === 'static-pages' && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Static Pages</h2>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{editPage ? 'Edit Page' : 'Create New Page'}</h3>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handlePageAction(editPage ? 'edit' : 'create', editPage ? { ...editPage, ...newPageForm } : newPageForm);
+                  }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={newPageForm.title}
+                      onChange={(e) => setNewPageForm({ ...newPageForm, title: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Content (HTML)</label>
+                    <textarea
+                      value={newPageForm.content}
+                      onChange={(e) => setNewPageForm({ ...newPageForm, content: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white h-40"
+                      required
+                    ></textarea>
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
+                  >
+                    {editPage ? 'Update Page' : 'Create Page'}
+                  </button>
+                  {editPage && (
+                    <button
+                      type="button"
+                      onClick={() => setEditPage(null)}
+                      className="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </form>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Existing Pages</h3>
+                {staticPages.length === 0 ? (
+                  <p className="text-gray-600 dark:text-gray-300">No static pages.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                          <th className="p-3 text-left text-sm">Title</th>
+                          <th className="p-3 text-left text-sm">Slug</th>
+                          <th className="p-3 text-left text-sm">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {staticPages.map(p => (
+                          <tr key={p.slug} className="border-b dark:border-gray-700">
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{p.title}</td>
+                            <td className="p-3 text-gray-900 dark:text-white text-sm">{p.slug}</td>
+                            <td className="p-3 text-sm">
+                              <button
+                                onClick={() => {
+                                  setEditPage(p);
+                                  setNewPageForm({ title: p.title, content: p.content });
+                                }}
+                                className="text-blue-600 hover:text-blue-700 mr-2"
+                                title="Edit"
+                              >
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button
+                                onClick={() => handlePageAction('delete', { slug: p.slug })}
+                                className="text-red-600 hover:text-red-700"
+                                title="Delete"
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {activeTab === 'communication' && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Communication</h2>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Urgent Popup</h3>
+                <form onSubmit={handleUrgentPopupUpdate} className="space-y-4">
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Message</label>
+                    <textarea
+                      value={urgentPopupForm.message}
+                      onChange={(e) => setUrgentPopupForm({ ...urgentPopupForm, message: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white h-24"
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={urgentPopupForm.enabled}
+                        onChange={(e) => setUrgentPopupForm({ ...urgentPopupForm, enabled: e.target.checked })}
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-gray-700 dark:text-gray-200 text-sm">Enabled (shows on every dashboard refresh)</span>
+                    </label>
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Update Urgent Popup
+                  </button>
+                </form>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Bell Icon Notification</h3>
+                <form onSubmit={handleNotificationSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Message</label>
+                    <textarea
+                      value={notificationForm.message}
+                      onChange={(e) => setNotificationForm({ ...notificationForm, message: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white h-24"
+                      required
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-200 mb-1">Filter</label>
+                    <select
+                      value={notificationForm.filter}
+                      onChange={(e) => setNotificationForm({ ...notificationForm, filter: e.target.value })}
+                      className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    >
+                      <option value="all">All Affiliates</option>
+                      <option value="saleCount">Sale Count Below</option>
+                    </select>
+                  </div>
+                  {notificationForm.filter === 'saleCount' && (
+                    <div>
+                      <label className="block text-gray-700 dark:text-gray-200 mb-1">Sale Count Threshold</label>
+                      <input
+                        type="number"
+                        value={notificationForm.saleCount}
+                        onChange={(e) => setNotificationForm({ ...notificationForm, saleCount: e.target.value })}
+                        className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                        required
+                        min="0"
+                      />
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Send Notification
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+          {activeTab === 'settings' && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Admin Settings</h2>
+              <form onSubmit={handleSettingsUpdate} className="space-y-4">
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Support Email</label>
+                  <input
+                    type="email"
+                    value={settingsForm.supportEmail}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, supportEmail: e.target.value })}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">WhatsApp Link</label>
+                  <input
+                    type="url"
+                    value={settingsForm.whatsappLink}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, whatsappLink: e.target.value })}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Copyright Text</label>
+                  <input
+                    type="text"
+                    value={settingsForm.copyrightText}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, copyrightText: e.target.value })}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Admin Email</label>
+                  <input
+                    type="email"
+                    value={settingsForm.adminEmail}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, adminEmail: e.target.value })}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">New Admin Password</label>
+                  <input
+                    type="password"
+                    value={settingsForm.adminPassword}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, adminPassword: e.target.value })}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Commission Rate (%)</label>
+                  <input
+                    type="number"
+                    value={settingsForm.commissionRate}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, commissionRate: e.target.value })}
+                    className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
+                    step="0.1"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
+                >
+                  Update Settings
+                </button>
+              </form>
+            </div>
+          )}
+          <footer className="mt-8 text-center text-gray-600 dark:text-gray-300">
+            <p>{settings.copyrightText || 'Deriv Bot Store Affiliates 2025'}</p>
+          </footer>
+        </div>
+      );
+    };
 
-    // Update withdrawals tables
-    function updateWithdrawals() {
-      const pendingTbody = document.getElementById('withdrawals-table');
-      const sortedTbody = document.getElementById('sorted-withdrawals-table');
-      pendingTbody.innerHTML = '';
-      sortedTbody.innerHTML = '';
-      const pending = withdrawals.filter(w => w.status === 'Pending');
-      const sorted = withdrawals.filter(w => w.status !== 'Pending');
-      pending.forEach(w => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="py-2 px-4 border-b">${new Date(w.requestedAt).toLocaleTimeString()}</td>
-          <td class="py-2 px-4 border-b">${new Date(w.requestedAt).toLocaleDateString()}</td>
-          <td class="py-2 px-4 border-b">${w.affiliateName}</td>
-          <td class="py-2 px-4 border-b">
-            ${w.mpesaNumber}
-            <button class="ml-2 text-blue-500 hover:underline copy-mpesa" data-number="${w.mpesaNumber}">Copy</button>
-          </td>
-          <td class="py-2 px-4 border-b">${w.mpesaName}</td>
-          <td class="py-2 px-4 border-b">${w.amount}</td>
-          <td class="py-2 px-4 border-b">
-            <button class="process-withdrawal text-blue-500 hover:underline" data-id="${w.withdrawalId}">Process</button>
-          </td>
-        `;
-        pendingTbody.appendChild(row);
-      });
-      const start = (withdrawalPage - 1) * rowsPerPage;
-      const end = start + rowsPerPage;
-      const sortedSlice = sorted.slice(start, end);
-      sortedSlice.forEach(w => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="py-2 px-4 border-b">${new Date(w.requestedAt).toLocaleTimeString()}</td>
-          <td class="py-2 px-4 border-b">${new Date(w.requestedAt).toLocaleDateString()}</td>
-          <td class="py-2 px-4 border-b">${w.affiliateName}</td>
-          <td class="py-2 px-4 border-b">${w.mpesaNumber}</td>
-          <td class="py-2 px-4 border-b">${w.mpesaName}</td>
-          <td class="py-2 px-4 border-b">${w.amount}</td>
-          <td class="py-2 px-4 border-b">${w.status}</td>
-          <td class="py-2 px-4 border-b">${w.mpesaRef || '-'}</td>
-        `;
-        sortedTbody.appendChild(row);
-      });
-      const totalPages = Math.ceil(sorted.length / rowsPerPage);
-      document.getElementById('page-info').textContent = `Page ${withdrawalPage} of ${totalPages}`;
-      document.getElementById('prev-page').disabled = withdrawalPage === 1;
-      document.getElementById('next-page').disabled = withdrawalPage >= totalPages;
-    }
+    // Main App Component
+    const App = () => {
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [error, setError] = useState('');
+      const [loading, setLoading] = useState(false);
+      const [attemptsLeft, setAttemptsLeft] = useState(5);
 
-    // Update ongoing rewards table
-    function updateOngoingRewards() {
-      const tbody = document.getElementById('ongoing-rewards-table');
-      tbody.innerHTML = '';
-      ongoingRewards.forEach(r => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="py-2 px-4 border-b">${r.type}</td>
-          <td class="py-2 px-4 border-b">${r.amount}</td>
-          <td class="py-2 px-4 border-b">${r.duration || '-'}</td>
-          <td class="py-2 px-4 border-b">${r.description}</td>
-          <td class="py-2 px-4 border-b">${new Date(r.appliedAt).toLocaleString()}</td>
-          <td class="py-2 px-4 border-b">
-            <button class="stop-reward text-blue-500 hover:underline" data-id="${r.rewardId}">Stop</button>
-            <button class="delete-reward text-red-500 hover:underline ml-2" data-id="${r.rewardId}">Delete</button>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
-
-    // Update static pages table
-    function updateStaticPages() {
-      const tbody = document.getElementById('static-pages-table');
-      tbody.innerHTML = '';
-      staticPages.forEach(p => {
-        if (!p.slug.includes('payment-modal') && !p.slug.includes('ref-code-modal')) {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td class="py-2 px-4 border-b">${p.title}</td>
-            <td class="py-2 px-4 border-b">${p.slug}</td>
-            <td class="py-2 px-4 border-b">
-              <button class="edit-page text-blue-500 hover:underline" data-slug="${p.slug}">Edit</button>
-              <button class="delete-page text-red-500 hover:underline ml-2" data-slug="${p.slug}">Delete</button>
-            </td>
-          `;
-          tbody.appendChild(row);
+      // Check for existing session
+      useEffect(() => {
+        const token = document.cookie.split('; ').find(row => row.startsWith('jwt='))?.split('=')[1];
+        if (token) {
+          axios.get('/api/admin/affiliate/verify', { withCredentials: true })
+            .then(() => setIsLoggedIn(true))
+            .catch(() => {
+              setError('Session expired. Please log in again.');
+              document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            });
         }
-      });
-    }
+      }, []);
 
-    // Update notifications
-    function updateNotifications() {
-      const unreadCount = notifications.filter(n => !n.read).length;
-      document.getElementById('unread-count').textContent = unreadCount;
-      const notificationList = document.getElementById('notification-list');
-      notificationList.innerHTML = '';
-      notifications.forEach(n => {
-        const div = document.createElement('div');
-        div.className = `notification ${n.read ? '' : 'unread'}`;
-        div.innerHTML = `<p>${new Date(n.timestamp).toLocaleString()}: ${n.message}</p>`;
-        if (!n.read) {
-          div.onclick = () => markNotificationRead(n.timestamp);
+      // Handle login
+      const handleLogin = async (formData) => {
+        setError('');
+        setLoading(true);
+        try {
+          const res = await axios.post('/api/admin/affiliate/login', formData, { withCredentials: true });
+          document.cookie = `jwt=${res.data.token}; path=/; secure; samesite=strict`;
+          setIsLoggedIn(true);
+          setAttemptsLeft(5);
+        } catch (err) {
+          setError(err.response?.data?.error || 'Login failed');
+          setAttemptsLeft(err.response?.data?.attemptsLeft || 0);
+        } finally {
+          setLoading(false);
         }
-        notificationList.appendChild(div);
-      });
-    }
-
-    // Mark notification as read
-    async function markNotificationRead(timestamp) {
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/mark-notification`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionId}`
-          },
-          body: JSON.stringify({ timestamp })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to mark notification as read');
-        await fetchNotifications();
-      } catch (error) {
-        console.error('Error marking notification as read:', error);
-        showToast(error.message, true);
-      }
-    }
-
-    // Enable login button
-    function enableLoginButton() {
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      document.getElementById('login-btn').disabled = !email || password.length < 8;
-    }
-
-    // Event listeners
-    document.getElementById('login-form').addEventListener('input', enableLoginButton);
-
-    document.getElementById('show-password').addEventListener('click', () => {
-      const password = document.getElementById('password');
-      const icon = document.getElementById('show-password').querySelector('i');
-      password.type = password.type === 'password' ? 'text' : 'password';
-      icon.className = password.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
-    });
-
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      const loginError = document.getElementById('login-error');
-      const loading = document.getElementById('loading');
-      const loginBtn = document.getElementById('login-btn');
-      loginError.classList.add('hidden');
-      loading.classList.remove('hidden');
-      loginBtn.disabled = true;
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Login failed');
-        sessionId = data.sessionId;
-        localStorage.setItem('adminSessionId', sessionId);
-        showAdminPage();
-        await Promise.all([fetchSettings(), fetchAffiliates(), fetchWithdrawals(), fetchOngoingRewards(), fetchNotifications()]);
-        setupWebSocket();
-      } catch (error) {
-        loginError.textContent = error.message;
-        loginError.classList.remove('hidden');
-      } finally {
-        loading.classList.add('hidden');
-        loginBtn.disabled = false;
-      }
-    });
-
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-      try {
-        await fetch(`${API_BASE}/admin/affiliate/logout`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${sessionId}` }
-        });
-        localStorage.removeItem('adminSessionId');
-        if (ws) ws.close();
-        showLoginPage();
-      } catch (error) {
-        console.error('Error logging out:', error);
-        showToast('Error logging out. Please check server configuration.', true);
-      }
-    });
-
-    document.getElementById('settings-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const supportEmail = document.getElementById('support-email').value;
-      const copyrightText = document.getElementById('copyright-text').value;
-      const whatsappLink = document.getElementById('whatsapp-link').value;
-      const commissionRate = parseFloat(document.getElementById('commission-rate').value);
-      const urgentMessage = {
-        text: document.getElementById('urgent-message').value,
-        enabled: document.getElementById('urgent-enabled').checked
       };
-      const saveBtn = document.getElementById('save-settings-btn');
-      saveBtn.disabled = true;
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/settings`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionId}`
-          },
-          body: JSON.stringify({ supportEmail, copyrightText, whatsappLink, commissionRate, urgentMessage })
-        });
-        if (response.ok) {
-          showToast('Settings updated successfully');
-          await fetchSettings();
-        } else {
-          const errorData = await response.json();
-          showToast(errorData.error || 'Failed to update settings', true);
-        }
-      } catch (error) {
-        console.error('Error updating settings:', error);
-        showToast('Error updating settings. Please check server configuration.', true);
-      } finally {
-        saveBtn.disabled = false;
-      }
-    });
 
-    document.getElementById('affiliate-search').addEventListener('input', debounce(updateAffiliates, 300));
-    document.getElementById('sort-affiliates').addEventListener('change', updateAffiliates);
+      return (
+        <>
+          {isLoggedIn ? (
+            <AdminDashboard setIsLoggedIn={setIsLoggedIn} />
+          ) : (
+            <LoginForm
+              handleLogin={handleLogin}
+              error={error}
+              loading={loading}
+              attemptsLeft={attemptsLeft}
+            />
+          )}
+        </>
+      );
+    };
 
-    document.getElementById('affiliates-table').addEventListener('click', async (e) => {
-      if (e.target.classList.contains('dropdown-toggle')) {
-        const dropdown = e.target.closest('.dropdown');
-        dropdown.classList.toggle('active');
-        return;
-      }
-      const email = e.target.dataset.email;
-      if (e.target.classList.contains('action-block')) {
-        try {
-          const response = await fetch(`${API_BASE}/admin/affiliate/affiliates/block`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionId}`
-            },
-            body: JSON.stringify({ email })
-          });
-          const data = await response.json();
-          if (response.ok) {
-            showToast('Affiliate blocked successfully');
-            await fetchAffiliates();
-          } else {
-            showToast(data.error || 'Failed to block affiliate', true);
-          }
-        } catch (error) {
-          console.error('Error blocking affiliate:', error);
-          showToast('Error blocking affiliate. Please check server configuration.', true);
-        }
-      } else if (e.target.classList.contains('action-delete')) {
-        try {
-          const response = await fetch(`${API_BASE}/admin/affiliate/affiliates/delete`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionId}`
-            },
-            body: JSON.stringify({ email })
-          });
-          const data = await response.json();
-          if (response.ok) {
-            showToast('Affiliate deleted successfully. Sheet removed and account deactivated.');
-            await fetchAffiliates();
-          } else {
-            showToast(data.error || 'Failed to delete affiliate', true);
-          }
-        } catch (error) {
-          console.error('Error deleting affiliate:', error);
-          showToast('Error deleting affiliate. Please check server configuration.', true);
-        }
-      }
-    });
-
-    document.getElementById('withdrawals-table').addEventListener('click', async (e) => {
-      if (e.target.classList.contains('process-withdrawal')) {
-        const withdrawalId = e.target.dataset.id;
-        const withdrawal = withdrawals.find(w => w.withdrawalId === withdrawalId);
-        document.getElementById('withdrawal-details').textContent = `Processing withdrawal of ${withdrawal.amount} KES for ${withdrawal.affiliateName} (${withdrawal.mpesaNumber})`;
-        document.getElementById('withdrawal-popup').dataset.id = withdrawalId;
-        document.getElementById('withdrawal-status').value = 'Done';
-        document.getElementById('mpesa-ref-field').classList.remove('hidden');
-        document.getElementById('withdrawal-popup').classList.remove('hidden');
-      } else if (e.target.classList.contains('copy-mpesa')) {
-        navigator.clipboard.writeText(e.target.dataset.number);
-        showToast('M-PESA number copied');
-      }
-    });
-
-    document.getElementById('withdrawal-status').addEventListener('change', (e) => {
-      document.getElementById('mpesa-ref-field').classList.toggle('hidden', e.target.value !== 'Done');
-      document.getElementById('mpesa-ref').required = e.target.value === 'Done';
-    });
-
-    document.getElementById('withdrawal-process-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const withdrawalId = document.getElementById('withdrawal-popup').dataset.id;
-      const status = document.getElementById('withdrawal-status').value;
-      const mpesaRef = status === 'Done' ? document.getElementById('mpesa-ref').value : '';
-      const processBtn = document.getElementById('process-withdrawal-btn');
-      processBtn.disabled = true;
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/withdrawals/process`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionId}`
-          },
-          body: JSON.stringify({ withdrawalId, status, mpesaRef })
-        });
-        const data = await response.json();
-        if (response.ok) {
-          showToast('Withdrawal processed successfully');
-          await fetchWithdrawals();
-          document.getElementById('withdrawal-popup').classList.add('hidden');
-        } else {
-          showToast(data.error || 'Failed to process withdrawal', true);
-        }
-      } catch (error) {
-        console.error('Error processing withdrawal:', error);
-        showToast('Error processing withdrawal. Please check server configuration.', true);
-      } finally {
-        processBtn.disabled = false;
-      }
-    });
-
-    document.getElementById('cancel-withdrawal').addEventListener('click', () => {
-      document.getElementById('withdrawal-popup').classList.add('hidden');
-    });
-
-    document.getElementById('close-urgent-popup').addEventListener('click', () => {
-      document.getElementById('urgent-popup').classList.add('hidden');
-    });
-
-    document.getElementById('prev-page').addEventListener('click', () => {
-      if (withdrawalPage > 1) {
-        withdrawalPage--;
-        updateWithdrawals();
-      }
-    });
-
-    document.getElementById('next-page').addEventListener('click', () => {
-      const sorted = withdrawals.filter(w => w.status !== 'Pending');
-      const totalPages = Math.ceil(sorted.length / rowsPerPage);
-      if (withdrawalPage < totalPages) {
-        withdrawalPage++;
-        updateWithdrawals();
-      }
-    });
-
-    document.getElementById('leaderboard-range').addEventListener('input', (e) => {
-      document.getElementById('leaderboard-range-value').textContent = e.target.value;
-    });
-
-    document.getElementById('sales-threshold').addEventListener('input', (e) => {
-      document.getElementById('sales-threshold-value').textContent = e.target.value;
-    });
-
-    document.getElementById('leaderboard-reward-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const range = parseInt(document.getElementById('leaderboard-range').value);
-      const type = document.getElementById('reward-type').value;
-      const amount = parseFloat(document.getElementById('reward-amount').value);
-      const duration = parseInt(document.getElementById('reward-duration').value) || 0;
-      const description = document.getElementById('reward-description').value;
-      const submitBtn = e.target.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/rewards/apply`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionId}`
-          },
-          body: JSON.stringify({ type: 'leaderboard', range, reward: { type, amount, duration, description } })
-        });
-        const data = await response.json();
-        if (response.ok) {
-          showToast('Reward applied successfully');
-          await fetchOngoingRewards();
-          await fetchNotifications();
-          document.getElementById('leaderboard-reward-form').reset();
-          document.getElementById('leaderboard-range-value').textContent = '1';
-        } else {
-          showToast(data.error || 'Failed to apply reward', true);
-        }
-      } catch (error) {
-        console.error('Error applying reward:', error);
-        showToast('Error applying reward. Please check server configuration.', true);
-      } finally {
-        submitBtn.disabled = false;
-      }
-    });
-
-    document.getElementById('sales-reward-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const threshold = parseInt(document.getElementById('sales-threshold').value);
-      const type = document.getElementById('sales-reward-type').value;
-      const amount = parseFloat(document.getElementById('sales-reward-amount').value);
-      const duration = parseInt(document.getElementById('sales-reward-duration').value) || 0;
-      const description = document.getElementById('sales-reward-description').value;
-      const submitBtn = e.target.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/rewards/apply`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionId}`
-          },
-          body: JSON.stringify({ type: 'sales', threshold, reward: { type, amount, duration, description } })
-        });
-        const data = await response.json();
-        if (response.ok) {
-          showToast('Reward applied successfully');
-          await fetchOngoingRewards();
-          await fetchNotifications();
-          document.getElementById('sales-reward-form').reset();
-          document.getElementById('sales-threshold-value').textContent = '1';
-        } else {
-          showToast(data.error || 'Failed to apply reward', true);
-        }
-      } catch (error) {
-        console.error('Error applying reward:', error);
-        showToast('Error applying reward. Please check server configuration.', true);
-      } finally {
-        submitBtn.disabled = false;
-      }
-    });
-
-    document.getElementById('ongoing-rewards-table').addEventListener('click', async (e) => {
-      const rewardId = e.target.dataset.id;
-      if (e.target.classList.contains('stop-reward')) {
-        try {
-          const response = await fetch(`${API_BASE}/admin/affiliate/rewards/stop`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionId}`
-            },
-            body: JSON.stringify({ rewardId })
-          });
-          const data = await response.json();
-          if (response.ok) {
-            showToast('Reward stopped successfully');
-            await fetchOngoingRewards();
-            await fetchNotifications();
-          } else {
-            showToast(data.error || 'Failed to stop reward', true);
-          }
-        } catch (error) {
-          console.error('Error stopping reward:', error);
-          showToast('Error stopping reward. Please check server configuration.', true);
-        }
-      } else if (e.target.classList.contains('delete-reward')) {
-        try {
-          const response = await fetch(`${API_BASE}/admin/affiliate/rewards/delete`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionId}`
-            },
-            body: JSON.stringify({ rewardId })
-          });
-          const data = await response.json();
-          if (response.ok) {
-            showToast('Reward deleted successfully');
-            await fetchOngoingRewards();
-            await fetchNotifications();
-          } else {
-            showToast(data.error || 'Failed to delete reward', true);
-          }
-        } catch (error) {
-          console.error('Error deleting reward:', error);
-          showToast('Error deleting reward. Please check server configuration.', true);
-        }
-      }
-    });
-
-    document.getElementById('static-page-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const title = document.getElementById('page-title').value;
-      let slug = document.getElementById('page-slug').value;
-      const content = document.getElementById('page-content').value;
-      if (!slug) {
-        slug = `/page/botblitz/${title.toLowerCase().replace(/\s+/g, '-')}`;
-      }
-      const saveBtn = document.getElementById('save-page-btn');
-      saveBtn.disabled = true;
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/static-pages`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionId}`
-          },
-          body: JSON.stringify({ title, slug, content })
-        });
-        const data = await response.json();
-        if (response.ok) {
-          showToast('Page saved successfully');
-          await fetchSettings();
-          document.getElementById('static-page-form').reset();
-          document.getElementById('page-slug').value = '';
-        } else {
-          showToast(data.error || 'Failed to save page', true);
-        }
-      } catch (error) {
-        console.error('Error saving page:', error);
-        showToast('Error saving page. Please check server configuration.', true);
-      } finally {
-        saveBtn.disabled = false;
-      }
-    });
-
-    document.getElementById('page-title').addEventListener('input', (e) => {
-      const slugField = document.getElementById('page-slug');
-      if (!slugField.value) {
-        slugField.value = `/page/botblitz/${e.target.value.toLowerCase().replace(/\s+/g, '-')}`;
-      }
-    });
-
-    document.getElementById('static-pages-table').addEventListener('click', async (e) => {
-      const slug = e.target.dataset.slug;
-      if (e.target.classList.contains('edit-page')) {
-        const page = staticPages.find(p => p.slug === slug);
-        document.getElementById('page-title').value = page.title;
-        document.getElementById('page-slug').value = page.slug;
-        document.getElementById('page-content').value = page.content;
-      } else if (e.target.classList.contains('delete-page')) {
-        try {
-          const response = await fetch(`${API_BASE}/admin/affiliate/static-pages/delete`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionId}`
-            },
-            body: JSON.stringify({ slug })
-          });
-          const data = await response.json();
-          if (response.ok) {
-            showToast('Page deleted successfully');
-            await fetchSettings();
-          } else {
-            showToast(data.error || 'Failed to delete page', true);
-          }
-        } catch (error) {
-          console.error('Error deleting page:', error);
-          showToast('Error deleting page. Please check server configuration.', true);
-        }
-      }
-    });
-
-    document.getElementById('notification-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const message = document.getElementById('notification-message').value;
-      const recipients = document.getElementById('notification-recipients').value;
-      const timestamp = new Date().toISOString();
-      const sendBtn = document.getElementById('send-notification-btn');
-      sendBtn.disabled = true;
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/notifications`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionId}`
-          },
-          body: JSON.stringify({ message, recipients, timestamp })
-        });
-        const data = await response.json();
-        if (response.ok) {
-          showToast('Notification sent successfully');
-          document.getElementById('notification-form').reset();
-          await fetchNotifications();
-        } else {
-          showToast(data.error || 'Failed to send notification', true);
-        }
-      } catch (error) {
-        console.error('Error sending notification:', error);
-        showToast('Error sending notification. Please check server configuration.', true);
-      } finally {
-        sendBtn.disabled = false;
-      }
-    });
-
-    document.getElementById('account-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('admin-email').value;
-      const currentPassword = document.getElementById('current-password').value;
-      const newPassword = document.getElementById('admin-password').value;
-      const updateBtn = document.getElementById('update-account-btn');
-      updateBtn.disabled = true;
-      try {
-        const response = await fetch(`${API_BASE}/admin/affiliate/account`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionId}`
-          },
-          body: JSON.stringify({ email, currentPassword, newPassword })
-        });
-        const data = await response.json();
-        if (response.ok) {
-          showToast('Account updated successfully');
-          localStorage.removeItem('adminSessionId');
-          if (ws) ws.close();
-          showLoginPage();
-        } else {
-          showToast(data.error || 'Failed to update account', true);
-        }
-      } catch (error) {
-        console.error('Error updating account:', error);
-        showToast('Error updating account. Please check server configuration.', true);
-      } finally {
-        updateBtn.disabled = false;
-      }
-    });
-
-    document.getElementById('notification-bell').addEventListener('click', () => {
-      const notifications = document.getElementById('notifications');
-      notifications.style.display = notifications.style.display === 'block' ? 'none' : 'block';
-    });
-
-    // Tab navigation
-    const tabs = ['home', 'affiliates', 'withdrawals', 'rewards', 'static-pages', 'communication', 'settings'];
-    tabs.forEach(tab => {
-      document.getElementById(`${tab}-tab`).addEventListener('click', () => {
-        tabs.forEach(t => {
-          document.getElementById(`${t}-content`).classList.add('hidden');
-          document.getElementById(`${t}-tab`).classList.remove('bg-blue-600', 'text-white');
-          document.getElementById(`${t}-tab`).classList.add('bg-gray-200', 'text-gray-700');
-        });
-        document.getElementById(`${tab}-content`).classList.remove('hidden');
-        document.getElementById(`${tab}-tab`).classList.add('bg-blue-600', 'text-white');
-        document.getElementById(`${tab}-tab`).classList.remove('bg-gray-200', 'text-gray-700');
-      });
-    });
-
-    // Initialize
-    checkSession();
+    // Render the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
   </script>
 </body>
 </html>
