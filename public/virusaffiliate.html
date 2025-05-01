@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BotBlitz Affiliate Admin Panel</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="icon" href="https://botblitz.store/favicon.ico">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .popup { transition: opacity 0.3s ease, transform 0.3s ease; }
+    .table-container { max-height: 500px; overflow-y: auto; }
+    .btn { min-width: 120px; transition: all 0.2s ease; }
+    .toast { transition: opacity 0.5s ease; }
+    .dropdown-menu { display: none; position: absolute; right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 0.375rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 10; }
+    .dropdown.active .dropdown-menu { display: block; }
+    .notification-bell { position: fixed; top: 20px; right: 20px; cursor: pointer; }
+    .notification-bell .badge { position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; }
+    .notifications { position: fixed; top: 50px; right: 20px; background-color: white; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); border-radius: 5px; max-height: 400px; overflow-y: auto; width: 300px; display: none; }
+    .notification { padding: 10px; border-bottom: 1px solid #ddd; cursor: pointer; }
+    .notification.unread { background-color: #f0f8ff; }
+    @media (max-width: 640px) {
+      .table-container { max-height: 300px; }
+      .btn { min-width: 100px; font-size: 0.875rem; }
+      .popup { max-width: 90%; }
+      .grid-cols-2 { grid-template-columns: 1fr; }
+      .tabs { flex-direction: column; gap: 0.5rem; }
+      .tab-btn { width: 100%; text-align: left; }
+      th, td { font-size: 0.75rem; padding: 0.5rem; }
+      .notifications { width: 90%; right: 5%; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <!-- Login Page -->
+  <div id="login-page" class="min-h-screen flex items-center justify-center bg-gray-900">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+      <h1 class="text-2xl font-bold mb-6 text-center text-gray-800">Admin Login</h1>
+      <div id="login-error" class="hidden text-red-500 mb-4 text-center"></div>
+      <div id="loading" class="hidden text-center">
+        <i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i>
+      </div>
+      <form id="login-form">
+        <div class="mb-4">
+          <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+          <input type="email" id="email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+        </div>
+        <div class="mb-4 relative">
+          <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+          <input type="password" id="password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" minlength="8" required>
+          <button type="button" id="show-password" class="absolute right-2 top-8 text-gray-500">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+        <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition disabled:bg-gray-400" disabled>Login</button>
+      </form>
+      <footer class="mt-8 text-center text-sm text-gray-600">
+        <div id="footer-links" class="mb-2 flex flex-wrap justify-center gap-2"></div>
+        <p id="copyright"></p>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Admin Dashboard -->
+  <div id="admin-page" class="hidden min-h-screen bg-gray-100">
+    <nav class="bg-white shadow-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center">
+            <span class="text-xl font-bold text-gray-800">Affiliate Admin Panel</span>
+          </div>
+          <div class="flex items-center space-x-4">
+            <button id="logout-btn" class="btn bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Logout</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h1 class="text-3xl font-bold mb-8 text-gray-800">Affiliate Management</h1>
+      <div class="flex tabs space-x-4 mb-8 overflow-x-auto">
+        <button id="home-tab" class="tab-btn px-4 py-2 bg-blue-600 text-white rounded-md focus:outline-none whitespace-nowrap">Home</button>
+        <button id="affiliates-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Affiliates</button>
+        <button id="withdrawals-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Withdrawals</button>
+        <button id="rewards-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Rewards</button>
+        <button id="static-pages-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Static Pages</button>
+        <button id="communication-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Communication</button>
+        <button id="settings-tab" class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-md focus:outline-none whitespace-nowrap">Settings</button>
+      </div>
+      <div id="home-content">
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">General Settings</h2>
+          <form id="settings-form">
+            <div class="mb-4">
+              <label for="support-email" class="block text-sm font-medium text-gray-700">Support Email</label>
+              <input type="email" id="support-email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="mb-4">
+              <label for="copyright-text" class="block text-sm font-medium text-gray-700">Copyright Text</label>
+              <input type="text" id="copyright-text" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="mb-4">
+              <label for="whatsapp-link" class="block text-sm font-medium text-gray-700">WhatsApp Link</label>
+              <input type="url" id="whatsapp-link" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="mb-4">
+              <label for="commission-rate" class="block text-sm font-medium text-gray-700">Affiliate Commission Rate (%)</label>
+              <input type="number" id="commission-rate" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0" max="100" step="0.1" required>
+            </div>
+            <div class="mb-4">
+              <label for="urgent-message" class="block text-sm font-medium text-gray-700">Urgent Message</label>
+              <textarea id="urgent-message" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4"></textarea>
+              <div class="mt-2 flex items-center">
+                <input type="checkbox" id="urgent-enabled" class="mr-2">
+                <label for="urgent-enabled" class="text-sm text-gray-700">Enable Urgent Message</label>
+              </div>
+            </div>
+            <button type="submit" id="save-settings-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Save Settings</button>
+          </form>
+        </div>
+      </div>
+      <div id="affiliates-content" class="hidden">
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Affiliates</h2>
+          <div class="mb-4 flex items-center space-x-2">
+            <input type="text" id="affiliate-search" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 flex-grow" placeholder="Search by name...">
+            <select id="sort-affiliates" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+              <option value="sales-desc">Sales (High to Low)</option>
+              <option value="balance-desc">Current Balance (High to Low)</option>
+              <option value="clicks-asc">Link Clicks (Low to High)</option>
+            </select>
+          </div>
+          <div class="table-container">
+            <table class="min-w-full bg-white">
+              <thead>
+                <tr>
+                  <th class="py-2 px-4 border-b text-left">Name</th>
+                  <th class="py-2 px-4 border-b text-left">Email</th>
+                  <th class="py-2 px-4 border-b text-left">Created At</th>
+                  <th class="py-2 px-4 border-b text-left">Link Clicks</th>
+                  <th class="py-2 px-4 border-b text-left">Total Sales</th>
+                  <th class="py-2 px-4 border-b text-left">Current Balance</th>
+                  <th class="py-2 px-4 border-b text-left">Status</th>
+                  <th class="py-2 px-4 border-b text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="affiliates-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="withdrawals-content" class="hidden">
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Pending Withdrawals</h2>
+          <div class="table-container">
+            <table class="min-w-full bg-white">
+              <thead>
+                <tr>
+                  <th class="py-2 px-4 border-b text-left">Time</th>
+                  <th class="py-2 px-4 border-b text-left">Date</th>
+                  <th class="py-2 px-4 border-b text-left">Affiliate</th>
+                  <th class="py-2 px-4 border-b text-left">M-PESA Number</th>
+                  <th class="py-2 px-4 border-b text-left">M-PESA Name</th>
+                  <th class="py-2 px-4 border-b text-left">Amount (KES)</th>
+                  <th class="py-2 px-4 border-b text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="withdrawals-table"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Sorted Withdrawals</h2>
+          <div class="table-container">
+            <table class="min-w-full bg-white">
+              <thead>
+                <tr>
+                  <th class="py-2 px-4 border-b text-left">Time</th>
+                  <th class="py-2 px-4 border-b text-left">Date</th>
+                  <th class="py-2 px-4 border-b text-left">Affiliate</th>
+                  <th class="py-2 px-4 border-b text-left">M-PESA Number</th>
+                  <th class="py-2 px-4 border-b text-left">M-PESA Name</th>
+                  <th class="py-2 px-4 border-b text-left">Amount (KES)</th>
+                  <th class="py-2 px-4 border-b text-left">Status</th>
+                  <th class="py-2 px-4 border-b text-left">M-PESA Ref</th>
+                </tr>
+              </thead>
+              <tbody id="sorted-withdrawals-table"></tbody>
+            </table>
+          </div>
+          <div class="mt-4 flex justify-between">
+            <button id="prev-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" disabled>Previous</button>
+            <span id="page-info" class="text-gray-700"></span>
+            <button id="next-page" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400" disabled>Next</button>
+          </div>
+        </div>
+      </div>
+      <div id="rewards-content" class="hidden">
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Leaderboard Rewards</h2>
+          <form id="leaderboard-reward-form">
+            <div class="mb-4">
+              <label for="leaderboard-range" class="block text-sm font-medium text-gray-700">Top Affiliates (1-10)</label>
+              <input type="range" id="leaderboard-range" min="1" max="10" value="1" class="w-full">
+              <span id="leaderboard-range-value" class="text-sm text-gray-600">1</span>
+            </div>
+            <div class="mb-4">
+              <label for="reward-type" class="block text-sm font-medium text-gray-700">Reward Type</label>
+              <select id="reward-type" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+                <option value="fixed">Fixed Amount (KES)</option>
+                <option value="percentage">Commission Percentage Increase</option>
+                <option value="monthly">Monthly Commission Bonus</option>
+              </select>
+            </div>
+            <div class="mb-4">
+              <label for="reward-amount" class="block text-sm font-medium text-gray-700">Amount/Value</label>
+              <input type="number" id="reward-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0" step="0.1" required>
+            </div>
+            <div class="mb-4">
+              <label for="reward-duration" class="block text-sm font-medium text-gray-700">Duration (Days, if applicable)</label>
+              <input type="number" id="reward-duration" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0">
+            </div>
+            <div class="mb-4">
+              <label for="reward-description" class="block text-sm font-medium text-gray-700">Description</label>
+              <textarea id="reward-description" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4" required></textarea>
+            </div>
+            <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Apply Reward</button>
+          </form>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Sales-Based Rewards</h2>
+          <form id="sales-reward-form">
+            <div class="mb-4">
+              <label for="sales-threshold" class="block text-sm font-medium text-gray-700">Minimum Sales Count (1-<span id="max-sales">100</span>)</label>
+              <input type="range" id="sales-threshold" min="1" max="100" value="1" class="w-full">
+              <span id="sales-threshold-value" class="text-sm text-gray-600">1</span>
+            </div>
+            <div class="mb-4">
+              <label for="sales-reward-type" class="block text-sm font-medium text-gray-700">Reward Type</label>
+              <select id="sales-reward-type" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+                <option value="fixed">Fixed Amount (KES)</option>
+                <option value="percentage">Commission Percentage Increase</option>
+                <option value="monthly">Monthly Commission Bonus</option>
+              </select>
+            </div>
+            <div class="mb-4">
+              <label for="sales-reward-amount" class="block text-sm font-medium text-gray-700">Amount/Value</label>
+              <input type="number" id="sales-reward-amount" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0" step="0.1" required>
+            </div>
+            <div class="mb-4">
+              <label for="sales-reward-duration" class="block text-sm font-medium text-gray-700">Duration (Days, if applicable)</label>
+              <input type="number" id="sales-reward-duration" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" min="0">
+            </div>
+            <div class="mb-4">
+              <label for="sales-reward-description" class="block text-sm font-medium text-gray-700">Description</label>
+              <textarea id="sales-reward-description" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4" required></textarea>
+            </div>
+            <button type="submit" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Apply Reward</button>
+          </form>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Ongoing Rewards</h2>
+          <div class="table-container">
+            <table class="min-w-full bg-white">
+              <thead>
+                <tr>
+                  <th class="py-2 px-4 border-b text-left">Type</th>
+                  <th class="py-2 px-4 border-b text-left">Amount/Value</th>
+                  <th class="py-2 px-4 border-b text-left">Duration (Days)</th>
+                  <th class="py-2 px-4 border-b text-left">Description</th>
+                  <th class="py-2 px-4 border-b text-left">Applied At</th>
+                  <th class="py-2 px-4 border-b text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ongoing-rewards-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="static-pages-content" class="hidden">
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Add/Edit Static Page</h2>
+          <form id="static-page-form">
+            <div class="mb-4">
+              <label for="page-title" class="block text-sm font-medium text-gray-700">Title</label>
+              <input type="text" id="page-title" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="mb-4">
+              <label for="page-slug" class="block text-sm font-medium text-gray-700">Slug (Auto-generated)</label>
+              <input type="text" id="page-slug" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" readonly>
+            </div>
+            <div class="mb-4">
+              <label for="page-content" class="block text-sm font-medium text-gray-700">Content (HTML)</label>
+              <textarea id="page-content" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="6" required></textarea>
+            </div>
+            <button type="submit" id="save-page-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Save Page</button>
+          </form>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Existing Pages</h2>
+          <div class="table-container">
+            <table class="min-w-full bg-white">
+              <thead>
+                <tr>
+                  <th class="py-2 px-4 border-b text-left">Title</th>
+                  <th class="py-2 px-4 border-b text-left">Slug</th>
+                  <th class="py-2 px-4 border-b text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="static-pages-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="communication-content" class="hidden">
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Send Notification</h2>
+          <form id="notification-form">
+            <div class="mb-4">
+              <label for="notification-message" class="block text-sm font-medium text-gray-700">Message</label>
+              <textarea id="notification-message" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4" required></textarea>
+            </div>
+            <div class="mb-4">
+              <label for="notification-recipients" class="block text-sm font-medium text-gray-700">Recipients</label>
+              <select id="notification-recipients" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+                <option value="all">All Affiliates</option>
+                <option value="low-sales">Low Sales (≤ 5)</option>
+                <option value="zero-sales">Zero Sales</option>
+              </select>
+            </div>
+            <button type="submit" id="send-notification-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Send Notification</button>
+          </form>
+        </div>
+      </div>
+      <div id="settings-content" class="hidden">
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h2 class="text-xl font-bold mb-4 text-gray-800">Account Settings</h2>
+          <form id="account-form">
+            <div class="mb-4">
+              <label for="admin-email" class="block text-sm font-medium text-gray-700">Admin Email</label>
+              <input type="email" id="admin-email" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="mb-4">
+              <label for="current-password" class="block text-sm font-medium text-gray-700">Current Password</label>
+              <input type="password" id="current-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="mb-4">
+              <label for="admin-password" class="block text-sm font-medium text-gray-700">New Password</label>
+              <input type="password" id="admin-password" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" minlength="8">
+            </div>
+            <button type="submit" id="update-account-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Update Account</button>
+          </form>
+        </div>
+      </div>
+    </main>
+    <footer class="bg-white shadow-md mt-8 py-4">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-600">
+        <div id="admin-footer-links" class="mb-2 flex flex-wrap justify-center gap-2"></div>
+        <p id="admin-copyright"></p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Popups -->
+  <div id="withdrawal-popup" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full popup">
+      <h2 class="text-xl font-bold mb-4 text-gray-800">Process Withdrawal</h2>
+      <p id="withdrawal-details" class="text-gray-600 mb-4"></p>
+      <form id="withdrawal-process-form">
+        <div class="mb-4">
+          <label for="withdrawal-status" class="block text-sm font-medium text-gray-700">Status</label>
+          <select id="withdrawal-status" class="p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+            <option value="Done">Done</option>
+            <option value="Disputed">Dispute</option>
+          </select>
+        </div>
+        <div id="mpesa-ref-field" class="mb-4 hidden">
+          <label for="mpesa-ref" class="block text-sm font-medium text-gray-700">M-PESA Ref</label>
+          <input type="text" id="mpesa-ref" class="mt-1 p-2 w-full border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+        </div>
+        <div class="flex justify-end space-x-4">
+          <button type="button" id="cancel-withdrawal" class="btn bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">Cancel</button>
+          <button type="submit" id="process-withdrawal-btn" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Process</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="urgent-popup" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full popup">
+      <h2 class="text-xl font-bold mb-4 text-gray-800">Urgent Message</h2>
+      <p id="urgent-message-text" class="text-gray-600 mb-4"></p>
+      <div class="flex justify-end">
+        <button id="close-urgent-popup" class="btn bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">OK</button>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-md hidden toast"></div>
+
+  <!-- Notifications -->
+  <div class="notification-bell" id="notification-bell">
+    🔔 <span class="badge" id="unread-count">0</span>
+  </div>
+  <div class="notifications" id="notifications">
+    <div id="notification-list"></div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:10001/api' : 'https://botblitz.store/api';
+    let sessionId = localStorage.getItem('adminSessionId');
+    let ws = null;
+    let settings = { settings: { supportEmail: '', copyrightText: '', whatsappLink: '', commissionRate: 20, urgentMessage: { text: '', enabled: false } }, staticPages: [] };
+    let affiliates = [];
+    let withdrawals = [];
+    let staticPages = [];
+    let ongoingRewards = [];
+    let notifications = [];
+    let withdrawalPage = 1;
+    const rowsPerPage = 20;
+    let maxSales = 100;
+
+    // Debounce utility
+    function debounce(func, wait) {
+      let timeout;
+      return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    // Show toast notification
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded-md ${isError ? 'bg-red-600' : 'bg-green-600'} text-white toast`;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    // Show urgent popup
+    function showUrgentPopup(message) {
+      document.getElementById('urgent-message-text').textContent = message;
+      document.getElementById('urgent-popup').classList.remove('hidden');
+    }
+
+    // Fetch settings
+    async function fetchSettings() {
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/settings`, {
+          headers: { 'Authorization': `Bearer ${sessionId}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch settings');
+        settings = await response.json();
+        document.getElementById('copyright').textContent = settings.settings.copyrightText;
+        document.getElementById('admin-copyright').textContent = settings.settings.copyrightText;
+        const footerLinks = document.getElementById('footer-links');
+        const adminFooterLinks = document.getElementById('admin-footer-links');
+        footerLinks.innerHTML = '';
+        adminFooterLinks.innerHTML = '';
+        settings.staticPages.forEach(page => {
+          if (!page.slug.includes('payment-modal') && !page.slug.includes('ref-code-modal')) {
+            const link = document.createElement('a');
+            link.href = `/page${page.slug}`;
+            link.textContent = page.title;
+            link.className = 'text-blue-500 hover:underline';
+            link.target = '_blank';
+            footerLinks.appendChild(link);
+            adminFooterLinks.appendChild(link.cloneNode(true));
+          }
+        });
+        document.getElementById('support-email').value = settings.settings.supportEmail;
+        document.getElementById('copyright-text').value = settings.settings.copyrightText;
+        document.getElementById('whatsapp-link').value = settings.settings.whatsappLink;
+        document.getElementById('commission-rate').value = settings.settings.commissionRate;
+        document.getElementById('urgent-message').value = settings.settings.urgentMessage.text;
+        document.getElementById('urgent-enabled').checked = settings.settings.urgentMessage.enabled;
+        staticPages = settings.staticPages;
+        updateStaticPages();
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+        showToast('Failed to load settings. Please check server configuration.', true);
+      }
+    }
+
+    // Fetch affiliates
+    async function fetchAffiliates() {
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/affiliates`, {
+          headers: { 'Authorization': `Bearer ${sessionId}` }
+        });
+        if (!response.ok) throw new Error('Failed to load affiliates');
+        affiliates = (await response.json()).affiliates;
+        maxSales = Math.max(...affiliates.map(a => parseInt(a.totalSales) || 0), 100);
+        document.getElementById('max-sales').textContent = maxSales;
+        document.getElementById('sales-threshold').max = maxSales;
+        updateAffiliates();
+      } catch (error) {
+        console.error('Error fetching affiliates:', error);
+        showToast('Error loading affiliates. Please check server configuration.', true);
+      }
+    }
+
+    // Fetch withdrawals
+    async function fetchWithdrawals() {
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/withdrawals`, {
+          headers: { 'Authorization': `Bearer ${sessionId}` }
+        });
+        if (!response.ok) throw new Error('Failed to load withdrawals');
+        withdrawals = (await response.json()).withdrawals;
+        updateWithdrawals();
+      } catch (error) {
+        console.error('Error fetching withdrawals:', error);
+        showToast('Error loading withdrawals. Please check server configuration.', true);
+      }
+    }
+
+    // Fetch ongoing rewards
+    async function fetchOngoingRewards() {
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/rewards`, {
+          headers: { 'Authorization': `Bearer ${sessionId}` }
+        });
+        if (!response.ok) throw new Error('Failed to load ongoing rewards');
+        ongoingRewards = (await response.json()).rewards;
+        updateOngoingRewards();
+      } catch (error) {
+        console.error('Error fetching ongoing rewards:', error);
+        showToast('Error loading ongoing rewards. Please check server configuration.', true);
+      }
+    }
+
+    // Fetch notifications
+    async function fetchNotifications() {
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/notifications`, {
+          headers: { 'Authorization': `Bearer ${sessionId}` }
+        });
+        if (!response.ok) throw new Error('Failed to load notifications');
+        const data = await response.json();
+        notifications = data.notifications;
+        updateNotifications();
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+        showToast('Error loading notifications. Please check server configuration.', true);
+      }
+    }
+
+    // Check session
+    async function checkSession() {
+      if (!sessionId) {
+        showLoginPage();
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/check-session`, {
+          headers: { 'Authorization': `Bearer ${sessionId}` }
+        });
+        if (response.ok) {
+          showAdminPage();
+          await Promise.all([fetchSettings(), fetchAffiliates(), fetchWithdrawals(), fetchOngoingRewards(), fetchNotifications()]);
+          setupWebSocket();
+        } else {
+          showToast('Session expired. Please log in again.', true);
+          localStorage.removeItem('adminSessionId');
+          showLoginPage();
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+        showToast('Session check failed. Please check server configuration.', true);
+        showLoginPage();
+      }
+    }
+
+    // Setup WebSocket
+    function setupWebSocket() {
+      ws = new WebSocket(`ws://${API_BASE.split('://')[1]}/admin?token=${sessionId}`);
+      ws.onopen = () => console.log('WebSocket connected');
+      ws.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'withdrawalUpdate') {
+            await fetchWithdrawals();
+            showToast('New withdrawal update received');
+            await fetchNotifications();
+          } else if (data.type === 'notification') {
+            await fetchNotifications();
+          } else if (data.type === 'urgentPopup') {
+            if (data.active) {
+              showUrgentPopup(data.message);
+            }
+          }
+        } catch (error) {
+          console.error('WebSocket message parsing error:', error);
+        }
+      };
+      ws.onclose = () => {
+        console.error('WebSocket disconnected, retrying...');
+        setTimeout(setupWebSocket, 5000);
+      };
+    }
+
+    // Show login page
+    function showLoginPage() {
+      document.getElementById('login-page').classList.remove('hidden');
+      document.getElementById('admin-page').classList.add('hidden');
+    }
+
+    // Show admin page
+    function showAdminPage() {
+      document.getElementById('login-page').classList.add('hidden');
+      document.getElementById('admin-page').classList.remove('hidden');
+    }
+
+    // Update affiliates table
+    function updateAffiliates() {
+      const tbody = document.getElementById('affiliates-table');
+      const search = document.getElementById('affiliate-search').value.toLowerCase();
+      const sort = document.getElementById('sort-affiliates').value;
+      let filteredAffiliates = affiliates.filter(a => a.name.toLowerCase().includes(search));
+      if (sort === 'sales-desc') {
+        filteredAffiliates.sort((a, b) => (parseInt(b.totalSales) || 0) - (parseInt(a.totalSales) || 0));
+      } else if (sort === 'balance-desc') {
+        filteredAffiliates.sort((a, b) => (parseFloat(b.currentBalance) || 0) - (parseFloat(a.currentBalance) || 0));
+      } else if (sort === 'clicks-asc') {
+        filteredAffiliates.sort((a, b) => (parseInt(a.linkClicks) || 0) - (parseInt(b.linkClicks) || 0));
+      }
+      tbody.innerHTML = '';
+      filteredAffiliates.forEach(a => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="py-2 px-4 border-b">${a.name}</td>
+          <td class="py-2 px-4 border-b">${a.email}</td>
+          <td class="py-2 px-4 border-b">${new Date(a.createdAt).toLocaleDateString()}</td>
+          <td class="py-2 px-4 border-b">${a.linkClicks || 0}</td>
+          <td class="py-2 px-4 border-b">${a.totalSales || 0}</td>
+          <td class="py-2 px-4 border-b">${a.currentBalance.toFixed(2)} KES</td>
+          <td class="py-2 px-4 border-b">${a.status}</td>
+          <td class="py-2 px-4 border-b">
+            <div class="dropdown">
+              <button class="dropdown-toggle text-blue-500 hover:underline">Actions</button>
+              <div class="dropdown-menu">
+                <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 action-block" data-email="${a.email}">Block</button>
+                <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 action-delete" data-email="${a.email}">Delete</button>
+              </div>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Update withdrawals tables
+    function updateWithdrawals() {
+      const pendingTbody = document.getElementById('withdrawals-table');
+      const sortedTbody = document.getElementById('sorted-withdrawals-table');
+      pendingTbody.innerHTML = '';
+      sortedTbody.innerHTML = '';
+      const pending = withdrawals.filter(w => w.status === 'Pending');
+      const sorted = withdrawals.filter(w => w.status !== 'Pending');
+      pending.forEach(w => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="py-2 px-4 border-b">${new Date(w.requestedAt).toLocaleTimeString()}</td>
+          <td class="py-2 px-4 border-b">${new Date(w.requestedAt).toLocaleDateString()}</td>
+          <td class="py-2 px-4 border-b">${w.affiliateName}</td>
+          <td class="py-2 px-4 border-b">
+            ${w.mpesaNumber}
+            <button class="ml-2 text-blue-500 hover:underline copy-mpesa" data-number="${w.mpesaNumber}">Copy</button>
+          </td>
+          <td class="py-2 px-4 border-b">${w.mpesaName}</td>
+          <td class="py-2 px-4 border-b">${w.amount}</td>
+          <td class="py-2 px-4 border-b">
+            <button class="process-withdrawal text-blue-500 hover:underline" data-id="${w.withdrawalId}">Process</button>
+          </td>
+        `;
+        pendingTbody.appendChild(row);
+      });
+      const start = (withdrawalPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+      const sortedSlice = sorted.slice(start, end);
+      sortedSlice.forEach(w => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="py-2 px-4 border-b">${new Date(w.requestedAt).toLocaleTimeString()}</td>
+          <td class="py-2 px-4 border-b">${new Date(w.requestedAt).toLocaleDateString()}</td>
+          <td class="py-2 px-4 border-b">${w.affiliateName}</td>
+          <td class="py-2 px-4 border-b">${w.mpesaNumber}</td>
+          <td class="py-2 px-4 border-b">${w.mpesaName}</td>
+          <td class="py-2 px-4 border-b">${w.amount}</td>
+          <td class="py-2 px-4 border-b">${w.status}</td>
+          <td class="py-2 px-4 border-b">${w.mpesaRef || '-'}</td>
+        `;
+        sortedTbody.appendChild(row);
+      });
+      const totalPages = Math.ceil(sorted.length / rowsPerPage);
+      document.getElementById('page-info').textContent = `Page ${withdrawalPage} of ${totalPages}`;
+      document.getElementById('prev-page').disabled = withdrawalPage === 1;
+      document.getElementById('next-page').disabled = withdrawalPage >= totalPages;
+    }
+
+    // Update ongoing rewards table
+    function updateOngoingRewards() {
+      const tbody = document.getElementById('ongoing-rewards-table');
+      tbody.innerHTML = '';
+      ongoingRewards.forEach(r => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="py-2 px-4 border-b">${r.type}</td>
+          <td class="py-2 px-4 border-b">${r.amount}</td>
+          <td class="py-2 px-4 border-b">${r.duration || '-'}</td>
+          <td class="py-2 px-4 border-b">${r.description}</td>
+          <td class="py-2 px-4 border-b">${new Date(r.appliedAt).toLocaleString()}</td>
+          <td class="py-2 px-4 border-b">
+            <button class="stop-reward text-blue-500 hover:underline" data-id="${r.rewardId}">Stop</button>
+            <button class="delete-reward text-red-500 hover:underline ml-2" data-id="${r.rewardId}">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Update static pages table
+    function updateStaticPages() {
+      const tbody = document.getElementById('static-pages-table');
+      tbody.innerHTML = '';
+      staticPages.forEach(p => {
+        if (!p.slug.includes('payment-modal') && !p.slug.includes('ref-code-modal')) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="py-2 px-4 border-b">${p.title}</td>
+            <td class="py-2 px-4 border-b">${p.slug}</td>
+            <td class="py-2 px-4 border-b">
+              <button class="edit-page text-blue-500 hover:underline" data-slug="${p.slug}">Edit</button>
+              <button class="delete-page text-red-500 hover:underline ml-2" data-slug="${p.slug}">Delete</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        }
+      });
+    }
+
+    // Update notifications
+    function updateNotifications() {
+      const unreadCount = notifications.filter(n => !n.read).length;
+      document.getElementById('unread-count').textContent = unreadCount;
+      const notificationList = document.getElementById('notification-list');
+      notificationList.innerHTML = '';
+      notifications.forEach(n => {
+        const div = document.createElement('div');
+        div.className = `notification ${n.read ? '' : 'unread'}`;
+        div.innerHTML = `<p>${new Date(n.timestamp).toLocaleString()}: ${n.message}</p>`;
+        if (!n.read) {
+          div.onclick = () => markNotificationRead(n.timestamp);
+        }
+        notificationList.appendChild(div);
+      });
+    }
+
+    // Mark notification as read
+    async function markNotificationRead(timestamp) {
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/mark-notification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`
+          },
+          body: JSON.stringify({ timestamp })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to mark notification as read');
+        await fetchNotifications();
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+        showToast(error.message, true);
+      }
+    }
+
+    // Enable login button
+    function enableLoginButton() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      document.getElementById('login-btn').disabled = !email || password.length < 8;
+    }
+
+    // Event listeners
+    document.getElementById('login-form').addEventListener('input', enableLoginButton);
+
+    document.getElementById('show-password').addEventListener('click', () => {
+      const password = document.getElementById('password');
+      const icon = document.getElementById('show-password').querySelector('i');
+      password.type = password.type === 'password' ? 'text' : 'password';
+      icon.className = password.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const loginError = document.getElementById('login-error');
+      const loading = document.getElementById('loading');
+      const loginBtn = document.getElementById('login-btn');
+      loginError.classList.add('hidden');
+      loading.classList.remove('hidden');
+      loginBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Login failed');
+        sessionId = data.sessionId;
+        localStorage.setItem('adminSessionId', sessionId);
+        showAdminPage();
+        await Promise.all([fetchSettings(), fetchAffiliates(), fetchWithdrawals(), fetchOngoingRewards(), fetchNotifications()]);
+        setupWebSocket();
+      } catch (error) {
+        loginError.textContent = error.message;
+        loginError.classList.remove('hidden');
+      } finally {
+        loading.classList.add('hidden');
+        loginBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      try {
+        await fetch(`${API_BASE}/admin/affiliate/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${sessionId}` }
+        });
+        localStorage.removeItem('adminSessionId');
+        if (ws) ws.close();
+        showLoginPage();
+      } catch (error) {
+        console.error('Error logging out:', error);
+        showToast('Error logging out. Please check server configuration.', true);
+      }
+    });
+
+    document.getElementById('settings-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const supportEmail = document.getElementById('support-email').value;
+      const copyrightText = document.getElementById('copyright-text').value;
+      const whatsappLink = document.getElementById('whatsapp-link').value;
+      const commissionRate = parseFloat(document.getElementById('commission-rate').value);
+      const urgentMessage = {
+        text: document.getElementById('urgent-message').value,
+        enabled: document.getElementById('urgent-enabled').checked
+      };
+      const saveBtn = document.getElementById('save-settings-btn');
+      saveBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`
+          },
+          body: JSON.stringify({ supportEmail, copyrightText, whatsappLink, commissionRate, urgentMessage })
+        });
+        if (response.ok) {
+          showToast('Settings updated successfully');
+          await fetchSettings();
+        } else {
+          const errorData = await response.json();
+          showToast(errorData.error || 'Failed to update settings', true);
+        }
+      } catch (error) {
+        console.error('Error updating settings:', error);
+        showToast('Error updating settings. Please check server configuration.', true);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('affiliate-search').addEventListener('input', debounce(updateAffiliates, 300));
+    document.getElementById('sort-affiliates').addEventListener('change', updateAffiliates);
+
+    document.getElementById('affiliates-table').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('dropdown-toggle')) {
+        const dropdown = e.target.closest('.dropdown');
+        dropdown.classList.toggle('active');
+        return;
+      }
+      const email = e.target.dataset.email;
+      if (e.target.classList.contains('action-block')) {
+        try {
+          const response = await fetch(`${API_BASE}/admin/affiliate/affiliates/block`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionId}`
+            },
+            body: JSON.stringify({ email })
+          });
+          const data = await response.json();
+          if (response.ok) {
+            showToast('Affiliate blocked successfully');
+            await fetchAffiliates();
+          } else {
+            showToast(data.error || 'Failed to block affiliate', true);
+          }
+        } catch (error) {
+          console.error('Error blocking affiliate:', error);
+          showToast('Error blocking affiliate. Please check server configuration.', true);
+        }
+      } else if (e.target.classList.contains('action-delete')) {
+        try {
+          const response = await fetch(`${API_BASE}/admin/affiliate/affiliates/delete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionId}`
+            },
+            body: JSON.stringify({ email })
+          });
+          const data = await response.json();
+          if (response.ok) {
+            showToast('Affiliate deleted successfully. Sheet removed and account deactivated.');
+            await fetchAffiliates();
+          } else {
+            showToast(data.error || 'Failed to delete affiliate', true);
+          }
+        } catch (error) {
+          console.error('Error deleting affiliate:', error);
+          showToast('Error deleting affiliate. Please check server configuration.', true);
+        }
+      }
+    });
+
+    document.getElementById('withdrawals-table').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('process-withdrawal')) {
+        const withdrawalId = e.target.dataset.id;
+        const withdrawal = withdrawals.find(w => w.withdrawalId === withdrawalId);
+        document.getElementById('withdrawal-details').textContent = `Processing withdrawal of ${withdrawal.amount} KES for ${withdrawal.affiliateName} (${withdrawal.mpesaNumber})`;
+        document.getElementById('withdrawal-popup').dataset.id = withdrawalId;
+        document.getElementById('withdrawal-status').value = 'Done';
+        document.getElementById('mpesa-ref-field').classList.remove('hidden');
+        document.getElementById('withdrawal-popup').classList.remove('hidden');
+      } else if (e.target.classList.contains('copy-mpesa')) {
+        navigator.clipboard.writeText(e.target.dataset.number);
+        showToast('M-PESA number copied');
+      }
+    });
+
+    document.getElementById('withdrawal-status').addEventListener('change', (e) => {
+      document.getElementById('mpesa-ref-field').classList.toggle('hidden', e.target.value !== 'Done');
+      document.getElementById('mpesa-ref').required = e.target.value === 'Done';
+    });
+
+    document.getElementById('withdrawal-process-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const withdrawalId = document.getElementById('withdrawal-popup').dataset.id;
+      const status = document.getElementById('withdrawal-status').value;
+      const mpesaRef = status === 'Done' ? document.getElementById('mpesa-ref').value : '';
+      const processBtn = document.getElementById('process-withdrawal-btn');
+      processBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/withdrawals/process`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`
+          },
+          body: JSON.stringify({ withdrawalId, status, mpesaRef })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showToast('Withdrawal processed successfully');
+          await fetchWithdrawals();
+          document.getElementById('withdrawal-popup').classList.add('hidden');
+        } else {
+          showToast(data.error || 'Failed to process withdrawal', true);
+        }
+      } catch (error) {
+        console.error('Error processing withdrawal:', error);
+        showToast('Error processing withdrawal. Please check server configuration.', true);
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('cancel-withdrawal').addEventListener('click', () => {
+      document.getElementById('withdrawal-popup').classList.add('hidden');
+    });
+
+    document.getElementById('close-urgent-popup').addEventListener('click', () => {
+      document.getElementById('urgent-popup').classList.add('hidden');
+    });
+
+    document.getElementById('prev-page').addEventListener('click', () => {
+      if (withdrawalPage > 1) {
+        withdrawalPage--;
+        updateWithdrawals();
+      }
+    });
+
+    document.getElementById('next-page').addEventListener('click', () => {
+      const sorted = withdrawals.filter(w => w.status !== 'Pending');
+      const totalPages = Math.ceil(sorted.length / rowsPerPage);
+      if (withdrawalPage < totalPages) {
+        withdrawalPage++;
+        updateWithdrawals();
+      }
+    });
+
+    document.getElementById('leaderboard-range').addEventListener('input', (e) => {
+      document.getElementById('leaderboard-range-value').textContent = e.target.value;
+    });
+
+    document.getElementById('sales-threshold').addEventListener('input', (e) => {
+      document.getElementById('sales-threshold-value').textContent = e.target.value;
+    });
+
+    document.getElementById('leaderboard-reward-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const range = parseInt(document.getElementById('leaderboard-range').value);
+      const type = document.getElementById('reward-type').value;
+      const amount = parseFloat(document.getElementById('reward-amount').value);
+      const duration = parseInt(document.getElementById('reward-duration').value) || 0;
+      const description = document.getElementById('reward-description').value;
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/rewards/apply`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`
+          },
+          body: JSON.stringify({ type: 'leaderboard', range, reward: { type, amount, duration, description } })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showToast('Reward applied successfully');
+          await fetchOngoingRewards();
+          await fetchNotifications();
+          document.getElementById('leaderboard-reward-form').reset();
+          document.getElementById('leaderboard-range-value').textContent = '1';
+        } else {
+          showToast(data.error || 'Failed to apply reward', true);
+        }
+      } catch (error) {
+        console.error('Error applying reward:', error);
+        showToast('Error applying reward. Please check server configuration.', true);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('sales-reward-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const threshold = parseInt(document.getElementById('sales-threshold').value);
+      const type = document.getElementById('sales-reward-type').value;
+      const amount = parseFloat(document.getElementById('sales-reward-amount').value);
+      const duration = parseInt(document.getElementById('sales-reward-duration').value) || 0;
+      const description = document.getElementById('sales-reward-description').value;
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/rewards/apply`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`
+          },
+          body: JSON.stringify({ type: 'sales', threshold, reward: { type, amount, duration, description } })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showToast('Reward applied successfully');
+          await fetchOngoingRewards();
+          await fetchNotifications();
+          document.getElementById('sales-reward-form').reset();
+          document.getElementById('sales-threshold-value').textContent = '1';
+        } else {
+          showToast(data.error || 'Failed to apply reward', true);
+        }
+      } catch (error) {
+        console.error('Error applying reward:', error);
+        showToast('Error applying reward. Please check server configuration.', true);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('ongoing-rewards-table').addEventListener('click', async (e) => {
+      const rewardId = e.target.dataset.id;
+      if (e.target.classList.contains('stop-reward')) {
+        try {
+          const response = await fetch(`${API_BASE}/admin/affiliate/rewards/stop`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionId}`
+            },
+            body: JSON.stringify({ rewardId })
+          });
+          const data = await response.json();
+          if (response.ok) {
+            showToast('Reward stopped successfully');
+            await fetchOngoingRewards();
+            await fetchNotifications();
+          } else {
+            showToast(data.error || 'Failed to stop reward', true);
+          }
+        } catch (error) {
+          console.error('Error stopping reward:', error);
+          showToast('Error stopping reward. Please check server configuration.', true);
+        }
+      } else if (e.target.classList.contains('delete-reward')) {
+        try {
+          const response = await fetch(`${API_BASE}/admin/affiliate/rewards/delete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionId}`
+            },
+            body: JSON.stringify({ rewardId })
+          });
+          const data = await response.json();
+          if (response.ok) {
+            showToast('Reward deleted successfully');
+            await fetchOngoingRewards();
+            await fetchNotifications();
+          } else {
+            showToast(data.error || 'Failed to delete reward', true);
+          }
+        } catch (error) {
+          console.error('Error deleting reward:', error);
+          showToast('Error deleting reward. Please check server configuration.', true);
+        }
+      }
+    });
+
+    document.getElementById('static-page-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('page-title').value;
+      let slug = document.getElementById('page-slug').value;
+      const content = document.getElementById('page-content').value;
+      if (!slug) {
+        slug = `/page/botblitz/${title.toLowerCase().replace(/\s+/g, '-')}`;
+      }
+      const saveBtn = document.getElementById('save-page-btn');
+      saveBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/static-pages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`
+          },
+          body: JSON.stringify({ title, slug, content })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showToast('Page saved successfully');
+          await fetchSettings();
+          document.getElementById('static-page-form').reset();
+          document.getElementById('page-slug').value = '';
+        } else {
+          showToast(data.error || 'Failed to save page', true);
+        }
+      } catch (error) {
+        console.error('Error saving page:', error);
+        showToast('Error saving page. Please check server configuration.', true);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('page-title').addEventListener('input', (e) => {
+      const slugField = document.getElementById('page-slug');
+      if (!slugField.value) {
+        slugField.value = `/page/botblitz/${e.target.value.toLowerCase().replace(/\s+/g, '-')}`;
+      }
+    });
+
+    document.getElementById('static-pages-table').addEventListener('click', async (e) => {
+      const slug = e.target.dataset.slug;
+      if (e.target.classList.contains('edit-page')) {
+        const page = staticPages.find(p => p.slug === slug);
+        document.getElementById('page-title').value = page.title;
+        document.getElementById('page-slug').value = page.slug;
+        document.getElementById('page-content').value = page.content;
+      } else if (e.target.classList.contains('delete-page')) {
+        try {
+          const response = await fetch(`${API_BASE}/admin/affiliate/static-pages/delete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionId}`
+            },
+            body: JSON.stringify({ slug })
+          });
+          const data = await response.json();
+          if (response.ok) {
+            showToast('Page deleted successfully');
+            await fetchSettings();
+          } else {
+            showToast(data.error || 'Failed to delete page', true);
+          }
+        } catch (error) {
+          console.error('Error deleting page:', error);
+          showToast('Error deleting page. Please check server configuration.', true);
+        }
+      }
+    });
+
+    document.getElementById('notification-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const message = document.getElementById('notification-message').value;
+      const recipients = document.getElementById('notification-recipients').value;
+      const timestamp = new Date().toISOString();
+      const sendBtn = document.getElementById('send-notification-btn');
+      sendBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/notifications`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`
+          },
+          body: JSON.stringify({ message, recipients, timestamp })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showToast('Notification sent successfully');
+          document.getElementById('notification-form').reset();
+          await fetchNotifications();
+        } else {
+          showToast(data.error || 'Failed to send notification', true);
+        }
+      } catch (error) {
+        console.error('Error sending notification:', error);
+        showToast('Error sending notification. Please check server configuration.', true);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('account-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('admin-email').value;
+      const currentPassword = document.getElementById('current-password').value;
+      const newPassword = document.getElementById('admin-password').value;
+      const updateBtn = document.getElementById('update-account-btn');
+      updateBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/admin/affiliate/account`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`
+          },
+          body: JSON.stringify({ email, currentPassword, newPassword })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showToast('Account updated successfully');
+          localStorage.removeItem('adminSessionId');
+          if (ws) ws.close();
+          showLoginPage();
+        } else {
+          showToast(data.error || 'Failed to update account', true);
+        }
+      } catch (error) {
+        console.error('Error updating account:', error);
+        showToast('Error updating account. Please check server configuration.', true);
+      } finally {
+        updateBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('notification-bell').addEventListener('click', () => {
+      const notifications = document.getElementById('notifications');
+      notifications.style.display = notifications.style.display === 'block' ? 'none' : 'block';
+    });
+
+    // Tab navigation
+    const tabs = ['home', 'affiliates', 'withdrawals', 'rewards', 'static-pages', 'communication', 'settings'];
+    tabs.forEach(tab => {
+      document.getElementById(`${tab}-tab`).addEventListener('click', () => {
+        tabs.forEach(t => {
+          document.getElementById(`${t}-content`).classList.add('hidden');
+          document.getElementById(`${t}-tab`).classList.remove('bg-blue-600', 'text-white');
+          document.getElementById(`${t}-tab`).classList.add('bg-gray-200', 'text-gray-700');
+        });
+        document.getElementById(`${tab}-content`).classList.remove('hidden');
+        document.getElementById(`${tab}-tab`).classList.add('bg-blue-600', 'text-white');
+        document.getElementById(`${tab}-tab`).classList.remove('bg-gray-200', 'text-gray-700');
+      });
+    });
+
+    // Initialize
+    checkSession();
+  </script>
+</body>
+</html>
