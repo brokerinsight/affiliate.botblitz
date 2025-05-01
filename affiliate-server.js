@@ -18,18 +18,21 @@ const API_KEY = process.env.AFFILIATE_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret';
 
 // Google Sheets Setup
-const sheets = google.sheets({ version: 'v4', auth: new google.auth.GoogleAuth({
-    credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets']
-}) });
+const sheets = google.sheets({
+    version: 'v4',
+    auth: new google.auth.GoogleAuth({
+        credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    }),
+});
 
 // Nodemailer Setup
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: process.env.EMAIL_USER_WITHDRAWAL,
-        pass: process.env.EMAIL_WITHDRAWAL_PASS
-    }
+        pass: process.env.EMAIL_WITHDRAWAL_PASS,
+    },
 });
 
 // WebSocket Setup
@@ -44,30 +47,47 @@ let cachedDataAffiliate = {
         supportEmail: 'support@botblitz.store',
         copyrightText: '© 2025 BotBlitz Affiliates',
         whatsappLink: '',
-        adminEmail: 'admin@botblitz.store',
-        adminPassword: '' // Hashed
+        adminEmail: 'derivbotstore@gmail.com', // Updated to a valid email for testing
+        adminPassword: '', // Hashed
     },
-    staticPagesAffiliate: []
+    staticPagesAffiliate: [],
 };
 
 // Middleware
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://botblitz.store'], credentials: true }));
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+                'https://botblitz.store',
+                'https://affiliate-botblitz.onrender.com',
+            ];
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
+        credentials: true,
+    })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'your-session-secret',
-    resave: false,
-    saveUninitialized: false,
-    store: new session.MemoryStore(),
-    cookie: { secure: process.env.NODE_ENV === 'production', httpOnly: true }
-}));
+app.use(
+    session({
+        secret: process.env.SESSION_SECRET || 'your-session-secret',
+        resave: false,
+        saveUninitialized: false,
+        store: new session.MemoryStore(),
+        cookie: { secure: process.env.NODE_ENV === 'production', httpOnly: true },
+    })
+);
 
 // Rate Limiting
 const loginLimiter = rateLimit({
     windowMs: 10 * 60 * 1000, // 10 minutes
     max: 5,
-    message: 'Too many login attempts. Try again later.'
+    message: 'Too many login attempts. Try again later.',
 });
 app.use('/api/affiliate/login', loginLimiter);
 app.use('/api/admin/affiliate/login', loginLimiter);
@@ -75,32 +95,37 @@ app.use('/api/admin/affiliate/login', loginLimiter);
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Serve affiliate.html as the default page for the root path
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'affiliate.html'));
+});
+
 // Google Sheets Functions
 async function ensureSheetTabs() {
     const spreadsheetIds = [process.env.AFFILIATES_SHEET_ID, process.env.ADMIN_SHEET_ID];
     for (const spreadsheetId of spreadsheetIds) {
         const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-        const existingTabs = spreadsheet.data.sheets.map(sheet => sheet.properties.title);
+        const existingTabs = spreadsheet.data.sheets.map((sheet) => sheet.properties.title);
 
         if (spreadsheetId === process.env.ADMIN_SHEET_ID) {
             const tabs = [
                 { name: 'settingsAffiliate', headers: ['KEY', 'VALUE'] },
                 { name: 'staticPagesAffiliate', headers: ['Slug', 'Title', 'Content'] },
-                { name: 'blocklist', headers: ['Email', 'Timestamp'] }
+                { name: 'blocklist', headers: ['Email', 'Timestamp'] },
             ];
             for (const tab of tabs) {
                 if (!existingTabs.includes(tab.name)) {
                     await sheets.spreadsheets.batchUpdate({
                         spreadsheetId,
                         resource: {
-                            requests: [{ addSheet: { properties: { title: tab.name } } }]
-                        }
+                            requests: [{ addSheet: { properties: { title: tab.name } } }],
+                        },
                     });
                     await sheets.spreadsheets.values.update({
                         spreadsheetId,
                         range: `${tab.name}!A1`,
                         valueInputOption: 'RAW',
-                        resource: { values: [tab.headers] }
+                        resource: { values: [tab.headers] },
                     });
                 }
             }
@@ -113,31 +138,64 @@ async function createAffiliateSheet(email, data) {
     await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         resource: {
-            requests: [{ addSheet: { properties: { title: email } } }]
-        }
+            requests: [{ addSheet: { properties: { title: email } } }],
+        },
     });
     const tabs = [
-        { name: 'Details', headers: ['Name', 'Email', 'HashedPassword', 'RefCode', 'LinkClicks', 'TotalSales', 'CurrentBalance', 'Status', 'Referrer', 'MpesaNumber', 'MpesaName', 'ReuseDetails'] },
-        { name: 'Withdrawals', headers: ['Timestamp', 'Amount', 'MpesaNumber', 'MpesaName', 'Status', 'MpesaRef'] },
+        {
+            name: 'Details',
+            headers: [
+                'Name',
+                'Email',
+                'HashedPassword',
+                'RefCode',
+                'LinkClicks',
+                'TotalSales',
+                'CurrentBalance',
+                'Status',
+                'Referrer',
+                'MpesaNumber',
+                'MpesaName',
+                'ReuseDetails',
+            ],
+        },
+        {
+            name: 'Withdrawals',
+            headers: ['Timestamp', 'Amount', 'MpesaNumber', 'MpesaName', 'Status', 'MpesaRef'],
+        },
         { name: 'Rewards', headers: ['Timestamp', 'Type', 'Amount', 'Description'] },
-        { name: 'Notifications', headers: ['Timestamp', 'Message', 'Read'] }
+        { name: 'Notifications', headers: ['Timestamp', 'Message', 'Read'] },
     ];
     for (const tab of tabs) {
         await sheets.spreadsheets.values.update({
             spreadsheetId,
             range: `${email}!${tab.name}!A1`,
             valueInputOption: 'RAW',
-            resource: { values: [tab.headers] }
+            resource: { values: [tab.headers] },
         });
     }
     await sheets.spreadsheets.values.append({
         spreadsheetId,
         range: `${email}!Details!A2`,
         valueInputOption: 'RAW',
-        resource: { values: [[
-            data.name, email, data.hashedPassword, data.refCode, 0, 0, 0, 'active',
-            data.referrer || '', '', '', false
-        ]] }
+        resource: {
+            values: [
+                [
+                    data.name,
+                    email,
+                    data.hashedPassword,
+                    data.refCode,
+                    0,
+                    0,
+                    0,
+                    'active',
+                    data.referrer || '',
+                    '',
+                    '',
+                    false,
+                ],
+            ],
+        },
     });
 }
 
@@ -164,22 +222,35 @@ function authenticateAdmin(req, res, next) {
 // Routes
 app.post('/api/affiliate/register', async (req, res) => {
     try {
-        const { fullName, email, password, terms, referrer } = req.body;
-        if (!fullName || fullName.split(' ').length < 2 || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-            !password || password.length < 8 || !/[a-zA-Z]/.test(password) || !terms) {
-            return res.status(400).json({ error: 'All fields required' });
+        const { fullName: rawFullName, email, password, terms, referrer } = req.body;
+        const fullName = rawFullName?.trim().replace(/\s+/g, ' '); // Normalize spaces
+        const names = fullName?.split(' ').filter((name) => name.trim() !== '') || [];
+
+        if (
+            !fullName ||
+            names.length < 2 ||
+            !email ||
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+            !password ||
+            password.length < 8 ||
+            !/[a-zA-Z]/.test(password) ||
+            !terms
+        ) {
+            return res
+                .status(400)
+                .json({ error: 'All fields required. Full name must include first and last name.' });
         }
 
         const blocklist = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.ADMIN_SHEET_ID,
-            range: 'blocklist!A:A'
+            range: 'blocklist!A:A',
         });
-        if (blocklist.data.values?.some(row => row[0] === email)) {
+        if (blocklist.data.values?.some((row) => row[0] === email)) {
             return res.status(403).json({ error: 'Account creation blocked. Contact support.' });
         }
 
         const sheetsList = await sheets.spreadsheets.get({ spreadsheetId: process.env.AFFILIATES_SHEET_ID });
-        if (sheetsList.data.sheets.some(sheet => sheet.properties.title === email)) {
+        if (sheetsList.data.sheets.some((sheet) => sheet.properties.title === email)) {
             return res.status(400).json({ error: 'Email exists. Please login.' });
         }
 
@@ -187,7 +258,15 @@ app.post('/api/affiliate/register', async (req, res) => {
         const refCode = uuidv4().replace(/-/g, '').slice(0, 10);
         await createAffiliateSheet(email, { name: fullName, hashedPassword, refCode, referrer });
         const token = jwt.sign({ email, deviceId: req.headers['x-device-id'] }, JWT_SECRET, { expiresIn: '7d' });
-        cachedDataAffiliate.affiliates.push({ email, name: fullName, refCode, linkClicks: 0, totalSales: 0, currentBalance: 0, status: 'active' });
+        cachedDataAffiliate.affiliates.push({
+            email,
+            name: fullName,
+            refCode,
+            linkClicks: 0,
+            totalSales: 0,
+            currentBalance: 0,
+            status: 'active',
+        });
         res.json({ token, name: fullName, refCode });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Register error:`, error.message);
@@ -198,19 +277,22 @@ app.post('/api/affiliate/register', async (req, res) => {
 app.post('/api/affiliate/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+        if (!email || !password) {
+            console.log(`[${new Date().toISOString()}] Login failed: Missing email or password`, { email, password });
+            return res.status(400).json({ error: 'Email and password required' });
+        }
 
         const blocklist = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.ADMIN_SHEET_ID,
-            range: 'blocklist!A:A'
+            range: 'blocklist!A:A',
         });
-        if (blocklist.data.values?.some(row => row[0] === email)) {
+        if (blocklist.data.values?.some((row) => row[0] === email)) {
             return res.status(403).json({ error: 'Account blocked. Contact support.' });
         }
 
         const details = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Details!A2:L2`
+            range: `${email}!Details!A2:L2`,
         });
         if (!details.data.values?.length) return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -232,7 +314,7 @@ app.get('/api/affiliate/data', authenticateJWT, async (req, res) => {
         const email = req.user.email;
         const details = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Details!A2:L2`
+            range: `${email}!Details!A2:L2`,
         });
         if (!details.data.values?.length || details.data.values[0][7] === 'blocked') {
             return res.status(403).json({ error: 'Account blocked. Contact support.' });
@@ -241,23 +323,42 @@ app.get('/api/affiliate/data', authenticateJWT, async (req, res) => {
         const [name, , , refCode, linkClicks, totalSales, currentBalance] = details.data.values[0];
         const withdrawals = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Withdrawals!A2:F`
+            range: `${email}!Withdrawals!A2:F`,
         });
         const rewards = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Rewards!A2:D`
+            range: `${email}!Rewards!A2:D`,
         });
-        const notifications = await sheets.spreadsheets.values.get({
+        let notifications = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Notifications!A2:C`
+            range: `${email}!Notifications!A2:C`,
         });
 
-        const sortedWithdrawals = (withdrawals.data.values || []).sort((a, b) => new Date(b[0]) - new Date(a[0])).slice(0, 20);
-        const unreadNotifications = (notifications.data.values || []).filter(n => n[2] !== 'true');
+        // Delete read notifications older than 30 days
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const filteredNotifications = (notifications.data.values || []).filter((n) => {
+            const isRead = n[2] === 'true';
+            const timestamp = new Date(n[0]);
+            return !isRead || timestamp > thirtyDaysAgo;
+        });
+
+        if (filteredNotifications.length !== (notifications.data.values || []).length) {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: process.env.AFFILIATES_SHEET_ID,
+                range: `${email}!Notifications!A2:C`,
+                valueInputOption: 'RAW',
+                resource: { values: filteredNotifications },
+            });
+        }
+
+        const sortedWithdrawals = (withdrawals.data.values || [])
+            .sort((a, b) => new Date(b[0]) - new Date(a[0]))
+            .slice(0, 20);
+        const unreadNotifications = filteredNotifications.filter((n) => n[2] !== 'true');
         const leaderboard = cachedDataAffiliate.affiliates
             .sort((a, b) => b.totalSales - a.totalSales)
             .slice(0, 10)
-            .map(a => ({ name: a.name, totalSales: a.totalSales }));
+            .map((a) => ({ name: a.name, totalSales: a.totalSales }));
 
         res.json({
             name,
@@ -267,13 +368,38 @@ app.get('/api/affiliate/data', authenticateJWT, async (req, res) => {
             currentBalance: parseFloat(currentBalance),
             withdrawals: sortedWithdrawals,
             rewards: rewards.data.values || [],
-            notifications: notifications.data.values || [],
+            notifications: filteredNotifications,
             unreadCount: unreadNotifications.length,
             monthlyCommission: totalSales * cachedDataAffiliate.settingsAffiliate.commissionRate,
-            leaderboard
+            leaderboard,
         });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Dashboard data error:`, error.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/affiliate/mark-notification', authenticateJWT, async (req, res) => {
+    try {
+        const { timestamp } = req.body;
+        const email = req.user.email;
+        const notifications = await sheets.spreadsheets.values.get({
+            spreadsheetId: process.env.AFFILIATES_SHEET_ID,
+            range: `${email}!Notifications!A2:C`,
+        });
+        const index = notifications.data.values?.findIndex((n) => n[0] === timestamp);
+        if (index === -1) return res.status(404).json({ error: 'Notification not found' });
+
+        notifications.data.values[index][2] = 'true';
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: process.env.AFFILIATES_SHEET_ID,
+            range: `${email}!Notifications!A2:C`,
+            valueInputOption: 'RAW',
+            resource: { values: notifications.data.values },
+        });
+        res.json({ message: 'Notification marked as read' });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Mark notification error:`, error.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -282,14 +408,14 @@ app.post('/api/affiliate/track-click', async (req, res) => {
     try {
         if (req.headers['x-api-key'] !== API_KEY) return res.status(401).json({ error: 'Unauthorized' });
         const { refCode } = req.body;
-        const affiliate = cachedDataAffiliate.affiliates.find(a => a.refCode === refCode);
+        const affiliate = cachedDataAffiliate.affiliates.find((a) => a.refCode === refCode);
         if (!affiliate) return res.status(404).json({ error: 'Invalid refCode' });
 
         await sheets.spreadsheets.values.update({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
             range: `${affiliate.email}!Details!E2`,
             valueInputOption: 'RAW',
-            resource: { values: [[parseInt(affiliate.linkClicks) + 1]] }
+            resource: { values: [[parseInt(affiliate.linkClicks) + 1]] },
         });
         affiliate.linkClicks++;
         if (clients.has(affiliate.email)) {
@@ -306,7 +432,7 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
     try {
         if (req.headers['x-api-key'] !== API_KEY) return res.status(401).json({ error: 'Unauthorized' });
         const { refCode, item, amount } = req.body;
-        const affiliate = cachedDataAffiliate.affiliates.find(a => a.refCode === refCode);
+        const affiliate = cachedDataAffiliate.affiliates.find((a) => a.refCode === refCode);
         if (!affiliate) return res.status(404).json({ error: 'Invalid refCode' });
 
         const commission = amount * cachedDataAffiliate.settingsAffiliate.commissionRate;
@@ -317,13 +443,13 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
             range: `${affiliate.email}!Details!F2:G2`,
             valueInputOption: 'RAW',
-            resource: { values: [[newTotalSales, newBalance]] }
+            resource: { values: [[newTotalSales, newBalance]] },
         });
 
         affiliate.totalSales = newTotalSales;
         affiliate.currentBalance = newBalance;
 
-        const referrer = cachedDataAffiliate.affiliates.find(a => a.refCode === affiliate.referrer);
+        const referrer = cachedDataAffiliate.affiliates.find((a) => a.refCode === affiliate.referrer);
         if (referrer) {
             const referralBonus = commission * 0.05;
             referrer.currentBalance += referralBonus;
@@ -331,13 +457,15 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                 range: `${referrer.email}!Details!G2`,
                 valueInputOption: 'RAW',
-                resource: { values: [[referrer.currentBalance]] }
+                resource: { values: [[referrer.currentBalance]] },
             });
             await sheets.spreadsheets.values.append({
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                 range: `${referrer.email}!Rewards!A2`,
                 valueInputOption: 'RAW',
-                resource: { values: [[new Date().toISOString(), 'Referral Bonus', referralBonus, `From ${affiliate.email}`]] }
+                resource: {
+                    values: [[new Date().toISOString(), 'Referral Bonus', referralBonus, `From ${affiliate.email}`]],
+                },
             });
         }
 
@@ -354,7 +482,7 @@ app.post('/api/affiliate/request-withdrawal', authenticateJWT, async (req, res) 
         const email = req.user.email;
         const details = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Details!A2:L2`
+            range: `${email}!Details!A2:L2`,
         });
         if (!details.data.values?.length) return res.status(404).json({ error: 'Account not found' });
 
@@ -371,31 +499,33 @@ app.post('/api/affiliate/request-withdrawal', authenticateJWT, async (req, res) 
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
             range: `${email}!Details!G2`,
             valueInputOption: 'RAW',
-            resource: { values: [[newBalance]] }
+            resource: { values: [[newBalance]] },
         });
         if (reuseDetails) {
             await sheets.spreadsheets.values.update({
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                 range: `${email}!Details!J2:L2`,
                 valueInputOption: 'RAW',
-                resource: { values: [[mpesaNumber, mpesaName, true]] }
+                resource: { values: [[mpesaNumber, mpesaName, true]] },
             });
         }
         await sheets.spreadsheets.values.append({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
             range: `${email}!Withdrawals!A2`,
             valueInputOption: 'RAW',
-            resource: { values: [[new Date().toISOString(), amount, mpesaNumber, mpesaName, 'Pending', '']] }
+            resource: {
+                values: [[new Date().toISOString(), amount, mpesaNumber, mpesaName, 'Pending', '']],
+            },
         });
 
-        const affiliate = cachedDataAffiliate.affiliates.find(a => a.email === email);
+        const affiliate = cachedDataAffiliate.affiliates.find((a) => a.email === email);
         affiliate.currentBalance = newBalance;
 
         await transporter.sendMail({
             from: process.env.EMAIL_USER_WITHDRAWAL,
             to: cachedDataAffiliate.settingsAffiliate.adminEmail,
             subject: `Affiliate Withdrawal - ${details.data.values[0][0]} ${amount}`,
-            text: `Verify new withdrawal:\nM-PESA Number: ${mpesaNumber}\nM-PESA Name: ${mpesaName}`
+            text: `Verify new withdrawal:\nM-PESA Number: ${mpesaNumber}\nM-PESA Name: ${mpesaName}`,
         });
 
         res.json({ message: 'Withdrawal submitted' });
@@ -415,7 +545,7 @@ app.post('/api/affiliate/update-password', authenticateJWT, async (req, res) => 
         const email = req.user.email;
         const details = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Details!A2:L2`
+            range: `${email}!Details!A2:L2`,
         });
         if (!await bcrypt.compare(oldPassword, details.data.values[0][2])) {
             return res.status(401).json({ error: 'Invalid old password' });
@@ -426,7 +556,7 @@ app.post('/api/affiliate/update-password', authenticateJWT, async (req, res) => 
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
             range: `${email}!Details!C2`,
             valueInputOption: 'RAW',
-            resource: { values: [[hashedPassword]] }
+            resource: { values: [[hashedPassword]] },
         });
 
         res.json({ message: 'Password updated. Please login again.' });
@@ -442,7 +572,7 @@ app.post('/api/affiliate/delete-account', authenticateJWT, async (req, res) => {
         const email = req.user.email;
         const details = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Details!A2:L2`
+            range: `${email}!Details!A2:L2`,
         });
         if (!await bcrypt.compare(password, details.data.values[0][2])) {
             return res.status(401).json({ error: 'Invalid password' });
@@ -453,9 +583,9 @@ app.post('/api/affiliate/delete-account', authenticateJWT, async (req, res) => {
 
         const withdrawals = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Withdrawals!A2:F`
+            range: `${email}!Withdrawals!A2:F`,
         });
-        if (withdrawals.data.values?.some(w => w[4] === 'Pending')) {
+        if (withdrawals.data.values?.some((w) => w[4] === 'Pending')) {
             return res.status(400).json({ error: 'Resolve pending withdrawals first' });
         }
 
@@ -463,18 +593,20 @@ app.post('/api/affiliate/delete-account', authenticateJWT, async (req, res) => {
             spreadsheetId: process.env.ADMIN_SHEET_ID,
             range: 'blocklist!A2',
             valueInputOption: 'RAW',
-            resource: { values: [[email, new Date().toISOString()]] }
+            resource: { values: [[email, new Date().toISOString()]] },
         });
 
         const sheetId = (await sheets.spreadsheets.get({
-            spreadsheetId: process.env.AFFILIATES_SHEET_ID
-        })).data.sheets.find(s => s.properties.title === email).properties.sheetId;
+            spreadsheetId: process.env.AFFILIATES_SHEET_ID,
+        }))
+            .data.sheets.find((s) => s.properties.title === email)
+            .properties.sheetId;
         await sheets.spreadsheets.batchUpdate({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            resource: { requests: [{ deleteSheet: { sheetId } }] }
+            resource: { requests: [{ deleteSheet: { sheetId } }] },
         });
 
-        cachedDataAffiliate.affiliates = cachedDataAffiliate.affiliates.filter(a => a.email !== email);
+        cachedDataAffiliate.affiliates = cachedDataAffiliate.affiliates.filter((a) => a.email !== email);
         res.json({ message: 'Account deleted' });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Delete account error:`, error.message);
@@ -485,8 +617,10 @@ app.post('/api/affiliate/delete-account', authenticateJWT, async (req, res) => {
 app.post('/api/admin/affiliate/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        if (email !== cachedDataAffiliate.settingsAffiliate.adminEmail ||
-            !await bcrypt.compare(password, cachedDataAffiliate.settingsAffiliate.adminPassword)) {
+        if (
+            email !== cachedDataAffiliate.settingsAffiliate.adminEmail ||
+            !await bcrypt.compare(password, cachedDataAffiliate.settingsAffiliate.adminPassword)
+        ) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         req.session.isAuthenticatedAffiliate = true;
@@ -500,18 +634,18 @@ app.post('/api/admin/affiliate/login', async (req, res) => {
 app.get('/api/admin/affiliate/affiliates', authenticateAdmin, async (req, res) => {
     try {
         const { search, sort } = req.query;
-        let affiliates = cachedDataAffiliate.affiliates.map(a => ({
+        let affiliates = cachedDataAffiliate.affiliates.map((a) => ({
             name: a.name,
             email: a.email,
             joinDate: a.joinDate || new Date().toISOString(),
             linkClicks: a.linkClicks,
             totalSales: a.totalSales,
             currentBalance: a.currentBalance,
-            totalWithdrawn: a.totalWithdrawn || 0
+            totalWithdrawn: a.totalWithdrawn || 0,
         }));
 
         if (search) {
-            affiliates = affiliates.filter(a => a.name.toLowerCase().includes(search.toLowerCase()));
+            affiliates = affiliates.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()));
         }
         if (sort) {
             affiliates.sort((a, b) => {
@@ -533,7 +667,7 @@ app.post('/api/admin/affiliate/affiliates/:action', authenticateAdmin, async (re
     try {
         const { email } = req.body;
         const action = req.params.action;
-        const affiliate = cachedDataAffiliate.affiliates.find(a => a.email === email);
+        const affiliate = cachedDataAffiliate.affiliates.find((a) => a.email === email);
         if (!affiliate) return res.status(404).json({ error: 'Affiliate not found' });
 
         if (action === 'block') {
@@ -541,11 +675,13 @@ app.post('/api/admin/affiliate/affiliates/:action', authenticateAdmin, async (re
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                 range: `${email}!Details!H2`,
                 valueInputOption: 'RAW',
-                resource: { values: [['blocked']] }
+                resource: { values: [['blocked']] },
             });
             affiliate.status = 'blocked';
             if (clients.has(email)) {
-                clients.get(email).send(JSON.stringify({ type: 'logout', message: 'Account blocked. Contact support.' }));
+                clients.get(email).send(
+                    JSON.stringify({ type: 'logout', message: 'Account blocked. Contact support.' })
+                );
                 clients.get(email).close();
                 clients.delete(email);
             }
@@ -554,16 +690,18 @@ app.post('/api/admin/affiliate/affiliates/:action', authenticateAdmin, async (re
                 spreadsheetId: process.env.ADMIN_SHEET_ID,
                 range: 'blocklist!A2',
                 valueInputOption: 'RAW',
-                resource: { values: [[email, new Date().toISOString()]] }
+                resource: { values: [[email, new Date().toISOString()]] },
             });
             const sheetId = (await sheets.spreadsheets.get({
-                spreadsheetId: process.env.AFFILIATES_SHEET_ID
-            })).data.sheets.find(s => s.properties.title === email).properties.sheetId;
+                spreadsheetId: process.env.AFFILIATES_SHEET_ID,
+            }))
+                .data.sheets.find((s) => s.properties.title === email)
+                .properties.sheetId;
             await sheets.spreadsheets.batchUpdate({
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-                resource: { requests: [{ deleteSheet: { sheetId } }] }
+                resource: { requests: [{ deleteSheet: { sheetId } }] },
             });
-            cachedDataAffiliate.affiliates = cachedDataAffiliate.affiliates.filter(a => a.email !== email);
+            cachedDataAffiliate.affiliates = cachedDataAffiliate.affiliates.filter((a) => a.email !== email);
             if (clients.has(email)) {
                 clients.get(email).send(JSON.stringify({ type: 'logout', message: 'Account deleted.' }));
                 clients.get(email).close();
@@ -585,12 +723,20 @@ app.get('/api/admin/affiliate/withdrawals', authenticateAdmin, async (req, res) 
         for (const affiliate of cachedDataAffiliate.affiliates) {
             const data = await sheets.spreadsheets.values.get({
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-                range: `${affiliate.email}!Withdrawals!A2:F`
+                range: `${affiliate.email}!Withdrawals!A2:F`,
             });
             if (data.data.values) {
-                withdrawals.push(...data.data.values
-                    .filter(w => w[4] === 'Pending')
-                    .map(w => ({ email: affiliate.email, timestamp: w[0], amount: w[1], mpesaNumber: w[2], mpesaName: w[3] })));
+                withdrawals.push(
+                    ...data.data.values
+                        .filter((w) => w[4] === 'Pending')
+                        .map((w) => ({
+                            email: affiliate.email,
+                            timestamp: w[0],
+                            amount: w[1],
+                            mpesaNumber: w[2],
+                            mpesaName: w[3],
+                        }))
+                );
             }
         }
         res.json({ withdrawals });
@@ -606,9 +752,9 @@ app.post('/api/admin/affiliate/withdrawals/:action', authenticateAdmin, async (r
         const action = req.params.action;
         const withdrawals = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-            range: `${email}!Withdrawals!A2:F`
+            range: `${email}!Withdrawals!A2:F`,
         });
-        const index = withdrawals.data.values?.findIndex(w => w[0] === timestamp && w[4] === 'Pending');
+        const index = withdrawals.data.values?.findIndex((w) => w[0] === timestamp && w[4] === 'Pending');
         if (index === -1) return res.status(404).json({ error: 'Withdrawal not found' });
 
         if (action === 'confirm') {
@@ -618,13 +764,15 @@ app.post('/api/admin/affiliate/withdrawals/:action', authenticateAdmin, async (r
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                 range: `${email}!Withdrawals!A2:F`,
                 valueInputOption: 'RAW',
-                resource: { values: withdrawals.data.values }
+                resource: { values: withdrawals.data.values },
             });
             if (clients.has(email)) {
-                clients.get(email).send(JSON.stringify({
-                    type: 'popup',
-                    message: `Payment sent. M-PESA Ref: ${mpesaRef}`
-                }));
+                clients.get(email).send(
+                    JSON.stringify({
+                        type: 'popup',
+                        message: `Payment sent. M-PESA Ref: ${mpesaRef}`,
+                    })
+                );
             }
         } else if (action === 'dispute') {
             const amount = parseFloat(withdrawals.data.values[index][1]);
@@ -633,25 +781,27 @@ app.post('/api/admin/affiliate/withdrawals/:action', authenticateAdmin, async (r
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                 range: `${email}!Withdrawals!A2:F`,
                 valueInputOption: 'RAW',
-                resource: { values: withdrawals.data.values }
+                resource: { values: withdrawals.data.values },
             });
             const details = await sheets.spreadsheets.values.get({
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-                range: `${email}!Details!A2:L2`
+                range: `${email}!Details!A2:L2`,
             });
             const newBalance = parseFloat(details.data.values[0][6]) + amount;
             await sheets.spreadsheets.values.update({
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                 range: `${email}!Details!G2`,
                 valueInputOption: 'RAW',
-                resource: { values: [[newBalance]] }
+                resource: { values: [[newBalance]] },
             });
-            cachedDataAffiliate.affiliates.find(a => a.email === email).currentBalance = newBalance;
+            cachedDataAffiliate.affiliates.find((a) => a.email === email).currentBalance = newBalance;
             if (clients.has(email)) {
-                clients.get(email).send(JSON.stringify({
-                    type: 'popup',
-                    message: `Payment failed. Contact ${cachedDataAffiliate.settingsAffiliate.supportEmail}`
-                }));
+                clients.get(email).send(
+                    JSON.stringify({
+                        type: 'popup',
+                        message: `Payment failed. Contact ${cachedDataAffiliate.settingsAffiliate.supportEmail}`,
+                    })
+                );
             }
         } else {
             return res.status(400).json({ error: 'Invalid action' });
@@ -673,13 +823,15 @@ app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => 
                 .sort((a, b) => b.totalSales - a.totalSales)
                 .slice(0, topN);
         } else if (type === 'sales') {
-            rewardedAffiliates = cachedDataAffiliate.affiliates.filter(a => a.totalSales >= minSales);
+            rewardedAffiliates = cachedDataAffiliate.affiliates.filter((a) => a.totalSales >= minSales);
         }
 
         for (const affiliate of rewardedAffiliates) {
             let amount = 0;
             if (rewardType === 'fixed') amount = rewardValue;
-            else if (rewardType === 'percentage') amount = affiliate.totalSales * cachedDataAffiliate.settingsAffiliate.commissionRate * (rewardValue / 100);
+            else if (rewardType === 'percentage')
+                amount =
+                    affiliate.totalSales * cachedDataAffiliate.settingsAffiliate.commissionRate * (rewardValue / 100);
             else if (rewardType === 'commission') {
                 // Implement commission rate adjustment (future feature)
             }
@@ -689,19 +841,23 @@ app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => 
                     spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                     range: `${affiliate.email}!Details!G2`,
                     valueInputOption: 'RAW',
-                    resource: { values: [[affiliate.currentBalance]] }
+                    resource: { values: [[affiliate.currentBalance]] },
                 });
                 await sheets.spreadsheets.values.append({
                     spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                     range: `${affiliate.email}!Rewards!A2`,
                     valueInputOption: 'RAW',
-                    resource: { values: [[new Date().toISOString(), rewardType, amount, `Admin Reward`]] }
+                    resource: {
+                        values: [[new Date().toISOString(), rewardType, amount, `Admin Reward`]],
+                    },
                 });
                 if (clients.has(affiliate.email)) {
-                    clients.get(affiliate.email).send(JSON.stringify({
-                        type: 'popup',
-                        message: `Congratulations, you received a reward of ${amount} Ksh`
-                    }));
+                    clients.get(affiliate.email).send(
+                        JSON.stringify({
+                            type: 'popup',
+                            message: `Congratulations, you received a reward of ${amount} Ksh`,
+                        })
+                    );
                 }
             }
         }
@@ -711,7 +867,9 @@ app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => 
                 spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                 range: `${affiliate.email}!Notifications!A2`,
                 valueInputOption: 'RAW',
-                resource: { values: [[new Date().toISOString(), `Top ${topN} rewarded on ${new Date().toISOString()}`, false]] }
+                resource: {
+                    values: [[new Date().toISOString(), `Top ${topN} rewarded on ${new Date().toISOString()}`, false]],
+                },
             });
         }
 
@@ -736,38 +894,40 @@ app.post('/api/admin/affiliate/staticpages', authenticateAdmin, async (req, res)
                 spreadsheetId: process.env.ADMIN_SHEET_ID,
                 range: 'staticPagesAffiliate!A2',
                 valueInputOption: 'RAW',
-                resource: { values: [[newSlug, title, content]] }
+                resource: { values: [[newSlug, title, content]] },
             });
         } else if (action === 'edit') {
-            const page = cachedDataAffiliate.staticPagesAffiliate.find(p => p.slug === slug);
+            const page = cachedDataAffiliate.staticPagesAffiliate.find((p) => p.slug === slug);
             if (page) {
                 page.title = title;
                 page.content = content;
                 const pages = await sheets.spreadsheets.values.get({
                     spreadsheetId: process.env.ADMIN_SHEET_ID,
-                    range: 'staticPagesAffiliate!A2:C'
+                    range: 'staticPagesAffiliate!A2:C',
                 });
-                const index = pages.data.values.findIndex(p => p[0] === slug);
+                const index = pages.data.values.findIndex((p) => p[0] === slug);
                 pages.data.values[index] = [slug, title, content];
                 await sheets.spreadsheets.values.update({
                     spreadsheetId: process.env.ADMIN_SHEET_ID,
                     range: 'staticPagesAffiliate!A2:C',
                     valueInputOption: 'RAW',
-                    resource: { values: pages.data.values }
+                    resource: { values: pages.data.values },
                 });
             }
         } else if (action === 'delete') {
-            cachedDataAffiliate.staticPagesAffiliate = cachedDataAffiliate.staticPagesAffiliate.filter(p => p.slug !== slug);
+            cachedDataAffiliate.staticPagesAffiliate = cachedDataAffiliate.staticPagesAffiliate.filter(
+                (p) => p.slug !== slug
+            );
             const pages = await sheets.spreadsheets.values.get({
                 spreadsheetId: process.env.ADMIN_SHEET_ID,
-                range: 'staticPagesAffiliate!A2:C'
+                range: 'staticPagesAffiliate!A2:C',
             });
-            const newPages = pages.data.values.filter(p => p[0] !== slug);
+            const newPages = pages.data.values.filter((p) => p[0] !== slug);
             await sheets.spreadsheets.values.update({
                 spreadsheetId: process.env.ADMIN_SHEET_ID,
                 range: 'staticPagesAffiliate!A2:C',
                 valueInputOption: 'RAW',
-                resource: { values: newPages }
+                resource: { values: newPages },
             });
         }
         res.json({ message: `${action} successful` });
@@ -786,17 +946,19 @@ app.post('/api/admin/affiliate/communication', authenticateAdmin, async (req, re
                 spreadsheetId: process.env.ADMIN_SHEET_ID,
                 range: 'settingsAffiliate!A2',
                 valueInputOption: 'RAW',
-                resource: { values: [['urgentPopup', JSON.stringify({ text, enabled: true })]] }
+                resource: { values: [['urgentPopup', JSON.stringify({ text, enabled: true })]] },
             });
         } else if (type === 'notification') {
-            const targets = filter === 'all' ? cachedDataAffiliate.affiliates :
-                cachedDataAffiliate.affiliates.filter(a => a.totalSales <= (filter || 0));
+            const targets =
+                filter === 'all'
+                    ? cachedDataAffiliate.affiliates
+                    : cachedDataAffiliate.affiliates.filter((a) => a.totalSales <= (filter || 0));
             for (const affiliate of targets) {
                 await sheets.spreadsheets.values.append({
                     spreadsheetId: process.env.AFFILIATES_SHEET_ID,
                     range: `${affiliate.email}!Notifications!A2`,
                     valueInputOption: 'RAW',
-                    resource: { values: [[new Date().toISOString(), text, false]] }
+                    resource: { values: [[new Date().toISOString(), text, false]] },
                 });
                 if (clients.has(affiliate.email)) {
                     clients.get(affiliate.email).send(JSON.stringify({ type: 'notification', message: text }));
@@ -827,7 +989,7 @@ app.post('/api/admin/affiliate/settings', authenticateAdmin, async (req, res) =>
                 spreadsheetId: process.env.ADMIN_SHEET_ID,
                 range: 'settingsAffiliate!A2',
                 valueInputOption: 'RAW',
-                resource: { values: [[key, typeof value === 'object' ? JSON.stringify(value) : value]] }
+                resource: { values: [[key, typeof value === 'object' ? JSON.stringify(value) : value]] },
             });
         }
         res.json({ message: 'Settings updated' });
@@ -846,16 +1008,23 @@ app.post('/api/ping', (req, res) => {
 app.server = app.listen(PORT, async () => {
     await ensureSheetTabs();
     console.log(`[${new Date().toISOString()}] Affiliate server running on port ${PORT}`);
-    await transporter.sendMail({
-        from: process.env.EMAIL_USER_WITHDRAWAL,
-        to: cachedDataAffiliate.settingsAffiliate.adminEmail,
-        subject: 'Affiliate Server Started',
-        text: 'Affiliate server is up and running.'
-    });
+    try {
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER_WITHDRAWAL,
+            to: cachedDataAffiliate.settingsAffiliate.adminEmail,
+            subject: 'Affiliate Server Started',
+            text: 'Affiliate server is up and running.',
+        });
+        console.log(
+            `[${new Date().toISOString()}] Startup email sent to ${cachedDataAffiliate.settingsAffiliate.adminEmail}`
+        );
+    } catch (emailError) {
+        console.error(`[${new Date().toISOString()}] Failed to send startup email:`, emailError.message);
+    }
 });
 
 app.server.on('upgrade', (request, socket, head) => {
-    wss.handleUpgrade(request, socket, head, ws => {
+    wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
     });
 });
@@ -881,31 +1050,41 @@ setInterval(async () => {
             if (sheet.properties.title !== 'Sheet1') {
                 const details = await sheets.spreadsheets.values.get({
                     spreadsheetId: process.env.AFFILIATES_SHEET_ID,
-                    range: `${sheet.properties.title}!Details!A2:L2`
+                    range: `${sheet.properties.title}!Details!A2:L2`,
                 });
                 if (details.data.values?.length) {
-                    const [name, email, , refCode, linkClicks, totalSales, currentBalance, status, referrer] = details.data.values[0];
+                    const [name, email, , refCode, linkClicks, totalSales, currentBalance, status, referrer] =
+                        details.data.values[0];
                     cachedDataAffiliate.affiliates.push({
-                        name, email, refCode, linkClicks: parseInt(linkClicks), totalSales: parseInt(totalSales),
-                        currentBalance: parseFloat(currentBalance), status, referrer
+                        name,
+                        email,
+                        refCode,
+                        linkClicks: parseInt(linkClicks),
+                        totalSales: parseInt(totalSales),
+                        currentBalance: parseFloat(currentBalance),
+                        status,
+                        referrer,
                     });
                 }
             }
         }
         const settings = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.ADMIN_SHEET_ID,
-            range: 'settingsAffiliate!A2:B'
+            range: 'settingsAffiliate!A2:B',
         });
         if (settings.data.values) {
             for (const [key, value] of settings.data.values) {
-                cachedDataAffiliate.settingsAffiliate[key] = value.startsWith('{') ? JSON.parse(value) : value;
+                cachedDataAffiliate.settingsAffiliate[key] = value.startsWith('{')
+                    ? JSON.parse(value)
+                    : value;
             }
         }
         const staticPages = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.ADMIN_SHEET_ID,
-            range: 'staticPagesAffiliate!A2:C'
+            range: 'staticPagesAffiliate!A2:C',
         });
-        cachedDataAffiliate.staticPagesAffiliate = staticPages.data.values?.map(([slug, title, content]) => ({ slug, title, content })) || [];
+        cachedDataAffiliate.staticPagesAffiliate =
+            staticPages.data.values?.map(([slug, title, content]) => ({ slug, title, content })) || [];
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Cache refresh error:`, error.message);
     }
