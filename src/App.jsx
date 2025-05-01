@@ -1,0 +1,991 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
+import axios from 'axios';
+import io from 'socket.io-client';
+import jwtDecode from 'jwt-decode';
+
+const socket = io('https://affiliate-botblitz.onrender.com', { withCredentials: true });
+
+// Utility to get cookie
+const getCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  return parts.length === 2 ? parts.pop().split(';').shift() : null;
+};
+
+// Utility to set cookie
+const setCookie = (name, value, days) => {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${value}; expires=${expires}; path=/; secure; samesite=strict`;
+};
+
+// Main App Component
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(!!getCookie('jwt'));
+  const [userData, setUserData] = useState(null);
+  const [settings, setSettings] = useState({});
+  const [staticPages, setStaticPages] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [popup, setPopup] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/affiliate/data', {
+        headers: { Authorization: `Bearer ${getCookie('jwt')}` },
+      });
+      setUserData(response.data);
+      setNotifications(response.data.notifications || []);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        setIsAuthenticated(false);
+        document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      }
+    }
+  }, []);
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/admin/affiliate/data', {
+        headers: { Authorization: `Bearer ${getCookie('jwt')}` },
+      });
+      setSettings(response.data.settings || {});
+      setStaticPages(response.data.staticPages || []);
+      if (response.data.settings.urgentPopup?.enabled) {
+        setPopup({ message: response.data.settings.urgentPopup.message, type: 'urgent' });
+      }
+    } catch (err) {
+      console.error('Failed to fetch settings:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchData();
+      fetchSettings();
+    }
+
+    socket.on('update', (data) => {
+      setUserData((prev) => ({ ...prev, ...data }));
+      setSettings(data.settings || {});
+      setStaticPages(data.staticPages || []);
+      if (data.settings.urgentPopup?.enabled) {
+        setPopup({ message: data.settings.urgentPopup.message, type: 'urgent' });
+      }
+    });
+
+    socket.on('forceLogout', ({ email }) => {
+      if (userData?.email === email) {
+        setIsAuthenticated(false);
+        document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        setUserData(null);
+      }
+    });
+
+    return () => {
+      socket.off('update');
+      socket.off('forceLogout');
+    };
+  }, [isAuthenticated, fetchData, fetchSettings]);
+
+  const handleLogout = () => {
+    document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+    setIsAuthenticated(false);
+    setUserData(null);
+  };
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/affiliate"
+          element={
+            isAuthenticated ? (
+              <Dashboard
+                userData={userData}
+                settings={settings}
+                staticPages={staticPages}
+                notifications={notifications}
+                setNotifications={setNotifications}
+                handleLogout={handleLogout}
+                setPopup={setPopup}
+                fetchData={fetchData}
+              />
+            ) : (
+              <Auth setIsAuthenticated={setIsAuthenticated} setUserData={setUserData} />
+            )
+          }
+        />
+        <Route path="/affiliate-:slug" element={<StaticPage staticPages={staticPages} />} />
+      </Routes>
+      {popup && (
+        <Popup
+          message={popup.message}
+          type={popup.type}
+          onClose={() => setPopup(null)}
+        />
+      )}
+    </BrowserRouter>
+  );
+};
+
+// Auth Component (Login/Signup)
+const Auth = ({ setIsAuthenticated, setUserData }) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    terms: false,
+  });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!isLogin) {
+      if (!formData.name || formData.name.split(' ').filter(Boolean).length < 2) {
+        newErrors.name = 'Full name must contain at least 2 words';
+      }
+      if (!formData.terms) {
+        newErrors.terms = 'You must agree to the terms';
+      }
+    }
+    if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Valid email is required';
+    }
+    if (
+      !formData.password ||
+      formData.password.length < 8 ||
+      !/[a-zA-Z]/.test(formData.password) ||
+      !/[0-9]/.test(formData.password)
+    ) {
+      newErrors.password = 'Password must be 8+ characters with letters and numbers';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    setLoading(true);
+    try {
+      const endpoint = isLogin ? '/api/affiliate/login' : '/api/affiliate/register';
+      const payload = isLogin
+        ? { email: formData.email, password: formData.password }
+        : {
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            terms: formData.terms,
+          };
+      const response = await axios.post(endpoint, payload);
+      setCookie('jwt', response.data.token, 1);
+      setUserData({ name: response.data.name, refCode: response.data.refCode });
+      setIsAuthenticated(true);
+    } catch (err) {
+      setErrors({ server: err.response?.data?.error || 'An error occurred' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen p-4">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          {isLogin ? 'Login' : 'Sign Up'}
+        </h2>
+        <form onSubmit={handleSubmit}>
+          {!isLogin && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Full Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+            </div>
+          )}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Email</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+            />
+            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+          </div>
+          <div className="mb-4 relative">
+            <label className="block text-sm font-medium mb-1">Password</label>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-2 top-9 text-gray-500"
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+          </div>
+          {!isLogin && (
+            <div className="mb-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.terms}
+                  onChange={(e) => setFormData({ ...formData, terms: e.target.checked })}
+                  className="mr-2"
+                />
+                I agree to the{' '}
+                <a href="/affiliate-terms" className="text-blue-500 ml-1">
+                  Terms & Conditions
+                </a>
+              </label>
+              {errors.terms && <p className="text-red-500 text-sm mt-1">{errors.terms}</p>}
+            </div>
+          )}
+          {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+          >
+            {loading ? 'Processing...' : isLogin ? 'Login' : 'Create Account'}
+          </button>
+        </form>
+        <p className="text-center mt-4">
+          {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
+          <button
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setFormData({ name: '', email: '', password: '', terms: false });
+              setErrors({});
+            }}
+            className="text-blue-500"
+          >
+            {isLogin ? 'Sign Up' : 'Login'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// Dashboard Component
+const Dashboard = ({
+  userData,
+  settings,
+  staticPages,
+  notifications,
+  setNotifications,
+  handleLogout,
+  setPopup,
+  fetchData,
+}) => {
+  const [activeTab, setActiveTab] = useState('home');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const navigate = useNavigate();
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  return (
+    <div className="min-h-screen">
+      <header className="bg-blue-600 text-white p-4 flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold">Deriv Bot Store Affiliates</h1>
+          <p>Welcome, {userData?.name}</p>
+        </div>
+        <div className="flex items-center space-x-4">
+          <a href={settings.whatsappLink} target="_blank" rel="noopener noreferrer">
+            <img src="/assets/whatsapp.png" alt="WhatsApp" className="w-6 h-6" />
+          </a>
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative"
+            >
+              <img src="/assets/bell.png" alt="Notifications" className="w-6 h-6" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            {showNotifications && (
+              <NotificationDropdown
+                notifications={notifications}
+                setNotifications={setNotifications}
+                setShowNotifications={setShowNotifications}
+              />
+            )}
+          </div>
+          <div className="relative">
+            <button onClick={() => setShowSettings(!showSettings)}>
+              <img src="/assets/settings.png" alt="Settings" className="w-6 h-6" />
+            </button>
+            {showSettings && (
+              <SettingsDropdown
+                setShowSettings={setShowSettings}
+                handleLogout={handleLogout}
+                setPopup={setPopup}
+                fetchData={fetchData}
+                navigate={navigate}
+              />
+            )}
+          </div>
+        </div>
+      </header>
+      <nav className="bg-gray-200 dark:bg-gray-800 p-4">
+        <ul className="flex space-x-4 overflow-x-auto">
+          {['Home', 'Withdrawals', 'Withdrawal History', 'Rewards History', 'Leaderboard'].map(
+            (tab) => (
+              <li key={tab}>
+                <button
+                  onClick={() => setActiveTab(tab.toLowerCase().replace(' ', '-'))}
+                  className={`px-4 py-2 rounded ${
+                    activeTab === tab.toLowerCase().replace(' ', '-')
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {tab}
+                </button>
+              </li>
+            )
+          )}
+        </ul>
+      </nav>
+      <main className="p-4 max-w-7xl mx-auto">
+        {activeTab === 'home' && (
+          <HomeTab userData={userData} settings={settings} setPopup={setPopup} fetchData={fetchData} />
+        )}
+        {activeTab === 'withdrawals' && (
+          <WithdrawalsTab userData={userData} setPopup={setPopup} fetchData={fetchData} />
+        )}
+        {activeTab === 'withdrawal-history' && (
+          <WithdrawalHistoryTab withdrawals={userData?.withdrawals || []} />
+        )}
+        {activeTab === 'rewards-history' && (
+          <RewardsHistoryTab rewards={userData?.rewards || []} />
+        )}
+        {activeTab === 'leaderboard' && (
+          <LeaderboardTab leaderboard={userData?.leaderboard || []} />
+        )}
+      </main>
+      <footer className="bg-gray-800 text-white p-4 text-center">
+        <p>{settings.copyrightText || 'Deriv Bot Store Affiliates 2025'}</p>
+        <div className="mt-2">
+          {staticPages.map((page) => (
+            <Link key={page.slug} to={page.slug} className="text-blue-400 mx-2">
+              {page.title}
+            </Link>
+          ))}
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+// Home Tab
+const HomeTab = ({ userData, settings, setPopup, fetchData }) => {
+  const [showCommissionInfo, setShowCommissionInfo] = useState(false);
+  const affiliateLink = `https://botblitz.store?ref=${userData?.refCode}`;
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(affiliateLink);
+    setPopup({ message: 'Link copied to clipboard!', type: 'success' });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+        <h2 className="text-xl font-bold mb-4">Your Affiliate Link</h2>
+        <div className="flex items-center space-x-2">
+          <input
+            type="text"
+            value={affiliateLink}
+            readOnly
+            className="flex-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+          />
+          <button
+            onClick={copyLink}
+            className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h3 className="text-lg font-semibold">Link Clicks</h3>
+          <p className="text-2xl font-bold animate-pulse">{userData?.linkClicks || 0}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h3 className="text-lg font-semibold">Total Sales</h3>
+          <p className="text-2xl font-bold">{userData?.saleCount || 0}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h3 className="text-lg font-semibold">Current Balance</h3>
+          <p className="text-2xl font-bold">KES {userData?.currentBalance?.toFixed(2) || '0.00'}</p>
+        </div>
+      </div>
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+        <h2 className="text-xl font-bold mb-4 flex items-center">
+          How Commission is Calculated?
+          <button
+            onClick={() => setShowCommissionInfo(!showCommissionInfo)}
+            className="ml-2 text-blue-500"
+          >
+            <i className="fas fa-info-circle"></i>
+          </button>
+        </h2>
+        {showCommissionInfo && (
+          <p>
+            You earn a {settings.commissionRate * 100 || 20}% commission on each confirmed sale
+            made through your affiliate link. Commissions are calculated based on the sale amount
+            and credited to your balance upon confirmation.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Withdrawals Tab
+const WithdrawalsTab = ({ userData, setPopup, fetchData }) => {
+  const [formData, setFormData] = useState({
+    amount: '',
+    mpesaNumber: '',
+    mpesaName: '',
+    reuse: false,
+    password: '',
+  });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.amount || formData.amount <= 0) {
+      newErrors.amount = 'Amount must be positive';
+    } else if (formData.amount > userData.currentBalance) {
+      newErrors.amount = 'Amount exceeds balance';
+    }
+    if (!formData.mpesaNumber || !/^\+254\d{9}$/.test(formData.mpesaNumber)) {
+      newErrors.mpesaNumber = 'Valid Mpesa number required';
+    }
+    if (!formData.mpesaName) {
+      newErrors.mpesaName = 'Mpesa name required';
+    }
+    if (!formData.password) {
+      newErrors.password = 'Password required';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    setLoading(true);
+    try {
+      await axios.post('/api/affiliate/request-withdrawal', formData, {
+        headers: { Authorization: `Bearer ${getCookie('jwt')}` },
+      });
+      setPopup({
+        message: 'Withdrawal submitted. You’ll receive it soon. ✅',
+        type: 'success',
+      });
+      setFormData({ amount: '', mpesaNumber: '', mpesaName: '', reuse: false, password: '' });
+      fetchData();
+    } catch (err) {
+      setErrors({ server: err.response?.data?.error || 'An error occurred' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">Request Withdrawal</h2>
+      {userData.currentBalance <= 0 ? (
+        <p className="text-red-500">Insufficient balance to request a withdrawal.</p>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Amount (KES)</label>
+            <input
+              type="number"
+              value={formData.amount}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              disabled={userData.currentBalance <= 0}
+            />
+            {errors.amount && <p className="text-red-500 text-sm mt-1">{errors.amount}</p>}
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Mpesa Number</label>
+            <input
+              type="text"
+              value={formData.mpesaNumber}
+              onChange={(e) => setFormData({ ...formData, mpesaNumber: e.target.value })}
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+            />
+            {errors.mpesaNumber && (
+              <p className="text-red-500 text-sm mt-1">{errors.mpesaNumber}</p>
+            )}
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Mpesa Name</label>
+            <input
+              type="text"
+              value={formData.mpesaName}
+              onChange={(e) => setFormData({ ...formData, mpesaName: e.target.value })}
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+            />
+            {errors.mpesaName && <p className="text-red-500 text-sm mt-1">{errors.mpesaName}</p>}
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.reuse}
+                onChange={(e) => setFormData({ ...formData, reuse: e.target.checked })}
+                className="mr-2"
+              />
+              Reuse these details for future withdrawals
+            </label>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Account Password</label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+            />
+            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+          </div>
+          {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
+          <button
+            type="submit"
+            disabled={loading || userData.currentBalance <= 0}
+            className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+          >
+            {loading ? 'Processing...' : 'Request Withdrawal'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
+// Withdrawal History Tab
+const WithdrawalHistoryTab = ({ withdrawals }) => {
+  const [page, setPage] = useState(1);
+  const perPage = 20;
+  const totalPages = Math.ceil(withdrawals.length / perPage);
+  const paginatedWithdrawals = withdrawals.slice((page - 1) * perPage, page * perPage);
+
+  return (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">Withdrawal History</h2>
+      <table className="w-full table-auto">
+        <thead>
+          <tr className="bg-gray-200 dark:bg-gray-700">
+            <th className="p-2">Date</th>
+            <th className="p-2">Amount</th>
+            <th className="p-2">Mpesa Number</th>
+            <th className="p-2">Mpesa Name</th>
+            <th className="p-2">Status</th>
+            <th className="p-2">Mpesa Ref</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paginatedWithdrawals.map((w, i) => (
+            <tr key={i} className="border-b dark:border-gray-700">
+              <td className="p-2">{new Date(w.timestamp).toLocaleString()}</td>
+              <td className="p-2">KES {w.amount.toFixed(2)}</td>
+              <td className="p-2">{w.mpesaNumber}</td>
+              <td className="p-2">{w.mpesaName}</td>
+              <td className="p-2">{w.status}</td>
+              <td className="p-2">{w.mpesaRef || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex justify-between mt-4">
+        <button
+          onClick={() => setPage((p) => Math.max(p - 1, 1))}
+          disabled={page === 1}
+          className="bg-blue-500 text-white p-2 rounded disabled:bg-gray-400"
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} of {totalPages}
+        </span>
+        <button
+          onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+          disabled={page === totalPages}
+          className="bg-blue-500 text-white p-2 rounded disabled:bg-gray-400"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Rewards History Tab
+const RewardsHistoryTab = ({ rewards }) => {
+  return (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">Rewards History</h2>
+      <table className="w-full table-auto">
+        <thead>
+          <tr className="bg-gray-200 dark:bg-gray-700">
+            <th className="p-2">Date</th>
+            <th className="p-2">Type</th>
+            <th className="p-2">Amount</th>
+            <th className="p-2">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rewards.map((r, i) => (
+            <tr key={i} className="border-b dark:border-gray-700">
+              <td className="p-2">{new Date(r.timestamp).toLocaleString()}</td>
+              <td className="p-2">{r.rewardType}</td>
+              <td className="p-2">KES {r.rewardValue.toFixed(2)}</td>
+              <td className="p-2">{r.duration ? `Valid until ${r.endDate}` : '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// Leaderboard Tab
+const LeaderboardTab = ({ leaderboard }) => {
+  return (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">Leaderboard</h2>
+      <table className="w-full table-auto">
+        <thead>
+          <tr className="bg-gray-200 dark:bg-gray-700">
+            <th className="p-2">Rank</th>
+            <th className="p-2">Affiliate Name</th>
+            <th className="p-2">Total Sales</th>
+          </tr>
+        </thead>
+        <tbody>
+          {leaderboard.map((a, i) => (
+            <tr key={i} className="border-b dark:border-gray-700">
+              <td className="p-2">{i + 1}</td>
+              <td className="p-2">{a.name}</td>
+              <td className="p-2">{a.saleCount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// Notification Dropdown
+const NotificationDropdown = ({
+  notifications,
+  setNotifications,
+  setShowNotifications,
+}) => {
+  const markAsRead = async (index) => {
+    try {
+      const updatedNotifications = [...notifications];
+      updatedNotifications[index].read = true;
+      setNotifications(updatedNotifications);
+      await axios.post(
+        '/api/affiliate/notifications/mark-read',
+        { timestamp: notifications[index].timestamp },
+        { headers: { Authorization: `Bearer ${getCookie('jwt')}` } }
+      );
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  return (
+    <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 z-10">
+      <h3 className="text-lg font-semibold mb-2">Notifications</h3>
+      {notifications.length === 0 ? (
+        <p>No notifications</p>
+      ) : (
+        notifications.map((n, i) => (
+          <div key={i} className="mb-2 p-2 border-b dark:border-gray-700">
+            <p>{n.message}</p>
+            <p className="text-sm text-gray-500">{new Date(n.timestamp).toLocaleString()}</p>
+            {!n.read && (
+              <button
+                onClick={() => markAsRead(i)}
+                className="text-blue-500 text-sm"
+              >
+                Mark as Read
+              </button>
+            )}
+          </div>
+        ))
+      )}
+      <button
+        onClick={() => setShowNotifications(false)}
+        className="w-full bg-gray-300 dark:bg-gray-700 p-2 rounded mt-2"
+      >
+        Close
+      </button>
+    </div>
+  );
+};
+
+// Settings Dropdown
+const SettingsDropdown = ({
+  setShowSettings,
+  handleLogout,
+  setPopup,
+  fetchData,
+  navigate,
+}) => {
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
+  const [deleteForm, setDeleteForm] = useState({ password: '' });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const validatePasswordForm = () => {
+    const newErrors = {};
+    if (!passwordForm.currentPassword) {
+      newErrors.currentPassword = 'Current password required';
+    }
+    if (
+      !passwordForm.newPassword ||
+      passwordForm.newPassword.length < 8 ||
+      !/[a-zA-Z]/.test(passwordForm.newPassword) ||
+      !/[0-9]/.test(passwordForm.newPassword)
+    ) {
+      newErrors.newPassword = 'New password must be 8+ characters with letters and numbers';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (!validatePasswordForm()) return;
+    setLoading(true);
+    try {
+      await axios.post('/api/affiliate/update-password', passwordForm, {
+        headers: { Authorization: `Bearer ${getCookie('jwt')}` },
+      });
+      setPopup({ message: 'Password updated. Please log in again.', type: 'success' });
+      handleLogout();
+      navigate('/affiliate');
+    } catch (err) {
+      setErrors({ server: err.response?.data?.error || 'An error occurred' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const validateDeleteForm = () => {
+    const newErrors = {};
+    if (!deleteForm.password) {
+      newErrors.password = 'Password required';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!validateDeleteForm()) return;
+    setLoading(true);
+    try {
+      await axios.post(
+        '/api/affiliate/delete-account',
+        { password: deleteForm.password },
+        { headers: { Authorization: `Bearer ${getCookie('jwt')}` } }
+      );
+      setPopup({ message: 'Account deleted successfully.', type: 'success' });
+      handleLogout();
+      navigate('/affiliate');
+    } catch (err) {
+      setErrors({ server: err.response?.data?.error || 'An error occurred' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 z-10">
+      <button
+        onClick={() => setShowChangePassword(true)}
+        className="w-full text-left p-2 hover:bg-gray-200 dark:hover:bg-gray-700"
+      >
+        Change Password
+      </button>
+      <button
+        onClick={() => setShowDeleteAccount(true)}
+        className="w-full text-left p-2 hover:bg-gray-200 dark:hover:bg-gray-700"
+      >
+        Delete Account
+      </button>
+      <button
+        onClick={() => {
+          handleLogout();
+          navigate('/affiliate');
+        }}
+        className="w-full text-left p-2 hover:bg-gray-200 dark:hover:bg-gray-700"
+      >
+        Logout
+      </button>
+      {showChangePassword && (
+        <div className="absolute inset-0 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+          <h3 className="text-lg font-semibold mb-2">Change Password</h3>
+          <form onSubmit={handleChangePassword}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Current Password</label>
+              <input
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) =>
+                  setPasswordForm({ ...passwordForm, currentPassword: e.target.value })
+                }
+                className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+              {errors.currentPassword && (
+                <p className="text-red-500 text-sm mt-1">{errors.currentPassword}</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">New Password</label>
+              <input
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) =>
+                  setPasswordForm({ ...passwordForm, newPassword: e.target.value })
+                }
+                className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+              {errors.newPassword && (
+                <p className="text-red-500 text-sm mt-1">{errors.newPassword}</p>
+              )}
+            </div>
+            {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
+            <div className="flex space-x-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+              >
+                {loading ? 'Processing...' : 'Update'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowChangePassword(false)}
+                className="bg-gray-300 dark:bg-gray-700 p-2 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {showDeleteAccount && (
+        <div className="absolute inset-0 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+          <h3 className="text-lg font-semibold mb-2">Delete Account</h3>
+          <p className="mb-4">Are you sure? This action cannot be undone.</p>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Password</label>
+            <input
+              type="password"
+              value={deleteForm.password}
+              onChange={(e) => setDeleteForm({ ...deleteForm, password: e.target.value })}
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+            />
+            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+          </div>
+          {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
+          <div className="flex space-x-2">
+            <button
+              onClick={handleDeleteAccount}
+              disabled={loading}
+              className="bg-red-500 text-white p-2 rounded hover:bg-red-600 disabled:bg-gray-400"
+            >
+              {loading ? 'Processing...' : 'Delete'}
+            </button>
+            <button
+              onClick={() => setShowDeleteAccount(false)}
+              className="bg-gray-300 dark:bg-gray-700 p-2 rounded"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Static Page Component
+const StaticPage = ({ staticPages }) => {
+  const { slug } = useParams();
+  const page = staticPages.find((p) => p.slug === `/affiliate-${slug}`);
+
+  if (!page) return <div className="p-4 text-center">Page not found</div>;
+
+  return (
+    <div className="min-h-screen p-4 max-w-7xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">{page.title}</h1>
+      <div
+        dangerouslySetInnerHTML={{ __html: page.content }}
+        className="prose dark:prose-invert"
+      />
+      <button
+        onClick={() => window.history.back()}
+        className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+      >
+        Back
+      </button>
+    </div>
+  );
+};
+
+// Popup Component
+const Popup = ({ message, type, onClose }) => {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
+        <h3 className="text-lg font-semibold mb-4">
+          {type === 'success' ? 'Success' : type === 'error' ? 'Error' : 'Notice'}
+        </h3>
+        <p>{message}</p>
+        <button
+          onClick={onClose}
+          className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default App;
