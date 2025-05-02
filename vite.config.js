@@ -17,6 +17,7 @@ export default defineConfig({
           'react-router-dom': 'ReactRouterDOM',
           axios: 'axios',
           'socket.io-client': 'io',
+          'jwt-decode': 'jwtDecode', // Add jwt-decode global
         },
       },
       external: [
@@ -25,7 +26,8 @@ export default defineConfig({
         'react-router-dom',
         'axios',
         'socket.io-client',
-        'react/jsx-runtime', // Add this to fix the error
+        'react/jsx-runtime',
+        'jwt-decode', // Externalize jwt-decode
       ],
     },
   },
