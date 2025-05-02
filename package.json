@@ -5,8 +5,11 @@
   "main": "affiliate-server.js",
   "scripts": {
     "start": "node affiliate-server.js",
-    "build:css": "npx tailwindcss -i ./src/input.css -o ./public/output.css --watch",
-    "dev": "nodemon affiliate-server.js"
+    "dev": "nodemon affiliate-server.js",
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./public/output.css",
+    "build:js": "vite build",
+    "build": "npm run build:css && npm run build:js",
+    "watch:css": "npx tailwindcss -i ./src/input.css -o ./public/output.css --watch"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -37,5 +40,5 @@
     "tailwindcss": "^3.4.1",
     "vite": "^5.4.8",
     "@vitejs/plugin-react": "^4.3.1"
-}
+  }
 }
