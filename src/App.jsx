@@ -4,7 +4,12 @@ import axios from 'axios';
 import io from 'socket.io-client';
 import jwtDecode from 'jwt-decode';
 
-const socket = io('https://affiliate-botblitz.onrender.com', { withCredentials: true });
+const socket = io('https://affiliate-botblitz.onrender.com', {
+  withCredentials: true,
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+});
 
 // Utility to get cookie
 const getCookie = (name) => {
@@ -27,19 +32,50 @@ const App = () => {
   const [staticPages, setStaticPages] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [popup, setPopup] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(
+    localStorage.getItem('theme') === 'dark' ||
+      (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  );
+
+  // Apply dark mode class to root
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  // Decode JWT on initial load
+  useEffect(() => {
+    const token = getCookie('jwt');
+    if (token && !userData) {
+      try {
+        const decoded = jwtDecode(token);
+        setUserData({ email: decoded.email, name: decoded.name, refCode: decoded.refCode });
+      } catch (err) {
+        console.error('Invalid JWT:', err);
+        setIsAuthenticated(false);
+        document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      }
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
       const response = await axios.get('/api/affiliate/data', {
         headers: { Authorization: `Bearer ${getCookie('jwt')}` },
       });
-      setUserData(response.data);
+      setUserData((prev) => ({ ...prev, ...response.data }));
       setNotifications(response.data.notifications || []);
     } catch (err) {
       if (err.response?.status === 401) {
         setIsAuthenticated(false);
         document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
       }
+      console.error('Fetch data error:', err);
     }
   }, []);
 
@@ -64,6 +100,9 @@ const App = () => {
       fetchSettings();
     }
 
+    socket.on('connect', () => console.log('Socket connected'));
+    socket.on('connect_error', (err) => console.error('Socket connection error:', err));
+
     socket.on('update', (data) => {
       setUserData((prev) => ({ ...prev, ...data }));
       setSettings(data.settings || {});
@@ -82,12 +121,15 @@ const App = () => {
     });
 
     return () => {
+      socket.off('connect');
+      socket.off('connect_error');
       socket.off('update');
       socket.off('forceLogout');
     };
   }, [isAuthenticated, fetchData, fetchSettings]);
 
   const handleLogout = () => {
+    socket.emit('logout', { email: userData?.email });
     document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
     setIsAuthenticated(false);
     setUserData(null);
@@ -109,6 +151,8 @@ const App = () => {
                 handleLogout={handleLogout}
                 setPopup={setPopup}
                 fetchData={fetchData}
+                isDarkMode={isDarkMode}
+                setIsDarkMode={setIsDarkMode}
               />
             ) : (
               <Auth setIsAuthenticated={setIsAuthenticated} setUserData={setUserData} />
@@ -182,7 +226,8 @@ const Auth = ({ setIsAuthenticated, setUserData }) => {
           };
       const response = await axios.post(endpoint, payload);
       setCookie('jwt', response.data.token, 1);
-      setUserData({ name: response.data.name, refCode: response.data.refCode });
+      const decoded = jwtDecode(response.data.token);
+      setUserData({ name: decoded.name, email: decoded.email, refCode: decoded.refCode });
       setIsAuthenticated(true);
     } catch (err) {
       setErrors({ server: err.response?.data?.error || 'An error occurred' });
@@ -291,6 +336,8 @@ const Dashboard = ({
   handleLogout,
   setPopup,
   fetchData,
+  isDarkMode,
+  setIsDarkMode,
 }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -307,7 +354,7 @@ const Dashboard = ({
           <p>Welcome, {userData?.name}</p>
         </div>
         <div className="flex items-center space-x-4">
-          <a href={settings.whatsappLink} target="_blank" rel="noopener noreferrer">
+          <a href={settings.whatsappLink || '#'} target="_blank" rel="noopener noreferrer">
             <img src="/assets/whatsapp.png" alt="WhatsApp" className="w-6 h-6" />
           </a>
           <div className="relative">
@@ -341,6 +388,8 @@ const Dashboard = ({
                 setPopup={setPopup}
                 fetchData={fetchData}
                 navigate={navigate}
+                isDarkMode={isDarkMode}
+                setIsDarkMode={setIsDarkMode}
               />
             )}
           </div>
@@ -400,7 +449,7 @@ const Dashboard = ({
 // Home Tab
 const HomeTab = ({ userData, settings, setPopup, fetchData }) => {
   const [showCommissionInfo, setShowCommissionInfo] = useState(false);
-  const affiliateLink = `https://botblitz.store?ref=${userData?.refCode}`;
+  const affiliateLink = `https://botblitz.store?ref=${userData?.refCode || ''}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(affiliateLink);
@@ -478,7 +527,7 @@ const WithdrawalsTab = ({ userData, setPopup, fetchData }) => {
     const newErrors = {};
     if (!formData.amount || formData.amount <= 0) {
       newErrors.amount = 'Amount must be positive';
-    } else if (formData.amount > userData.currentBalance) {
+    } else if (formData.amount > (userData?.currentBalance || 0)) {
       newErrors.amount = 'Amount exceeds balance';
     }
     if (!formData.mpesaNumber || !/^\+254\d{9}$/.test(formData.mpesaNumber)) {
@@ -518,7 +567,7 @@ const WithdrawalsTab = ({ userData, setPopup, fetchData }) => {
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
       <h2 className="text-xl font-bold mb-4">Request Withdrawal</h2>
-      {userData.currentBalance <= 0 ? (
+      {userData?.currentBalance <= 0 ? (
         <p className="text-red-500">Insufficient balance to request a withdrawal.</p>
       ) : (
         <form onSubmit={handleSubmit}>
@@ -529,7 +578,7 @@ const WithdrawalsTab = ({ userData, setPopup, fetchData }) => {
               value={formData.amount}
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-              disabled={userData.currentBalance <= 0}
+              disabled={userData?.currentBalance <= 0}
             />
             {errors.amount && <p className="text-red-500 text-sm mt-1">{errors.amount}</p>}
           </div>
@@ -579,7 +628,7 @@ const WithdrawalsTab = ({ userData, setPopup, fetchData }) => {
           {errors.server && <p className="text-red-500 text-sm mb-4">{errors.server}</p>}
           <button
             type="submit"
-            disabled={loading || userData.currentBalance <= 0}
+            disabled={loading || userData?.currentBalance <= 0}
             className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
           >
             {loading ? 'Processing...' : 'Request Withdrawal'}
@@ -615,7 +664,7 @@ const WithdrawalHistoryTab = ({ withdrawals }) => {
           {paginatedWithdrawals.map((w, i) => (
             <tr key={i} className="border-b dark:border-gray-700">
               <td className="p-2">{new Date(w.timestamp).toLocaleString()}</td>
-              <td className="p-2">KES {w.amount.toFixed(2)}</td>
+              <td className="p-2">KES {w.amount?.toFixed(2)}</td>
               <td className="p-2">{w.mpesaNumber}</td>
               <td className="p-2">{w.mpesaName}</td>
               <td className="p-2">{w.status}</td>
@@ -666,7 +715,7 @@ const RewardsHistoryTab = ({ rewards }) => {
             <tr key={i} className="border-b dark:border-gray-700">
               <td className="p-2">{new Date(r.timestamp).toLocaleString()}</td>
               <td className="p-2">{r.rewardType}</td>
-              <td className="p-2">KES {r.rewardValue.toFixed(2)}</td>
+              <td className="p-2">KES {r.rewardValue?.toFixed(2)}</td>
               <td className="p-2">{r.duration ? `Valid until ${r.endDate}` : '-'}</td>
             </tr>
           ))}
@@ -762,6 +811,8 @@ const SettingsDropdown = ({
   setPopup,
   fetchData,
   navigate,
+  isDarkMode,
+  setIsDarkMode,
 }) => {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
@@ -835,6 +886,12 @@ const SettingsDropdown = ({
 
   return (
     <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 z-10">
+      <button
+        onClick={() => setIsDarkMode(!isDarkMode)}
+        className="w-full text-left p-2 hover:bg-gray-200 dark:hover:bg-gray-700"
+      >
+        {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+      </button>
       <button
         onClick={() => setShowChangePassword(true)}
         className="w-full text-left p-2 hover:bg-gray-200 dark:hover:bg-gray-700"
