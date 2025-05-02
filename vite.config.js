@@ -10,15 +10,23 @@ export default defineConfig({
       output: {
         entryFileNames: 'app.js',
         format: 'umd',
+        name: 'App',
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
           'react-router-dom': 'ReactRouterDOM',
           axios: 'axios',
           'socket.io-client': 'io',
-          'jwt-decode': 'jwtDecode',
         },
       },
+      external: [
+        'react',
+        'react-dom',
+        'react-router-dom',
+        'axios',
+        'socket.io-client',
+        'react/jsx-runtime', // Add this to fix the error
+      ],
     },
   },
 });
