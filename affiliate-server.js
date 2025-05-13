@@ -365,12 +365,15 @@ cron.schedule('0 0 1 * *', async () => {
 });
 
 cron.schedule('0 0 30-31 * *', () => {
-  sendEmail(
-    APP_EMAIL,
-    'Monthly Sales Reset Reminder',
-    'Monthly sales will reset tomorrow at 00:00 UTC.'
-  );
+  (async () => {
+    await sendEmail(
+      APP_EMAIL,
+      'Monthly Sales Reset Reminder',
+      'Monthly sales will reset tomorrow at 00:00 UTC.'
+    );
+  })();
 });
+
 
 cron.schedule('0 0 * * *', async () => {
   const affiliates = await fetchAffiliates();
