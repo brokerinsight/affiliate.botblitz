@@ -1,6 +1,6 @@
 {
   "name": "deriv-bot-store-affiliate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Affiliate system for Deriv Bot Store, handling affiliate tracking, rewards, and withdrawals.",
   "main": "affiliate-server.js",
   "scripts": {
