@@ -1603,18 +1603,20 @@ app.get('/', (req, res) => {
 });
 
 // WebSocket Server
-const server = app.listen(port, async () => {
-  await initializeSheets();
-  await updateCache();
-  cron.schedule('*/15 * * * *', updateCache);
-  console.log(`Server running on port ${port}`);
-  fs.readdir(publicPath, (err, files) => {
-    if (err) {
-      console.error(`Error reading public directory: ${err.message}`);
-    } else {
-      console.log(`Static files available in ${publicPath}:`, files);
-    }
-  });
+const server = app.listen(port, () => {
+  (async () => {
+    await initializeSheets();
+    await updateCache();
+    cron.schedule('*/15 * * * *', updateCache);
+    console.log(`Server running on port ${port}`);
+    fs.readdir(publicPath, (err, files) => {
+      if (err) {
+        console.error(`Error reading public directory: ${err.message}`);
+      } else {
+        console.log(`Static files available in ${publicPath}:`, files);
+      }
+    });
+  })();
 });
 
 server.on('upgrade', (request, socket, head) => {
