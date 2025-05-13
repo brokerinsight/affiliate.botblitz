@@ -37,6 +37,25 @@
       <div id="logo" class="flex items-center">
         <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>
       </div>
+      <div id="header-buttons" class="flex items-center space-x-4">
+        <button id="contact-us" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Contact Us</button>
+        <div id="settings" class="relative">
+          <button id="settings-toggle" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Settings</button>
+          <div id="settings-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10">
+            <button id="change-password" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Change Password</button>
+            <button id="delete-account" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Delete Account</button>
+            <button id="logout" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Logout</button>
+          </div>
+        </div>
+        <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
+          <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
+      </div>
     </div>
     <div id="welcome-message" class="max-w-7xl mx-auto px-4 py-2 text-sm text-gray-500 hidden"></div>
   </header>
@@ -165,7 +184,7 @@
             </div>
             <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
               <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17 4 4 0 018 0 4 4 0 018 0z" />
               </svg>
               <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
@@ -173,6 +192,7 @@
             </button>
           </div>
         </div>
+        <div id="dashboard-welcome" class="mt-2 text-sm text-gray-500"></div>
       </div>
 
       <!-- Tabs -->
@@ -464,6 +484,12 @@
       document.cookie = `${name}=; max-age=0; path=/; secure; sameSite=strict`;
     }
 
+    function escapeHTML(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
     function showNotification(message, color, isUrgent = false, id = `NOTIF${Date.now()}`) {
       if (activeNotifications >= 3) {
         notificationsQueue.push({ message, color, isUrgent, id });
@@ -474,7 +500,7 @@
       notification.className = `bg-white dark:bg-gray-800 p-4 rounded shadow border-l-4 ${isUrgent ? 'border-2 border-red-500 bg-red-100 dark:bg-red-900' : `border-${color}-500`} notification-enter`;
       notification.innerHTML = `
         <div class="flex justify-between items-center">
-          <p>${message}</p>
+          <p>${escapeHTML(message)}</p>
           <button class="text-gray-500 hover:text-gray-700" onclick="closeNotification(this, '${id}')">X</button>
         </div>
       `;
@@ -545,21 +571,26 @@
       ws = new WebSocket(`${WS_BASE}?token=${token}`);
       ws.onopen = () => console.log('WebSocket connected');
       ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'update') {
-          dashboardData = { ...dashboardData, ...data.data };
-          updateDashboard();
-        } else if (data.type === 'notification') {
-          showNotification(data.message, data.colour, data.isUrgent, data.id);
-        } else if (data.type === 'logout') {
-          clearCookie('jwt');
-          ws.close();
-          showNotification('Session expired, please login', 'red');
-          showAuth();
-        } else if (data.type === 'username_check') {
-          const status = document.getElementById('username-status');
-          status.textContent = data.message;
-          status.className = `text-sm mt-1 text-${data.available ? 'green' : 'red'}-500`;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'update') {
+            dashboardData = { ...dashboardData, ...data.data };
+            updateDashboard();
+          } else if (data.type === 'notification') {
+            showNotification(data.message, data.colour, data.isUrgent, data.id);
+          } else if (data.type === 'logout') {
+            clearCookie('jwt');
+            ws.close();
+            showNotification('Session expired, please login', 'red');
+            showAuth();
+          } else if (data.type === 'username_check') {
+            const status = document.getElementById('username-status');
+            status.textContent = data.message;
+            status.className = `text-sm mt-1 text-${data.available ? 'green' : 'red'}-500`;
+          }
+        } catch (err) {
+          console.error('WebSocket message error:', err);
+          showNotification('Error processing notification', 'red');
         }
       };
       ws.onclose = () => console.log('WebSocket disconnected');
@@ -575,12 +606,20 @@
         whatsappLink, copyrightText, logoUrl
       } = dashboardData;
 
+      // Main Header
+      document.getElementById('logo').innerHTML = logoUrl
+        ? `<img src="${logoUrl}" alt="Deriv Bot Store Affiliates" class="h-8">`
+        : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>';
+      document.getElementById('welcome-message').textContent = `Welcome ${name}, Your username is ${username || 'N/A'}`;
+      document.getElementById('welcome-message').classList.remove('hidden');
+
       // Dashboard Header
       document.getElementById('dashboard-logo').innerHTML = logoUrl
         ? `<img src="${logoUrl}" alt="Deriv Bot Store Affiliates" class="h-8">`
         : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>';
-      document.getElementById('welcome-message').textContent = `Welcome ${name}, Your username is ${username}`;
-      document.getElementById('welcome-message').classList.remove('hidden');
+      document.getElementById('dashboard-welcome').textContent = `Welcome ${name}, Your username is ${username || 'N/A'}`;
+
+      // Contact Links
       document.getElementById('whatsapp-link').href = whatsappLink || 'https://wa.link/4wppln';
       document.getElementById('email-link').href = `mailto:${supportEmail || 'derivbotstore@gmail.com'}`;
       document.getElementById('copyright').textContent = copyrightText || 'Deriv Bot Store Affiliates 2025';
@@ -670,7 +709,7 @@
         const row = document.createElement('tr');
         row.innerHTML = `
           <td class="p-2">${new Date(n.timestamp).toLocaleString()}</td>
-          <td class="p-2">${n.message}</td>
+          <td class="p-2">${escapeHTML(n.message)}</td>
           <td class="p-2">${n.read ? 'Read' : 'Unread'}</td>
         `;
         notificationsTable.appendChild(row);
@@ -695,7 +734,7 @@
               <p class="text-sm text-gray-500">${new Date(n.timestamp).toLocaleString()}</p>
               ${!isRead ? '<span class="bg-blue-500 text-white px-2 rounded">New</span>' : ''}
             </div>
-            <p class="mt-2">${n.message}</p>
+            <p class="mt-2">${escapeHTML(n.message)}</p>
           </div>
         `;
         div.addEventListener('click', () => {
@@ -743,6 +782,8 @@
       try {
         const token = getCookie('jwt');
         if (!token) throw new Error('No authentication token found');
+        const decoded = jwt_decode(token);
+        dashboardData.username = decoded.username || 'N/A';
         console.log('Fetching dashboard with token:', token.substring(0, 10) + '...');
         const response = await fetch(`${API_BASE}/api/affiliate/data`, {
           headers: {
@@ -756,7 +797,7 @@
         }
         const data = await response.json();
         if (data.success) {
-          dashboardData = data.data;
+          dashboardData = { ...data.data, username: decoded.username || data.data.username || 'N/A' };
           updateDashboard();
           data.data.notificationsJSON?.forEach(n => {
             if (!n.read) showNotification(n.message, n.colour, false, n.id);
@@ -1043,7 +1084,7 @@
             showNotification('Password changed, please login again', 'green');
             showAuth();
           } else {
-            showNotification(data.error || 'Failed to change password', 'red');
+            showNotification(data.error || 'Incorrect current password', 'red');
           }
         } catch (err) {
           document.getElementById('change-password-loading').classList.add('hidden');
@@ -1167,101 +1208,109 @@
         const mpesaName = document.getElementById('mpesa-name').value;
         const reuseDetails = document.getElementById('reuse-details').checked;
         const password = document.getElementById('withdrawal-password').value;
+        
+  document.getElementById('withdrawal-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const amount = parseFloat(document.getElementById('withdrawal-amount').value);
+    const mpesaNumber = document.getElementById('mpesa-number').value;
+    const mpesaName = document.getElementById('mpesa-name').value;
+    const reuseDetails = document.getElementById('reuse-details').checked;
+    const password = document.getElementById('withdrawal-password').value;
 
-        if (amount <= 0 || amount > dashboardData.currentBalance) return showNotification('Invalid amount', 'red');
-        if (!validateMpesaNumber(mpesaNumber)) return showNotification('MPESA number must be 10 digits starting with 07 or 01', 'red');
-        if (!validateName(mpesaName)) return showNotification('MPESA name must have at least two words', 'red');
+    if (amount < 1) return showNotification('Amount must be at least 1 KES', 'red');
+    if (!validateMpesaNumber(mpesaNumber)) return showNotification('Invalid MPESA number (e.g., 07XXXXXXXX)', 'red');
+    if (!validateName(mpesaName)) return showNotification('MPESA name must have at least two words', 'red');
+    if (amount > (dashboardData.currentBalance || 0)) return showNotification('Insufficient balance', 'red');
 
-        document.getElementById('withdrawal-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/request-withdrawal`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails, password })
-          });
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to request withdrawal'}`);
-          }
-          const data = await response.json();
-          document.getElementById('withdrawal-loading').classList.add('hidden');
-          if (data.success) {
-            if (reuseDetails) {
-              mpesaDetails = { mpesaNumber, mpesaName };
-            }
-            document.getElementById('withdrawal-modal').classList.add('hidden');
-            showNotification('Withdrawal submitted. You’ll receive it soon as processed.', 'green');
-            fetchDashboard();
-          } else {
-            showNotification(data.error || 'Failed to request withdrawal', 'red');
-          }
-        } catch (err) {
-          document.getElementById('withdrawal-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
+    document.getElementById('withdrawal-loading').classList.remove('hidden');
+    try {
+      const response = await fetch(`${API_BASE}/api/affiliate/request-withdrawal`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getCookie('jwt')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails, password })
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to request withdrawal'}`);
+      }
+      const data = await response.json();
+      document.getElementById('withdrawal-loading').classList.add('hidden');
+      if (data.success) {
+        if (reuseDetails) {
+          mpesaDetails = { mpesaNumber, mpesaName };
+        }
+        document.getElementById('withdrawal-modal').classList.add('hidden');
+        showNotification('Withdrawal request submitted', 'green');
+        fetchDashboard();
+      } else {
+        showNotification(data.error || 'Incorrect password or invalid details', 'red');
+      }
+    } catch (err) {
+      document.getElementById('withdrawal-loading').classList.add('hidden');
+      showNotification(`Error: ${err.message}`, 'red');
+    }
+  });
+
+  // Delete Account
+  document.getElementById('confirm-delete').addEventListener('click', async () => {
+    document.getElementById('delete-loading').classList.remove('hidden');
+    try {
+      const response = await fetch(`${API_BASE}/api/affiliate/delete-account`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getCookie('jwt')}`,
+          'Content-Type': 'application/json'
         }
       });
-
-      // Delete Account
-      document.getElementById('confirm-delete').addEventListener('click', async () => {
-        document.getElementById('delete-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/delete-account`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
-          });
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to delete account'}`);
-          }
-          const data = await response.json();
-          document.getElementById('delete-loading').classList.add('hidden');
-          if (data.success) {
-            clearCookie('jwt');
-            ws?.close();
-            document.getElementById('delete-account-modal').classList.add('hidden');
-            showNotification('Account deleted', 'green');
-            showAuth();
-          } else {
-            showNotification(data.error || 'Failed to delete account', 'red');
-          }
-        } catch (err) {
-          document.getElementById('delete-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
-      });
-
-      // Logout
-      document.getElementById('logout').addEventListener('click', () => {
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to delete account'}`);
+      }
+      const data = await response.json();
+      document.getElementById('delete-loading').classList.add('hidden');
+      if (data.success) {
         clearCookie('jwt');
         ws?.close();
-        document.getElementById('settings-dropdown').classList.add('hidden');
-        showNotification('Logged out successfully', 'green');
+        document.getElementById('delete-account-modal').classList.add('hidden');
+        showNotification('Account deleted successfully', 'green');
         showAuth();
-      });
-
-      // Check Authentication
-      const token = getCookie('jwt');
-      if (token) {
-        try {
-          const decoded = jwt_decode(token);
-          if (decoded.exp * 1000 > Date.now()) {
-            initWebSocket(token);
-            showDashboard();
-          } else {
-            clearCookie('jwt');
-            showAuth();
-          }
-        } catch (err) {
-          clearCookie('jwt');
-          showAuth();
-        }
       } else {
-        showAuth();
+        showNotification(data.error || 'Failed to delete account', 'red');
       }
-    });
-  </script>
+    } catch (err) {
+      document.getElementById('delete-loading').classList.add('hidden');
+      showNotification(`Error: ${err.message}`, 'red');
+    }
+  });
+
+  // Logout
+  document.getElementById('logout').addEventListener('click', () => {
+    clearCookie('jwt');
+    ws?.close();
+    document.getElementById('settings-dropdown').classList.add('hidden');
+    showNotification('Logged out successfully', 'green');
+    showAuth();
+  });
+
+  // Initial Setup
+  const token = getCookie('jwt');
+  if (token) {
+    try {
+      const decoded = jwt_decode(token);
+      dashboardData.username = decoded.username || 'N/A';
+      initWebSocket(token);
+      showDashboard();
+    } catch (err) {
+      console.error('Invalid token:', err);
+      clearCookie('jwt');
+      showAuth();
+    }
+  } else {
+    showAuth();
+  }
+</script>
 </body>
 </html>
