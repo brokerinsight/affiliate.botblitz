@@ -10,6 +10,7 @@ const sanitizeHtml = require('sanitize-html');
 const cron = require('node-cron');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,21 +18,21 @@ const port = process.env.PORT || 3000;
 // Environment Variables
 const {
   APP_EMAIL, APP_PASSWORD, AFFILIATES_SHEET_ID, ADMIN_SHEET_ID,
-  GOOGLE_CREDENTIALS, AFFILIATE_API_KEY, JWT_SECRET
+  GOOGLE_CREDENTIALS, AFFILIATE_API_KEY, JWT_SECRET,
+  BOT_STORE_API_URL, BOT_STORE_API_KEY
 } = process.env;
 
 // Validate Environment Variables
 const validateEnv = () => {
   try {
-    if (!APP_EMAIL || !APP_PASSWORD || !AFFILIATES_SHEET_ID || !ADMIN_SHEET_ID || !AFFILIATE_API_KEY || !JWT_SECRET) {
+    if (!APP_EMAIL || !APP_PASSWORD || !AFFILIATES_SHEET_ID || !ADMIN_SHEET_ID || 
+        !AFFILIATE_API_KEY || !JWT_SECRET || !BOT_STORE_API_URL || !BOT_STORE_API_KEY) {
       throw new Error('Missing environment variables');
     }
-    // Parse GOOGLE_CREDENTIALS flexibly
     let credentials;
     try {
       credentials = JSON.parse(GOOGLE_CREDENTIALS);
     } catch {
-      // Handle quoted JSON string
       const stripped = GOOGLE_CREDENTIALS.replace(/^"|"$/g, '').replace(/\\"/g, '"');
       credentials = JSON.parse(stripped);
     }
@@ -79,13 +80,11 @@ const sheets = google.sheets({ version: 'v4', auth: new google.auth.JWT({
 
 const initializeSheets = async () => {
   try {
-    // Helper to check if a tab exists
     const getSheetTabs = async (spreadsheetId) => {
       const response = await sheets.spreadsheets.get({ spreadsheetId });
       return response.data.sheets.map(sheet => sheet.properties.title);
     };
 
-    // Helper to create a tab
     const createTab = async (spreadsheetId, tabName) => {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
@@ -100,7 +99,6 @@ const initializeSheets = async () => {
       console.log(`Created tab '${tabName}' in spreadsheet ${spreadsheetId}`);
     };
 
-    // AFFILIATES_SHEET_ID: all affiliates
     const affiliatesHeaders = [
       'Email', 'Username', 'Name', 'JoinDate', 'RefCode', 'Password',
       'Statusjson', 'LinkClicks', 'TotalSales', 'TotalSalesMonthly',
@@ -119,7 +117,6 @@ const initializeSheets = async () => {
     });
     console.log('Initialized headers for all affiliates tab');
 
-    // ADMIN_SHEET_ID: settingsAffiliate
     const settingsData = [
       ['supportEmail', 'derivbotstore@gmail.com'],
       ['copyrightText', 'Deriv Bot Store Affiliates 2025'],
@@ -142,7 +139,6 @@ const initializeSheets = async () => {
     });
     console.log('Initialized settingsAffiliate tab');
 
-    // ADMIN_SHEET_ID: other tabs
     const adminTabsConfig = [
       { name: 'staticPagesAffiliate', headers: ['Slug', 'Title', 'Content'] },
       { name: 'pendingWithdrawals', headers: ['Email', 'Name', 'Timestamp', 'Amount', 'MpesaNumber', 'MpesaName', 'PaymentRefcode', 'Status'] },
@@ -387,6 +383,69 @@ cron.schedule('0 0 * * *', async () => {
   }
 
   await updateCache();
+});
+
+// Sales Sync Cron Job
+cron.schedule('0 * * * *', async () => {
+  try {
+    const response = await axios.get(`${BOT_STORE_API_URL}/api/sales`, {
+      headers: { 'Authorization': `Bearer ${BOT_STORE_API_KEY}` }
+    });
+    if (!response.data.success || !Array.isArray(response.data.sales)) {
+      console.error('Invalid sales data from bot store server');
+      return;
+    }
+    const sales = response.data.sales;
+    const affiliates = await fetchAffiliates();
+    for (const sale of sales) {
+      const { refCode, amount, item, timestamp } = sale;
+      if (!refCode || amount <= 0) continue;
+      const affiliate = affiliates.find(a => a.RefCode === refCode);
+      if (!affiliate) {
+        console.log(`No affiliate found for refCode: ${refCode}`);
+        continue;
+      }
+      const commission = amount * cachedDataAffiliate.settings.commissionRate;
+      affiliate.TotalSales += 1;
+      affiliate.TotalSalesMonthly += 1;
+      affiliate.CurrentBalance += commission;
+      affiliate.NotificationsJSON.push({
+        id: `NOTIF${Date.now()}`,
+        read: false,
+        colour: 'green',
+        message: `Sale confirmed: ${amount} KES for ${item}, Commission: ${commission} KES`,
+        timestamp: new Date().toISOString()
+      });
+      if (affiliate.NotificationsJSON.length > 20) {
+        affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
+      }
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: AFFILIATES_SHEET_ID,
+        range: `all affiliates!I${affiliates.indexOf(affiliate) + 2}:O`,
+        valueInputOption: 'RAW',
+        resource: { values: [[
+          affiliate.TotalSales,
+          affiliate.TotalSalesMonthly,
+          affiliate.CurrentBalance,
+          affiliate.WithdrawnTotal,
+          JSON.stringify(affiliate.WithdrawalsJSON),
+          JSON.stringify(affiliate.RewardsJSON),
+          JSON.stringify(affiliate.NotificationsJSON)
+        ]] }
+      });
+      if (wsClients.has(affiliate.Email)) {
+        wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
+        wsClients.get(affiliate.Email).send(JSON.stringify({
+          type: 'notification',
+          data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
+        }));
+      }
+    }
+    await updateCache();
+    console.log('Sales sync completed');
+  } catch (err) {
+    console.error('Sales sync failed:', err.message);
+  }
 });
 
 // Validation Functions
@@ -725,6 +784,73 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
     }));
   }
   res.json({ success: true });
+});
+
+app.post('/api/affiliate/sync-sales', authenticateAdmin, async (req, res) => {
+  try {
+    const response = await axios.get(`${BOT_STORE_API_URL}/api/sales`, {
+      headers: { 'Authorization': `Bearer ${BOT_STORE_API_KEY}` }
+    });
+    if (!response.data.success || !Array.isArray(response.data.sales)) {
+      return res.status(400).json({ success: false, error: 'Invalid sales data from bot store server' });
+    }
+    const sales = response.data.sales;
+    const affiliates = await fetchAffiliates();
+    let updatedAffiliates = [];
+    for (const sale of sales) {
+      const { refCode, amount, item, timestamp } = sale;
+      if (!refCode || amount <= 0) {
+        console.log(`Skipping invalid sale: refCode=${refCode}, amount=${amount}`);
+        continue;
+      }
+      const affiliate = affiliates.find(a => a.RefCode === refCode);
+      if (!affiliate) {
+        console.log(`No affiliate found for refCode: ${refCode}`);
+        continue;
+      }
+      const commission = amount * cachedDataAffiliate.settings.commissionRate;
+      affiliate.TotalSales += 1;
+      affiliate.TotalSalesMonthly += 1;
+      affiliate.CurrentBalance += commission;
+      affiliate.NotificationsJSON.push({
+        id: `NOTIF${Date.now()}`,
+        read: false,
+        colour: 'green',
+        message: `Sale confirmed: ${amount} KES for ${item}, Commission: ${commission} KES`,
+        timestamp: new Date().toISOString()
+      });
+      if (affiliate.NotificationsJSON.length > 20) {
+        affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
+      }
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: AFFILIATES_SHEET_ID,
+        range: `all affiliates!I${affiliates.indexOf(affiliate) + 2}:O`,
+        valueInputOption: 'RAW',
+        resource: { values: [[
+          affiliate.TotalSales,
+          affiliate.TotalSalesMonthly,
+          affiliate.CurrentBalance,
+          affiliate.WithdrawnTotal,
+          JSON.stringify(affiliate.WithdrawalsJSON),
+          JSON.stringify(affiliate.RewardsJSON),
+          JSON.stringify(affiliate.NotificationsJSON)
+        ]] }
+      });
+      updatedAffiliates.push(affiliate.Email);
+      if (wsClients.has(affiliate.Email)) {
+        wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
+        wsClients.get(affiliate.Email).send(JSON.stringify({
+          type: 'notification',
+          data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
+        }));
+      }
+    }
+    await updateCache();
+    res.json({ success: true, updatedAffiliates });
+  } catch (err) {
+    console.error('Manual sales sync failed:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to sync sales: ' + err.message });
+  }
 });
 
 app.post('/api/affiliate/request-withdrawal', authenticateAffiliate, async (req, res) => {
@@ -1080,7 +1206,13 @@ app.post('/api/admin/affiliate/communication', authenticateAdmin, async (req, re
       valueInputOption: 'RAW',
       resource: { values: [[news.id, news.message, news.timestamp]] }
     });
-    cachedDataAffiliate.affiliates.forEach(affiliate => {
+    let targetAffiliates = cachedDataAffiliate.affiliates;
+    if (filter === 'active') {
+      targetAffiliates = targetAffiliates.filter(a => a.Statusjson.status === 'active');
+    } else if (filter === 'top') {
+      targetAffiliates = targetAffiliates.sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly).slice(0, 10);
+    }
+    targetAffiliates.forEach(affiliate => {
       if (wsClients.has(affiliate.Email)) {
         wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'news', data: news }));
       }
