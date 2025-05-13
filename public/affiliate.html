@@ -37,7 +37,6 @@
       <div id="logo" class="flex items-center">
         <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>
       </div>
-      <!-- Navigation buttons moved to dashboard section -->
     </div>
     <div id="welcome-message" class="max-w-7xl mx-auto px-4 py-2 text-sm text-gray-500 hidden"></div>
   </header>
@@ -94,6 +93,7 @@
             <div class="relative">
               <input id="signup-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
               <button type="button" id="signup-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+              <p id="password-status" class="text-sm mt-1"></p>
             </div>
           </div>
           <div>
@@ -344,6 +344,7 @@
           <div class="relative">
             <input id="new-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
             <button type="button" id="new-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+            <p id="new-password-status" class="text-sm mt-1"></p>
           </div>
         </div>
         <div>
@@ -456,11 +457,11 @@
     }
 
     function setCookie(name, value, maxAge) {
-      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; httpOnly`;
+      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; sameSite=strict`;
     }
 
     function clearCookie(name) {
-      document.cookie = `${name}=; max-age=0; path=/; secure; httpOnly`;
+      document.cookie = `${name}=; max-age=0; path=/; secure; sameSite=strict`;
     }
 
     function showNotification(message, color, isUrgent = false, id = `NOTIF${Date.now()}`) {
@@ -522,6 +523,10 @@
 
     function validatePassword(password) {
       return /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(password);
+    }
+
+    function hasInvalidCharacters(input) {
+      return /[^a-zA-Z\d]/.test(input);
     }
 
     function validateMpesaNumber(number) {
@@ -736,9 +741,19 @@
 
     async function fetchDashboard() {
       try {
+        const token = getCookie('jwt');
+        if (!token) throw new Error('No authentication token found');
+        console.log('Fetching dashboard with token:', token.substring(0, 10) + '...');
         const response = await fetch(`${API_BASE}/api/affiliate/data`, {
-          headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText || 'Unauthorized'}`);
+        }
         const data = await response.json();
         if (data.success) {
           dashboardData = data.data;
@@ -750,10 +765,13 @@
             showNotification(data.data.urgentPopup.message, 'red', true);
           }
         } else {
-          throw new Error(data.error);
+          throw new Error(data.error || 'Failed to load dashboard');
         }
       } catch (err) {
+        console.error('Dashboard fetch error:', err);
         showNotification(`Failed to load dashboard: ${err.message}`, 'red');
+        clearCookie('jwt');
+        ws?.close();
         showAuth();
       }
     }
@@ -761,13 +779,17 @@
     async function showStaticPage(slug) {
       try {
         const response = await fetch(`${API_BASE}/api/affiliate/static-page/${slug}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to load page'}`);
+        }
         const data = await response.json();
         if (data.success) {
           document.getElementById('static-title').textContent = data.page.title;
           document.getElementById('static-content').innerHTML = data.page.content;
           document.getElementById('static-page-modal').classList.remove('hidden');
         } else {
-          throw new Error(data.error);
+          throw new Error(data.error || 'Failed to load page');
         }
       } catch (err) {
         showNotification(`Failed to load page: ${err.message}`, 'red');
@@ -842,8 +864,10 @@
         const terms = document.getElementById('signup-terms').checked;
 
         if (!validateName(name)) return showNotification('Full name must have at least two words', 'red');
+        if (hasInvalidCharacters(username)) return showNotification('Only numbers and letters are allowed in username', 'red');
         if (!validateUsername(username)) return showNotification('Username must be 5+ characters with at least one letter and one number', 'red');
         if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
+        if (hasInvalidCharacters(password)) return showNotification('Only numbers and letters are allowed in password', 'red');
         if (!validatePassword(password)) return showNotification('Password must be 8+ characters with at least one letter and one number', 'red');
         if (!terms) return showNotification('You must agree to the Terms & Conditions', 'red');
 
@@ -854,6 +878,10 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, username, email, password, termsAccepted: true })
           });
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to register'}`);
+          }
           const data = await response.json();
           document.getElementById('signup-loading').classList.add('hidden');
           if (data.success) {
@@ -867,18 +895,39 @@
           }
         } catch (err) {
           document.getElementById('signup-loading').classList.add('hidden');
-          showNotification('Error: ' + err.message, 'red');
+          showNotification(`Error: ${err.message}`, 'red');
         }
       });
 
       // Username Real-Time Validation
       document.getElementById('signup-username').addEventListener('input', () => {
         const username = document.getElementById('signup-username').value;
-        if (validateUsername(username) && ws) {
-          ws.send(JSON.stringify({ type: 'username_check', username }));
+        const status = document.getElementById('username-status');
+        if (hasInvalidCharacters(username)) {
+          status.textContent = 'Only numbers and letters are allowed';
+          status.className = 'text-sm mt-1 text-red-500';
+        } else if (!validateUsername(username)) {
+          status.textContent = 'Username must be 5+ characters with at least one letter and one number';
+          status.className = 'text-sm mt-1 text-red-500';
         } else {
-          document.getElementById('username-status').textContent = validateUsername(username) ? '' : 'Username must be 5+ characters with at least one letter and one number';
-          document.getElementById('username-status').className = 'text-sm mt-1 text-red-500';
+          status.textContent = '';
+          if (ws) ws.send(JSON.stringify({ type: 'username_check', username }));
+        }
+      });
+
+      // Password Real-Time Validation
+      document.getElementById('signup-password').addEventListener('input', () => {
+        const password = document.getElementById('signup-password').value;
+        const status = document.getElementById('password-status');
+        if (hasInvalidCharacters(password)) {
+          status.textContent = 'Only numbers and letters are allowed';
+          status.className = 'text-sm mt-1 text-red-500';
+        } else if (!validatePassword(password)) {
+          status.textContent = 'Password must be 8+ characters with at least one letter and one number';
+          status.className = 'text-sm mt-1 text-red-500';
+        } else {
+          status.textContent = '';
+          status.className = 'text-sm mt-1';
         }
       });
 
@@ -897,6 +946,10 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
           });
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to login'}`);
+          }
           const data = await response.json();
           document.getElementById('login-loading').classList.add('hidden');
           if (data.success) {
@@ -912,7 +965,7 @@
           }
         } catch (err) {
           document.getElementById('login-loading').classList.add('hidden');
-          showNotification('Error: ' + err.message, 'red');
+          showNotification(`Error: ${err.message}`, 'red');
         }
       });
 
@@ -927,6 +980,7 @@
 
         if (!validateName(name)) return showNotification('Full name must have at least two words', 'red');
         if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
+        if (hasInvalidCharacters(username)) return showNotification('Only numbers and letters are allowed in username', 'red');
         if (!validateUsername(username)) return showNotification('Username must be 5+ characters with at least one letter and one number', 'red');
         if (description.length > 100) return showNotification('Description must be 100 characters or less', 'red');
 
@@ -937,6 +991,10 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, email, username, lastWithdrawalAmount, description })
           });
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to submit reset request'}`);
+          }
           const data = await response.json();
           document.getElementById('forgot-loading').classList.add('hidden');
           if (data.success) {
@@ -947,7 +1005,65 @@
           }
         } catch (err) {
           document.getElementById('forgot-loading').classList.add('hidden');
-          showNotification('Error: ' + err.message, 'red');
+          showNotification(`Error: ${err.message}`, 'red');
+        }
+      });
+
+      // Change Password Form
+      document.getElementById('change-password-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const currentPassword = document.getElementById('current-password').value;
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+
+        if (hasInvalidCharacters(newPassword)) return showNotification('Only numbers and letters are allowed in new password', 'red');
+        if (!validatePassword(newPassword)) return showNotification('New password must be 8+ characters with at least one letter and one number', 'red');
+        if (newPassword !== confirmPassword) return showNotification('Passwords do not match', 'red');
+
+        document.getElementById('change-password-loading').classList.remove('hidden');
+        try {
+          const response = await fetch(`${API_BASE}/api/affiliate/update-password`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${getCookie('jwt')}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ currentPassword, newPassword })
+          });
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to change password'}`);
+          }
+          const data = await response.json();
+          document.getElementById('change-password-loading').classList.add('hidden');
+          if (data.success) {
+            clearCookie('jwt');
+            ws?.close();
+            document.getElementById('change-password-modal').classList.add('hidden');
+            showNotification('Password changed, please login again', 'green');
+            showAuth();
+          } else {
+            showNotification(data.error || 'Failed to change password', 'red');
+          }
+        } catch (err) {
+          document.getElementById('change-password-loading').classList.add('hidden');
+          showNotification(`Error: ${err.message}`, 'red');
+        }
+      });
+
+      // New Password Real-Time Validation
+      document.getElementById('new-password').addEventListener('input', () => {
+        const password = document.getElementById('new-password').value;
+        const status = document.getElementById('new-password-status');
+        if (hasInvalidCharacters(password)) {
+          status.textContent = 'Only numbers and letters are allowed';
+          status.className = 'text-sm mt-1 text-red-500';
+        } else if (!validatePassword(password)) {
+          status.textContent = 'Password must be 8+ characters with at least one letter and one number';
+          status.className = 'text-sm mt-1 text-red-500';
+        } else {
+          status.textContent = '';
+          status.className = 'text-sm mt-1';
         }
       });
 
@@ -1066,6 +1182,10 @@
             },
             body: JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails, password })
           });
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to request withdrawal'}`);
+          }
           const data = await response.json();
           document.getElementById('withdrawal-loading').classList.add('hidden');
           if (data.success) {
@@ -1080,44 +1200,7 @@
           }
         } catch (err) {
           document.getElementById('withdrawal-loading').classList.add('hidden');
-          showNotification('Error: ' + err.message, 'red');
-        }
-      });
-
-      // Change Password Form
-      document.getElementById('change-password-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const currentPassword = document.getElementById('current-password').value;
-        const newPassword = document.getElementById('new-password').value;
-        const confirmPassword = document.getElementById('confirm-password').value;
-
-        if (!validatePassword(newPassword)) return showNotification('New password must be 8+ characters with at least one letter and one number', 'red');
-        if (newPassword !== confirmPassword) return showNotification('Passwords do not match', 'red');
-
-        document.getElementById('change-password-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/update-password`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ currentPassword, newPassword })
-          });
-          const data = await response.json();
-          document.getElementById('change-password-loading').classList.add('hidden');
-          if (data.success) {
-            clearCookie('jwt');
-            ws?.close();
-            document.getElementById('change-password-modal').classList.add('hidden');
-            showNotification('Password changed, please login again', 'green');
-            showAuth();
-          } else {
-            showNotification(data.error || 'Failed to change password', 'red');
-          }
-        } catch (err) {
-          document.getElementById('change-password-loading').classList.add('hidden');
-          showNotification('Error: ' + err.message, 'red');
+          showNotification(`Error: ${err.message}`, 'red');
         }
       });
 
@@ -1129,6 +1212,10 @@
             method: 'POST',
             headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
           });
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to delete account'}`);
+          }
           const data = await response.json();
           document.getElementById('delete-loading').classList.add('hidden');
           if (data.success) {
@@ -1142,7 +1229,7 @@
           }
         } catch (err) {
           document.getElementById('delete-loading').classList.add('hidden');
-          showNotification('Error: ' + err.message, 'red');
+          showNotification(`Error: ${err.message}`, 'red');
         }
       });
 
