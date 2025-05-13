@@ -720,6 +720,7 @@ app.get('/api/affiliate/data', authenticateAffiliate, async (req, res) => {
     success: true,
     data: {
       name: affiliate.Name,
+      username: affiliate.Username,
       refCode: affiliate.RefCode,
       linkClicks: affiliate.LinkClicks,
       totalSales: affiliate.TotalSales,
