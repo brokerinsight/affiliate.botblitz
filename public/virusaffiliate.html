@@ -39,7 +39,7 @@
       </div>
       <div id="nav" class="flex items-center space-x-4 hidden">
         <button id="logout" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Logout</button>
-        <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
+        <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700" aria-label="Toggle theme">
           <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
@@ -66,7 +66,7 @@
             <label for="login-password" class="block text-sm font-medium">Password</label>
             <div class="relative">
               <input id="login-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-label="Admin Password">
-              <button type="button" id="login-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+              <button type="button" id="login-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500" aria-label="Toggle password visibility">Show</button>
             </div>
           </div>
           <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Login">
@@ -128,7 +128,7 @@
               <label for="admin-password" class="block text-sm font-medium">Admin Password</label>
               <div class="relative">
                 <input id="admin-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
-                <button type="button" id="admin-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+                <button type="button" id="admin-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500" aria-label="Toggle password visibility">Show</button>
               </div>
             </div>
             <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
@@ -351,7 +351,7 @@
               <label for="settings-admin-password" class="block text-sm font-medium">Admin Password</label>
               <div class="relative">
                 <input id="settings-admin-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
-                <button type="button" id="settings-admin-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+                <button type="button" id="settings-admin-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500" aria-label="Toggle password visibility">Show</button>
               </div>
             </div>
             <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
@@ -453,9 +453,11 @@
     const WS_BASE = 'wss://affiliate-botblitz.onrender.com/ws/admin';
     const NOTIFICATION_TIMEOUT = 30000; // 30s
     const ITEMS_PER_PAGE = 20;
+    const RECONNECT_INTERVALS = [1000, 2000, 4000, 8000]; // Exponential backoff
 
     // State
     let ws = null;
+    let reconnectAttempts = 0;
     let notificationsQueue = [];
     let activeNotifications = 0;
     let dashboardData = {
@@ -476,16 +478,15 @@
     function getCookie(name) {
       const value = `; ${document.cookie}`;
       const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop().split(';').shift();
-      return null;
+      return parts.length === 2 ? parts.pop().split(';').shift() : null;
     }
 
     function setCookie(name, value, maxAge) {
-      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; httpOnly`;
+      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; SameSite=Strict`;
     }
 
     function clearCookie(name) {
-      document.cookie = `${name}=; max-age=0; path=/; secure; httpOnly`;
+      document.cookie = `${name}=; max-age=0; path=/; secure; SameSite=Strict`;
     }
 
     function showNotification(message, color, id = `NOTIF${Date.now()}`) {
@@ -528,213 +529,244 @@
     }
 
     function validateUrl(url) {
+      if (!url) return true; // Allow empty URLs
       try {
-        new URL(url);
-        return true;
+        const parsed = new URL(url);
+        return ['http:', 'https:'].includes(parsed.protocol);
       } catch {
         return false;
       }
     }
 
+    function validatePassword(password) {
+      return password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password);
+    }
+
     // WebSocket Setup
     function initWebSocket(token) {
       ws = new WebSocket(`${WS_BASE}?token=${token}`);
-      ws.onopen = () => console.log('WebSocket connected');
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        reconnectAttempts = 0;
+      };
       ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'update') {
-          dashboardData = { ...dashboardData, ...data.data };
-          updateDashboard();
-        } else if (data.type === 'notification') {
-          showNotification(data.message, data.colour, data.id);
-        } else if (data.type === 'logout') {
-          clearCookie('jwt');
-          ws.close();
-          showNotification('Session expired, please login', 'red');
-          showLogin();
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'update') {
+            dashboardData = { ...dashboardData, ...data.data };
+            updateDashboard();
+          } else if (data.type === 'notification') {
+            showNotification(data.message, data.colour, data.id);
+          } else if (data.type === 'logout') {
+            clearCookie('jwt');
+            ws.close();
+            showNotification('Session expired, please login', 'red');
+            showLogin();
+          }
+        } catch (err) {
+          console.error('WebSocket message error:', err);
         }
       };
-      ws.onclose = () => console.log('WebSocket disconnected');
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        if (reconnectAttempts < RECONNECT_INTERVALS.length) {
+          setTimeout(() => {
+            console.log(`Reconnecting WebSocket, attempt ${reconnectAttempts + 1}`);
+            initWebSocket(token);
+            reconnectAttempts++;
+          }, RECONNECT_INTERVALS[reconnectAttempts]);
+        }
+      };
       ws.onerror = (err) => console.error('WebSocket error:', err);
     }
 
     // Dashboard Rendering
-    function updateDashboard() {
+    function updateDashboard(section = null) {
       const {
         settings, affiliates, pendingWithdrawals, sortedWithdrawals,
         leaderboard, staticPages, passwordResets
       } = dashboardData;
 
-      // Header
-      document.getElementById('logo').innerHTML = settings.logoUrl
-        ? `<img src="${settings.logoUrl}" alt="Deriv Bot Store Affiliates Admin" class="h-8">`
-        : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates Admin</h1>';
-      document.getElementById('copyright').textContent = settings.copyrightText || 'Deriv Bot Store Affiliates 2025';
+      // Update specific section or all
+      if (!section || section === 'header') {
+        document.getElementById('logo').innerHTML = settings.logoUrl
+          ? `<img src="${settings.logoUrl}" alt="Deriv Bot Store Affiliates Admin" class="h-8">`
+          : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates Admin</h1>';
+        document.getElementById('copyright').textContent = settings.copyrightText || 'Deriv Bot Store Affiliates 2025';
+      }
 
-      // Home Tab
-      document.getElementById('support-email').value = settings.supportEmail || 'derivbotstore@gmail.com';
-      document.getElementById('copyright-text').value = settings.copyrightText || 'Deriv Bot Store Affiliates 2025';
-      document.getElementById('whatsapp-link').value = settings.whatsappLink || 'https://wa.link/4wppln';
-      document.getElementById('commission-rate').value = settings.commissionRate || 0.2;
-      document.getElementById('logo-url').value = settings.logoUrl || '';
-      document.getElementById('admin-email').value = settings.adminEmail || 'martinke444@gmail.com';
-      document.getElementById('admin-password').value = settings.adminPassword || 'kaylie2025';
+      if (!section || section === 'home') {
+        document.getElementById('support-email').value = settings.supportEmail || '';
+        document.getElementById('copyright-text').value = settings.copyrightText || 'Deriv Bot Store Affiliates 2025';
+        document.getElementById('whatsapp-link').value = settings.whatsappLink || '';
+        document.getElementById('commission-rate').value = settings.commissionRate || 0.2;
+        document.getElementById('logo-url').value = settings.logoUrl || '';
+        document.getElementById('admin-email').value = settings.adminEmail || '';
+        document.getElementById('admin-password').value = ''; // Never prefill passwords
+      }
 
-      // Affiliates Tab
-      const affiliatesTable = document.getElementById('affiliates-table');
-      affiliatesTable.innerHTML = '';
-      const filteredAffiliates = filterAndSortAffiliates(affiliates);
-      filteredAffiliates.forEach(a => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">${a.Name}</td>
-          <td class="p-2">${a.Email}</td>
-          <td class="p-2">${a.Username}</td>
-          <td class="p-2">${new Date(a.JoinDate).toLocaleDateString()}</td>
-          <td class="p-2">${a.LinkClicks || 0}</td>
-          <td class="p-2">${a.TotalSales || 0}</td>
-          <td class="p-2">${((a.CurrentBalance || 0) + (a.WithdrawnTotal || 0)).toFixed(2)}</td>
-          <td class="p-2">${(a.WithdrawnTotal || 0).toFixed(2)}</td>
-          <td class="p-2">${a.TotalSalesMonthly || 0}</td>
-          <td class="p-2">
-            <select class="status-select w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${a.Email}">
-              <option value="active" ${a.Statusjson?.status === 'active' ? 'selected' : ''}>Active</option>
-              <option value="blocked" ${a.Statusjson?.status === 'blocked' ? 'selected' : ''}>Blocked</option>
-              <option value="deleted" ${a.Statusjson?.status === 'deleted' ? 'selected' : ''}>Delete</option>
-            </select>
-          </td>
-        `;
-        affiliatesTable.appendChild(row);
-      });
+      if (!section || section === 'affiliates') {
+        const affiliatesTable = document.getElementById('affiliates-table');
+        affiliatesTable.innerHTML = '';
+        const filteredAffiliates = filterAndSortAffiliates(affiliates);
+        filteredAffiliates.forEach(a => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2">${a.Name}</td>
+            <td class="p-2">${a.Email}</td>
+            <td class="p-2">${a.Username}</td>
+            <td class="p-2">${new Date(a.JoinDate).toLocaleDateString()}</td>
+            <td class="p-2">${a.LinkClicks || 0}</td>
+            <td class="p-2">${a.TotalSales || 0}</td>
+            <td class="p-2">${((a.CurrentBalance || 0) + (a.WithdrawnTotal || 0)).toFixed(2)}</td>
+            <td class="p-2">${(a.WithdrawnTotal || 0).toFixed(2)}</td>
+            <td class="p-2">${a.TotalSalesMonthly || 0}</td>
+            <td class="p-2">
+              <select class="status-select w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${a.Email}">
+                <option value="active" ${a.Statusjson?.status === 'active' ? 'selected' : ''}>Active</option>
+                <option value="blocked" ${a.Statusjson?.status === 'blocked' ? 'selected' : ''}>Blocked</option>
+                <option value="deleted" ${a.Statusjson?.status === 'deleted' ? 'selected' : ''}>Delete</option>
+              </select>
+            </td>
+          `;
+          affiliatesTable.appendChild(row);
+        });
+      }
 
-      // Pending Withdrawals Tab
-      const pendingWithdrawalsTable = document.getElementById('pending-withdrawals-table');
-      pendingWithdrawalsTable.innerHTML = '';
-      pendingWithdrawals.forEach(w => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">${w.Email}</td>
-          <td class="p-2">${w.Name}</td>
-          <td class="p-2">${new Date(w.Timestamp).toLocaleString()}</td>
-          <td class="p-2">${w.Amount.toFixed(2)}</td>
-          <td class="p-2">
-            ${w.MpesaNumber}
-            <button class="copy-mpesa ml-2 bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${w.MpesaNumber}">Copy</button>
-          </td>
-          <td class="p-2">${w.MpesaName}</td>
-          <td class="p-2">
-            <input class="refcode-input w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${w.PaymentRefcode || ''}">
-          </td>
-          <td class="p-2">
-            <select class="status-select w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-id="${w.withdrawalId}" data-email="${w.Email}">
-              <option value="Pending" ${w.Status === 'Pending' ? 'selected' : ''}>Pending</option>
-              <option value="Done">Done</option>
-              <option value="Dispute">Dispute</option>
-            </select>
-          </td>
-        `;
-        pendingWithdrawalsTable.appendChild(row);
-      });
+      if (!section || section === 'pending-withdrawals') {
+        const pendingWithdrawalsTable = document.getElementById('pending-withdrawals-table');
+        pendingWithdrawalsTable.innerHTML = '';
+        pendingWithdrawals.forEach(w => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2">${w.Email}</td>
+            <td class="p-2">${w.Name}</td>
+            <td class="p-2">${new Date(w.Timestamp).toLocaleString()}</td>
+            <td class="p-2">${w.Amount.toFixed(2)}</td>
+            <td class="p-2">
+              ${w.MpesaNumber}
+              <button class="copy-mpesa ml-2 bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${w.MpesaNumber}">Copy</button>
+            </td>
+            <td class="p-2">${w.MpesaName}</td>
+            <td class="p-2">
+              <input class="refcode-input w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${w.PaymentRefcode || ''}">
+            </td>
+            <td class="p-2">
+              <select class="status-select w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-id="${w.withdrawalId}" data-email="${w.Email}">
+                <option value="Pending" ${w.Status === 'Pending' ? 'selected' : ''}>Pending</option>
+                <option value="Done">Done</option>
+                <option value="Dispute">Dispute</option>
+              </select>
+            </td>
+          `;
+          pendingWithdrawalsTable.appendChild(row);
+        });
+      }
 
-      // Sorted Withdrawals Tab
-      const sortedWithdrawalsTable = document.getElementById('sorted-withdrawals-table');
-      sortedWithdrawalsTable.innerHTML = '';
-      pagination.sortedWithdrawals.total = sortedWithdrawals.length;
-      const sortedPage = sortedWithdrawals.slice(
-        (pagination.sortedWithdrawals.page - 1) * ITEMS_PER_PAGE,
-        pagination.sortedWithdrawals.page * ITEMS_PER_PAGE
-      );
-      sortedPage.forEach(w => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">${w.Email}</td>
-          <td class="p-2">${w.Name}</td>
-          <td class="p-2">${new Date(w.Timestamp).toLocaleString()}</td>
-          <td class="p-2">${w.Amount.toFixed(2)}</td>
-          <td class="p-2">${w.MpesaNumber}</td>
-          <td class="p-2">${w.MpesaName}</td>
-          <td class="p-2">${w.PaymentRefcode || '-'}</td>
-          <td class="p-2">${w.Status}</td>
-        `;
-        sortedWithdrawalsTable.appendChild(row);
-      });
-      document.getElementById('sorted-withdrawals-prev').disabled = pagination.sortedWithdrawals.page === 1;
-      document.getElementById('sorted-withdrawals-next').disabled = pagination.sortedWithdrawals.page * ITEMS_PER_PAGE >= pagination.sortedWithdrawals.total;
+      if (!section || section === 'sorted-withdrawals') {
+        const sortedWithdrawalsTable = document.getElementById('sorted-withdrawals-table');
+        sortedWithdrawalsTable.innerHTML = '';
+        pagination.sortedWithdrawals.total = sortedWithdrawals.length;
+        const sortedPage = sortedWithdrawals.slice(
+          (pagination.sortedWithdrawals.page - 1) * ITEMS_PER_PAGE,
+          pagination.sortedWithdrawals.page * ITEMS_PER_PAGE
+        );
+        sortedPage.forEach(w => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2">${w.Email}</td>
+            <td class="p-2">${w.Name}</td>
+            <td class="p-2">${new Date(w.Timestamp).toLocaleString()}</td>
+            <td class="p-2">${w.Amount.toFixed(2)}</td>
+            <td class="p-2">${w.MpesaNumber}</td>
+            <td class="p-2">${w.MpesaName}</td>
+            <td class="p-2">${w.PaymentRefcode || '-'}</td>
+            <td class="p-2">${w.Status}</td>
+          `;
+          sortedWithdrawalsTable.appendChild(row);
+        });
+        document.getElementById('sorted-withdrawals-prev').disabled = pagination.sortedWithdrawals.page === 1;
+        document.getElementById('sorted-withdrawals-next').disabled = pagination.sortedWithdrawals.page * ITEMS_PER_PAGE >= pagination.sortedWithdrawals.total;
+      }
 
-      // Rewards Tab
-      const leaderboardTable = document.getElementById('leaderboard-table');
-      leaderboardTable.innerHTML = '';
-      leaderboard.forEach(l => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">${l.rank}</td>
-          <td class="p-2">${l.Name}</td>
-          <td class="p-2">${l.Email}</td>
-          <td class="p-2">${l.TotalSalesMonthly}</td>
-        `;
-        leaderboardTable.appendChild(row);
-      });
+      if (!section || section === 'rewards') {
+        const leaderboardTable = document.getElementById('leaderboard-table');
+        leaderboardTable.innerHTML = '';
+        leaderboard.forEach(l => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2">${l.rank}</td>
+            <td class="p-2">${l.Name}</td>
+            <td class="p-2">${l.Email}</td>
+            <td class="p-2">${l.TotalSalesMonthly}</td>
+          `;
+          leaderboardTable.appendChild(row);
+        });
+      }
 
-      // Static Pages Tab
-      const staticPagesTable = document.getElementById('static-pages-table');
-      staticPagesTable.innerHTML = '';
-      staticPages.forEach(p => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">/affiliate-${p.Slug}</td>
-          <td class="p-2">${p.Title}</td>
-          <td class="p-2">
-            <button class="edit-page bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-slug="${p.Slug}">Edit</button>
-            <button class="delete-page bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600" data-slug="${p.Slug}">Delete</button>
-          </td>
-        `;
-        staticPagesTable.appendChild(row);
-      });
+      if (!section || section === 'static-pages') {
+        const staticPagesTable = document.getElementById('static-pages-table');
+        staticPagesTable.innerHTML = '';
+        staticPages.forEach(p => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2">/affiliate-${p.Slug}</td>
+            <td class="p-2">${p.Title}</td>
+            <td class="p-2">
+              <button class="edit-page bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-slug="${p.Slug}">Edit</button>
+              <button class="delete-page bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600" data-slug="${p.Slug}">Delete</button>
+            </td>
+          `;
+          staticPagesTable.appendChild(row);
+        });
+      }
 
-      // Password Resets Tab
-      const passwordResetsTable = document.getElementById('password-resets-table');
-      passwordResetsTable.innerHTML = '';
-      passwordResets.forEach(r => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">${r.Email}</td>
-          <td class="p-2">${r.Username}</td>
-          <td class="p-2">${r.Name}</td>
-          <td class="p-2">${r.LastWithdrawalAmount.toFixed(2)}</td>
-          <td class="p-2">${r.Description}</td>
-          <td class="p-2">${new Date(r.Timestamp).toLocaleString()}</td>
-          <td class="p-2">
-            <select class="reset-status w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${r.Email}">
-              <option value="Pending" ${r.Status === 'Pending' ? 'selected' : ''}>Pending</option>
-              <option value="Approved" ${r.Status === 'Approved' ? 'selected' : ''}>Approved</option>
-              <option value="Declined" ${r.Status === 'Declined' ? 'selected' : ''}>Declined</option>
-            </select>
-          </td>
-          <td class="p-2">
-            ${r.Status === 'Approved' ? `
-              <div class="flex space-x-2">
-                <input type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${r.Password}" readonly>
-                <button class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${r.Password}">Copy</button>
-                <a href="mailto:${r.Email}?subject=Deriv Bot Store Affiliate&body=Your password was reset, use this password to login: ${r.Password}. Regards, Deriv Bot Store Affiliate" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</a>
-              </div>
-            ` : ''}
-          </td>
-        `;
-        passwordResetsTable.appendChild(row);
-      });
+      if (!section || section === 'password-resets') {
+        const passwordResetsTable = document.getElementById('password-resets-table');
+        passwordResetsTable.innerHTML = '';
+        passwordResets.forEach(r => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2">${r.Email}</td>
+            <td class="p-2">${r.Username}</td>
+            <td class="p-2">${r.Name}</td>
+            <td class="p-2">${r.LastWithdrawalAmount.toFixed(2)}</td>
+            <td class="p-2">${r.Description}</td>
+            <td class="p-2">${new Date(r.Timestamp).toLocaleString()}</td>
+            <td class="p-2">
+              <select class="reset-status w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${r.Email}">
+                <option value="Pending" ${r.Status === 'Pending' ? 'selected' : ''}>Pending</option>
+                <option value="Approved" ${r.Status === 'Approved' ? 'selected' : ''}>Approved</option>
+                <option value="Declined" ${r.Status === 'Declined' ? 'selected' : ''}>Declined</option>
+              </select>
+            </td>
+            <td class="p-2">
+              ${r.Status === 'Approved' ? `
+                <div class="flex space-x-2">
+                  <input type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${r.Password}" readonly>
+                  <button class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${r.Password}">Copy</button>
+                  <a href="mailto:${r.Email}?subject=Deriv Bot Store Affiliate&body=Your password was reset. Please contact support for your new password. Regards, Deriv Bot Store Affiliate" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</a>
+                </div>
+              ` : ''}
+            </td>
+          `;
+          passwordResetsTable.appendChild(row);
+        });
+      }
 
-      // Settings Tab
-      document.getElementById('settings-admin-email').value = settings.adminEmail || 'martinke444@gmail.com';
-      document.getElementById('settings-admin-password').value = settings.adminPassword || 'kaylie2025';
+      if (!section || section === 'settings') {
+        document.getElementById('settings-admin-email').value = settings.adminEmail || '';
+        document.getElementById('settings-admin-password').value = '';
+      }
     }
 
     function filterAndSortAffiliates(affiliates) {
       const search = document.getElementById('affiliate-search').value.toLowerCase();
       const sort = document.getElementById('affiliate-sort').value;
       let filtered = affiliates.filter(a =>
-        a.Name.toLowerCase().includes(search) ||
-        a.Email.toLowerCase().includes(search) ||
-        a.Username.toLowerCase().includes(search)
+        a.Name?.toLowerCase().includes(search) ||
+        a.Email?.toLowerCase().includes(search) ||
+        a.Username?.toLowerCase().includes(search)
       );
       if (sort === 'monthly-sales-desc') {
         filtered.sort((a, b) => (b.TotalSalesMonthly || 0) - (a.TotalSalesMonthly || 0));
@@ -768,12 +800,17 @@
         const response = await fetch(`${API_BASE}/api/admin/affiliate/data`, {
           headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
         });
+        if (response.status === 401) {
+          clearCookie('jwt');
+          showLogin();
+          throw new Error('Unauthorized');
+        }
         const data = await response.json();
         if (data.success) {
           dashboardData = data.data;
           updateDashboard();
         } else {
-          throw new Error(data.error);
+          throw new Error(data.error || 'Failed to load dashboard');
         }
       } catch (err) {
         showNotification(`Failed to load dashboard: ${err.message}`, 'red');
@@ -804,6 +841,7 @@
             const isPassword = input.type === 'password';
             input.type = isPassword ? 'text' : 'password';
             toggle.textContent = isPassword ? 'Hide' : 'Show';
+            toggle.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
           });
         }
       });
@@ -815,6 +853,7 @@
         const password = document.getElementById('login-password').value;
 
         if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
+        if (!validatePassword(password)) return showNotification('Password must be at least 8 characters with uppercase and numbers', 'red');
 
         document.getElementById('login-loading').classList.remove('hidden');
         try {
@@ -823,8 +862,8 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
           });
-          const data = await response.json();
           document.getElementById('login-loading').classList.add('hidden');
+          const data = await response.json();
           if (data.success) {
             setCookie('jwt', data.token, 604800);
             initWebSocket(data.token);
@@ -849,6 +888,7 @@
             div.classList.add('hidden');
           });
           document.getElementById(`${tab}-content`).classList.remove('hidden');
+          updateDashboard(tab);
         });
       });
 
@@ -869,6 +909,7 @@
         if (!validateUrl(settings.whatsappLink)) return showNotification('Invalid WhatsApp link', 'red');
         if (settings.commissionRate < 0 || settings.commissionRate > 1) return showNotification('Commission rate must be between 0 and 1', 'red');
         if (settings.logoUrl && !validateUrl(settings.logoUrl)) return showNotification('Invalid logo URL', 'red');
+        if (settings.adminPassword && !validatePassword(settings.adminPassword)) return showNotification('Password must be at least 8 characters with uppercase and numbers', 'red');
 
         document.getElementById('settings-loading').classList.remove('hidden');
         try {
@@ -880,8 +921,13 @@
             },
             body: JSON.stringify(settings)
           });
-          const data = await response.json();
           document.getElementById('settings-loading').classList.add('hidden');
+          if (response.status === 401) {
+            clearCookie('jwt');
+            showLogin();
+            throw new Error('Unauthorized');
+          }
+          const data = await response.json();
           if (data.success) {
             showNotification('Settings updated', 'green');
             fetchDashboard();
@@ -895,8 +941,8 @@
       });
 
       // Affiliates Search and Sort
-      document.getElementById('affiliate-search').addEventListener('input', () => updateDashboard());
-      document.getElementById('affiliate-sort').addEventListener('change', () => updateDashboard());
+      document.getElementById('affiliate-search').addEventListener('input', () => updateDashboard('affiliates'));
+      document.getElementById('affiliate-sort').addEventListener('change', () => updateDashboard('affiliates'));
 
       // Affiliates Status Update
       document.getElementById('affiliates-table').addEventListener('change', async (e) => {
@@ -912,6 +958,11 @@
               },
               body: JSON.stringify({ email, status })
             });
+            if (response.status === 401) {
+              clearCookie('jwt');
+              showLogin();
+              throw new Error('Unauthorized');
+            }
             const data = await response.json();
             if (data.success) {
               showNotification('Status updated', 'green');
@@ -943,6 +994,11 @@
               },
               body: JSON.stringify({ email, withdrawalId, status, refCode })
             });
+            if (response.status === 401) {
+              clearCookie('jwt');
+              showLogin();
+              throw new Error('Unauthorized');
+            }
             const data = await response.json();
             if (data.success) {
               showNotification('Withdrawal processed', 'green');
@@ -972,13 +1028,13 @@
       document.getElementById('sorted-withdrawals-prev').addEventListener('click', () => {
         if (pagination.sortedWithdrawals.page > 1) {
           pagination.sortedWithdrawals.page--;
-          updateDashboard();
+          updateDashboard('sorted-withdrawals');
         }
       });
       document.getElementById('sorted-withdrawals-next').addEventListener('click', () => {
         if (pagination.sortedWithdrawals.page * ITEMS_PER_PAGE < pagination.sortedWithdrawals.total) {
           pagination.sortedWithdrawals.page++;
-          updateDashboard();
+          updateDashboard('sorted-withdrawals');
         }
       });
 
@@ -1004,8 +1060,13 @@
             },
             body: JSON.stringify({ type: 'percentage', percentage })
           });
-          const data = await response.json();
           document.getElementById('percentage-loading').classList.add('hidden');
+          if (response.status === 401) {
+            clearCookie('jwt');
+            showLogin();
+            throw new Error('Unauthorized');
+          }
+          const data = await response.json();
           if (data.success) {
             showNotification('Rewards applied', 'green');
             fetchDashboard();
@@ -1055,8 +1116,13 @@
             },
             body: JSON.stringify({ type: 'spot', amount, recipients })
           });
-          const data = await response.json();
           document.getElementById('spot-reward-loading').classList.add('hidden');
+          if (response.status === 401) {
+            clearCookie('jwt');
+            showLogin();
+            throw new Error('Unauthorized');
+          }
+          const data = await response.json();
           if (data.success) {
             document.getElementById('spot-reward-modal').classList.add('hidden');
             showNotification('Rewards applied', 'green');
@@ -1114,8 +1180,13 @@
             },
             body: JSON.stringify({ slug, title, content })
           });
-          const data = await response.json();
           document.getElementById('static-page-loading').classList.add('hidden');
+          if (response.status === 401) {
+            clearCookie('jwt');
+            showLogin();
+            throw new Error('Unauthorized');
+          }
+          const data = await response.json();
           if (data.success) {
             document.getElementById('static-page-modal').classList.add('hidden');
             showNotification('Page saved', 'green');
@@ -1144,8 +1215,13 @@
             },
             body: JSON.stringify({ slug: currentSlug })
           });
-          const data = await response.json();
           document.getElementById('delete-page-loading').classList.add('hidden');
+          if (response.status === 401) {
+            clearCookie('jwt');
+            showLogin();
+            throw new Error('Unauthorized');
+          }
+          const data = await response.json();
           if (data.success) {
             document.getElementById('delete-page-modal').classList.add('hidden');
             showNotification('Page deleted', 'green');
@@ -1179,8 +1255,13 @@
             },
             body: JSON.stringify({ type: 'urgent', message, enabled })
           });
-          const data = await response.json();
           document.getElementById('urgent-loading').classList.add('hidden');
+          if (response.status === 401) {
+            clearCookie('jwt');
+            showLogin();
+            throw new Error('Unauthorized');
+          }
+          const data = await response.json();
           if (data.success) {
             showNotification('Urgent message updated', 'green');
             fetchDashboard();
@@ -1194,137 +1275,149 @@
       });
 
       document.getElementById('news-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const message = document.getElementById('news-message').value;
-        const filter = document.getElementById('news-filter').value;
+    e.preventDefault();
+    const message = document.getElementById('news-message').value;
+    const filter = document.getElementById('news-filter').value;
 
-        document.getElementById('news-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/communication`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ type: 'news', message, filter })
-          });
-          const data = await response.json();
-          document.getElementById('news-loading').classList.add('hidden');
-          if (data.success) {
-            showNotification('News sent', 'green');
-            fetchDashboard();
-          } else {
-            showNotification(data.error || 'Failed to send news', 'red');
-          }
-        } catch (err) {
-          document.getElementById('news-loading').classList.add('hidden');
-          showNotification('Error: ' + err.message, 'red');
-        }
+    document.getElementById('news-loading').classList.remove('hidden');
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/affiliate/communication`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getCookie('jwt')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ type: 'news', message, filter })
       });
-
-      // Password Resets
-      document.getElementById('password-resets-table').addEventListener('change', async (e) => {
-        if (e.target.classList.contains('reset-status')) {
-          const email = e.target.dataset.email;
-          const status = e.target.value;
-
-          try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliate/reset-password`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ email, status })
-            });
-            const data = await response.json();
-            if (data.success) {
-              showNotification('Reset request processed', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.error || 'Failed to process reset', 'red');
-            }
-          } catch (err) {
-            showNotification('Error: ' + err.message, 'red');
-          }
-        }
-      });
-
-      // Copy Password
-      document.getElementById('password-resets-table').addEventListener('click', (e) => {
-        if (e.target.classList.contains('copy-password')) {
-          const value = e.target.dataset.value;
-          navigator.clipboard.writeText(value).then(() => {
-            showNotification('Password copied', 'green');
-          }).catch(() => {
-            showNotification('Failed to copy', 'red');
-          });
-        }
-      });
-
-      // Admin Settings Form
-      document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const adminEmail = document.getElementById('settings-admin-email').value;
-        const adminPassword = document.getElementById('settings-admin-password').value;
-
-        if (!validateEmail(adminEmail)) return showNotification('Invalid email format', 'red');
-
-        document.getElementById('admin-settings-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/settings`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ adminEmail, adminPassword })
-          });
-          const data = await response.json();
-          document.getElementById('admin-settings-loading').classList.add('hidden');
-          if (data.success) {
-            showNotification('Credentials updated', 'green');
-            clearCookie('jwt');
-            ws?.close();
-            showLogin();
-          } else {
-            showNotification(data.error || 'Failed to update credentials', 'red');
-          }
-        } catch (err) {
-          document.getElementById('admin-settings-loading').classList.add('hidden');
-          showNotification('Error: ' + err.message, 'red');
-        }
-      });
-
-      // Logout
-      document.getElementById('logout').addEventListener('click', () => {
+      document.getElementById('news-loading').classList.add('hidden');
+      if (response.status === 401) {
         clearCookie('jwt');
-        if (ws) ws.close();
-        showNotification('Logged out successfully', 'green');
         showLogin();
-      });
+        throw new Error('Unauthorized');
+      }
+      const data = await response.json();
+      if (data.success) {
+        showNotification('News sent', 'green');
+        fetchDashboard();
+      } else {
+        showNotification(data.error || 'Failed to send news', 'red');
+      }
+    } catch (err) {
+      document.getElementById('news-loading').classList.add('hidden');
+      showNotification('Error: ' + err.message, 'red');
+    }
+  });
 
-      // Initial Check
-      const token = getCookie('jwt');
-      if (token) {
-        try {
-          const decoded = jwt_decode(token);
-          if (decoded.exp * 1000 > Date.now()) {
-            initWebSocket(token);
-            showDashboard();
-          } else {
-            clearCookie('jwt');
-            showLogin();
-          }
-        } catch {
+  // Password Resets Status Update
+  document.getElementById('password-resets-table').addEventListener('change', async (e) => {
+    if (e.target.classList.contains('reset-status')) {
+      const email = e.target.dataset.email;
+      const status = e.target.value;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/affiliate/password-reset`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${getCookie('jwt')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, status })
+        });
+        if (response.status === 401) {
           clearCookie('jwt');
           showLogin();
+          throw new Error('Unauthorized');
         }
+        const data = await response.json();
+        if (data.success) {
+          showNotification('Password reset status updated', 'green');
+          showNotification('Warning: Passwords are displayed in plain text. Ensure secure handling.', 'yellow');
+          fetchDashboard();
+        } else {
+          showNotification(data.error || 'Failed to update status', 'red');
+        }
+      } catch (err) {
+        showNotification('Error: ' + err.message, 'red');
+      }
+    }
+  });
+
+  // Copy Password
+  document.getElementById('password-resets-table').addEventListener('click', (e) => {
+    if (e.target.classList.contains('copy-password')) {
+      const value = e.target.dataset.value;
+      navigator.clipboard.writeText(value).then(() => {
+        showNotification('Password copied to clipboard. Handle securely.', 'green');
+      }).catch(() => {
+        showNotification('Failed to copy password', 'red');
+      });
+    }
+  });
+
+  // Admin Settings Form
+  document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('settings-admin-email').value;
+    const password = document.getElementById('settings-admin-password').value;
+
+    if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
+    if (password && !validatePassword(password)) return showNotification('Password must be at least 8 characters with uppercase and numbers', 'red');
+
+    document.getElementById('admin-settings-loading').classList.remove('hidden');
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/affiliate/settings`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getCookie('jwt')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ adminEmail: email, adminPassword: password })
+      });
+      document.getElementById('admin-settings-loading').classList.add('hidden');
+      if (response.status === 401) {
+        clearCookie('jwt');
+        showLogin();
+        throw new Error('Unauthorized');
+      }
+      const data = await response.json();
+      if (data.success) {
+        showNotification('Admin settings updated', 'green');
+        fetchDashboard();
       } else {
+        showNotification(data.error || 'Failed to update admin settings', 'red');
+      }
+    } catch (err) {
+      document.getElementById('admin-settings-loading').classList.add('hidden');
+      showNotification('Error: ' + err.message, 'red');
+    }
+  });
+
+  // Logout
+  document.getElementById('logout').addEventListener('click', () => {
+    clearCookie('jwt');
+    if (ws) ws.close();
+    showNotification('Logged out', 'green');
+    showLogin();
+  });
+
+  // Initial Setup
+  if (getCookie('jwt')) {
+    try {
+      const decoded = jwt_decode(getCookie('jwt'));
+      if (decoded.exp * 1000 > Date.now()) {
+        initWebSocket(getCookie('jwt'));
+        showDashboard();
+      } else {
+        clearCookie('jwt');
         showLogin();
       }
-    });
-  </script>
+    } catch (err) {
+      clearCookie('jwt');
+      showLogin();
+    }
+  } else {
+    showLogin();
+  }
+</script>
 </body>
 </html>
-     
