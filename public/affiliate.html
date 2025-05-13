@@ -803,7 +803,8 @@
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const json = await response.json();
-      return json.error || `HTTP ${response.status}`;
+      return json.error || json.message || JSON.stringify(json) || `HTTP ${response.status}`;
+
     } else {
       const text = await response.text();
       return text || `HTTP ${response.status}`;
