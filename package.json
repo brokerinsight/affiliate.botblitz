@@ -1,0 +1,35 @@
+{
+  "name": "deriv-bot-store-affiliate",
+  "version": "1.0.0",
+  "description": "Affiliate system for Deriv Bot Store, handling affiliate tracking, rewards, and withdrawals.",
+  "main": "affiliate-server.js",
+  "scripts": {
+    "start": "node affiliate-server.js",
+    "dev": "nodemon affiliate-server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.17.3",
+    "googleapis": "^134.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.13",
+    "sanitize-html": "^2.12.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "author": "Deriv Bot Store",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brokerinsight/affiliate.botblitz.git"
+  }
+}
