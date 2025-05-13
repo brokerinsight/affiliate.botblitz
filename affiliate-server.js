@@ -352,15 +352,18 @@ cron.schedule('0 0 1 * *', async () => {
       });
     }
   }
-});
 
-  leaderboardCache = {};
-  await updateCache();
+  leaderboardCache = {}; // ✅ Moved inside the function
+  await updateCache();   // ✅ Valid now
   wsClients.forEach((ws, key) => {
     if (key !== 'admin') {
-      ws.send(JSON.stringify({ type: 'update', data: affiliates.find(a => a.Email === key) }));
+      ws.send(JSON.stringify({
+        type: 'update',
+        data: affiliates.find(a => a.Email === key)
+      }));
     }
   });
+
   console.log('Monthly sales reset');
 });
 
