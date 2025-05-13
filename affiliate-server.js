@@ -469,7 +469,6 @@ if (affiliateIndex !== -1) {
   }
 
   await updateCache();
-});
 
 // Sales Sync Cron Job
 cron.schedule('0 * * * *', async () => {
