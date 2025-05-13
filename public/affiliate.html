@@ -751,9 +751,10 @@
           }
         });
         if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText || 'Unauthorized'}`);
-        }
+  const errorMessage = await parseErrorMessage(response);
+  throw new Error(errorMessage);
+}
+
         const data = await response.json();
         if (data.success) {
           dashboardData = data.data;
@@ -780,9 +781,10 @@
       try {
         const response = await fetch(`${API_BASE}/api/affiliate/static-page/${slug}`);
         if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to load page'}`);
-        }
+  const errorMessage = await parseErrorMessage(response);
+  throw new Error(errorMessage);
+}
+
         const data = await response.json();
         if (data.success) {
           document.getElementById('static-title').textContent = data.page.title;
@@ -796,6 +798,22 @@
       }
     }
 
+    async function parseErrorMessage(response) {
+  try {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const json = await response.json();
+      return json.error || `HTTP ${response.status}`;
+    } else {
+      const text = await response.text();
+      return text || `HTTP ${response.status}`;
+    }
+  } catch (err) {
+    return `HTTP ${response.status}`;
+  }
+}
+
+    
     // Event Listeners
     document.addEventListener('DOMContentLoaded', () => {
       // Theme Toggle
@@ -879,9 +897,10 @@
             body: JSON.stringify({ name, username, email, password, termsAccepted: true })
           });
           if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to register'}`);
-          }
+  const errorMessage = await parseErrorMessage(response);
+  throw new Error(errorMessage);
+}
+
           const data = await response.json();
           document.getElementById('signup-loading').classList.add('hidden');
           if (data.success) {
@@ -947,10 +966,10 @@
             body: JSON.stringify({ email, password })
           });
           if (!response.ok) {
-            const errorBody = await response.json().catch(() => null);
-const errorMsg = errorBody?.error || `HTTP ${response.status}`;
-throw new Error(errorMsg);
-          }
+  const errorMessage = await parseErrorMessage(response);
+  throw new Error(errorMessage);
+}
+
           const data = await response.json();
           document.getElementById('login-loading').classList.add('hidden');
           if (data.success) {
@@ -993,9 +1012,10 @@ throw new Error(errorMsg);
             body: JSON.stringify({ name, email, username, lastWithdrawalAmount, description })
           });
           if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to submit reset request'}`);
-          }
+  const errorMessage = await parseErrorMessage(response);
+  throw new Error(errorMessage);
+}
+
           const data = await response.json();
           document.getElementById('forgot-loading').classList.add('hidden');
           if (data.success) {
@@ -1032,9 +1052,10 @@ throw new Error(errorMsg);
             body: JSON.stringify({ currentPassword, newPassword })
           });
           if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to change password'}`);
-          }
+  const errorMessage = await parseErrorMessage(response);
+  throw new Error(errorMessage);
+}
+
           const data = await response.json();
           document.getElementById('change-password-loading').classList.add('hidden');
           if (data.success) {
@@ -1184,9 +1205,10 @@ throw new Error(errorMsg);
             body: JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails, password })
           });
           if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to request withdrawal'}`);
-          }
+  const errorMessage = await parseErrorMessage(response);
+  throw new Error(errorMessage);
+}
+
           const data = await response.json();
           document.getElementById('withdrawal-loading').classList.add('hidden');
           if (data.success) {
@@ -1214,9 +1236,10 @@ throw new Error(errorMsg);
             headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
           });
           if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to delete account'}`);
-          }
+  const errorMessage = await parseErrorMessage(response);
+  throw new Error(errorMessage);
+}
+
           const data = await response.json();
           document.getElementById('delete-loading').classList.add('hidden');
           if (data.success) {
