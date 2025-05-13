@@ -947,8 +947,9 @@
             body: JSON.stringify({ email, password })
           });
           if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to login'}`);
+            const errorBody = await response.json().catch(() => null);
+const errorMsg = errorBody?.error || `HTTP ${response.status}`;
+throw new Error(errorMsg);
           }
           const data = await response.json();
           document.getElementById('login-loading').classList.add('hidden');
