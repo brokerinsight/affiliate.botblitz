@@ -575,17 +575,18 @@
         whatsappLink, copyrightText, logoUrl
       } = dashboardData;
 
-      // Dashboard Headerconst logoEl = document.getElementById('dashboard-logo');
+     const logoContainer = document.getElementById('dashboard-logo');
+logoContainer.innerHTML = ''; // clear first
 if (logoUrl) {
   const img = document.createElement('img');
   img.src = logoUrl;
   img.alt = 'Deriv Bot Store Affiliates';
   img.className = 'h-8';
-  logoEl.innerHTML = '';
-  logoEl.appendChild(img);
+  logoContainer.appendChild(img);
 } else {
-  logoEl.innerHTML = '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>';
+  logoContainer.innerHTML = '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>';
 }
+
 
       document.getElementById('welcome-message').textContent = `Welcome ${name}, Your username is ${username}`;
       document.getElementById('welcome-message').classList.remove('hidden');
