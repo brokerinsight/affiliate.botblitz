@@ -1,6 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const session = require('express-session');
+const session = require('express-session'); // Imported but not used unless session is needed
 const bcrypt = require('bcrypt');
 const { google } = require('googleapis');
 const WebSocket = require('ws');
@@ -660,7 +660,7 @@ app.post('/api/admin/affiliate/login', loginLimiter, async (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
   const token = jwt.sign({ email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
-  req.session.adminEmail = email;
+  // Removed: req.session.adminEmail = email; // Session not initialized, and JWT is sufficient
   if (wsClients.has('admin')) {
     wsClients.get('admin').send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
     wsClients.delete('admin');
@@ -1385,6 +1385,18 @@ app.post('/api/admin/affiliate/reset-password', authenticateAdmin, async (req, r
   }
   await updateCache();
   res.json({ success: true });
+});
+
+// Admin Route to Serve virusaffiliate.html (Added)
+app.get('/admin', (req, res) => {
+  const filePath = path.join(publicPath, 'virusaffiliate.html');
+  console.log(`Serving admin route: ${filePath}`);
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error(`Error serving virusaffiliate.html: ${err.message}`);
+      res.status(404).json({ success: false, message: 'Admin page not found' });
+    }
+  });
 });
 
 // Default Route to Serve affiliate.html
