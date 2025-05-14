@@ -38,6 +38,17 @@
         <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>
       </div>
       <div class="flex items-center space-x-4">
+        <div id="auth-buttons" class="flex items-center space-x-4">
+          <button id="contact-us" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 hidden">Contact Us</button>
+          <div id="settings" class="relative hidden">
+            <button id="settings-toggle" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Settings</button>
+            <div id="settings-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10">
+              <button id="change-password" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Change Password</button>
+              <button id="delete-account" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Delete Account</button>
+              <button id="logout" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Logout</button>
+            </div>
+          </div>
+        </div>
         <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
           <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -161,17 +172,6 @@
         <div class="flex justify-between items-center">
           <div id="dashboard-logo" class="flex items-center">
             <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>
-          </div>
-          <div class="flex items-center space-x-4">
-            <button id="contact-us" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Contact Us</button>
-            <div id="settings" class="relative">
-              <button id="settings-toggle" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Settings</button>
-              <div id="settings-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10">
-                <button id="change-password" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Change Password</button>
-                <button id="delete-account" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Delete Account</button>
-                <button id="logout" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Logout</button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -465,6 +465,13 @@
       document.cookie = `${name}=; max-age=0; path=/; secure; sameSite=strict`;
     }
 
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    }
+
     function showNotification(message, color, isUrgent = false, id = `NOTIF${Date.now()}`) {
       if (activeNotifications >= 3) {
         notificationsQueue.push({ message, color, isUrgent, id });
@@ -584,6 +591,7 @@
       document.getElementById('whatsapp-link').href = whatsappLink || 'https://wa.link/4wppln';
       document.getElementById('email-link').href = `mailto:${supportEmail || 'derivbotstore@gmail.com'}`;
       document.getElementById('copyright').textContent = copyrightText || 'Deriv Bot Store Affiliates 2025';
+      document.getElementById('auth-buttons').classList.remove('hidden');
 
       // Home Tab
       document.getElementById('affiliate-link').value = `https://botblitz.store?ref=${refCode}`;
@@ -591,10 +599,10 @@
       document.getElementById('total-sales').textContent = totalSales || 0;
       document.getElementById('monthly-sales').textContent = totalSalesMonthly || 0;
       document.getElementById('reset-countdown').textContent = `Resets in ${getDaysToReset()} days`;
-      document.getElementById('current-balance').textContent = (currentBalance || 0).toFixed(2);
-      document.getElementById('withdrawn-total').textContent = (withdrawnTotal || 0).toFixed(2);
+      document.getElementById('current-balance').textContent = formatCurrency(currentBalance || 0);
+      document.getElementById('withdrawn-total').textContent = formatCurrency(withdrawnTotal || 0);
       document.getElementById('request-withdrawal').disabled = (currentBalance || 0) < 1;
-      document.getElementById('commission-text').textContent = `Commission = Sale Amount × ${((commissionRate || 0.2) * 100).toFixed(0)}%\nExample: Sale = 1000 KES, Rate = ${((commissionRate || 0.2) * 100).toFixed(0)}%, Commission = ${(1000 * (commissionRate || 0.2)).toFixed(2)} KES`;
+      document.getElementById('commission-text').textContent = `Commission = Sale Amount × ${((commissionRate || 0.2) * 100).toFixed(0)}%\nExample: Sale = ${formatCurrency(1000)}, Rate = ${((commissionRate || 0.2) * 100).toFixed(0)}%, Commission = ${formatCurrency(1000 * (commissionRate || 0.2))} KES`;
 
       // Withdrawals Tab
       const withdrawalsTable = document.getElementById('withdrawals-table');
@@ -608,7 +616,7 @@
         const row = document.createElement('tr');
         row.innerHTML = `
           <td class="p-2">${new Date(w.date).toLocaleString()}</td>
-          <td class="p-2">${w.amount.toFixed(2)}</td>
+          <td class="p-2">${formatCurrency(w.amount)}</td>
           <td class="p-2">${w.mpesaNumber}</td>
           <td class="p-2">${w.mpesaName}</td>
           <td class="p-2">${w.status}</td>
@@ -632,7 +640,7 @@
         row.innerHTML = `
           <td class="p-2">${new Date(r.date).toLocaleString()}</td>
           <td class="p-2">${r.type}</td>
-          <td class="p-2">${r.amount.toFixed(2)}</td>
+          <td class="p-2">${formatCurrency(r.amount)}</td>
           <td class="p-2">${r.description}</td>
         `;
         rewardsTable.appendChild(row);
@@ -729,12 +737,16 @@
       document.getElementById('auth-section').classList.remove('hidden');
       document.getElementById('dashboard-section').classList.add('hidden');
       document.getElementById('welcome-message').classList.add('hidden');
+      document.getElementById('auth-buttons').classList.add('hidden');
       document.getElementById('login-tab').click();
     }
 
     function showDashboard() {
       document.getElementById('auth-section').classList.add('hidden');
       document.getElementById('dashboard-section').classList.remove('hidden');
+      document.getElementById('auth-buttons').classList.remove('hidden');
+      document.getElementById('contact-us').classList.remove('hidden');
+      document.getElementById('settings').classList.remove('hidden');
       document.getElementById('tab-home').click();
       fetchDashboard();
     }
@@ -1276,8 +1288,9 @@
           } else {
             clearCookie('jwt');
             showAuth();
-          }
+          }          }
         } catch (err) {
+          console.error('Token validation error:', err);
           clearCookie('jwt');
           showAuth();
         }
@@ -1285,6 +1298,23 @@
         showAuth();
       }
     });
+
+    // Close modals on outside click
+    document.querySelectorAll('.fixed.inset-0').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.add('hidden');
+        }
+      });
+    });
+
+    // Prevent modal close on inner content click
+    document.querySelectorAll('.fixed.inset-0 > div').forEach(inner => {
+      inner.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    });
+  });
   </script>
 </body>
 </html>
