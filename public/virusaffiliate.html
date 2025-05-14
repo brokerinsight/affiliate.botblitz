@@ -1238,7 +1238,7 @@
             }
           } catch (err) {
             document.getElementById('delete-page-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');}
+            showNotification('Error: ' + err.message, 'red');
           }
         });
 
@@ -1388,8 +1388,28 @@
           showNotification('Logged out', 'green');
         });
 
+        // Modified showLogin to ensure visibility
+        function showLogin() {
+          console.log('showLogin: Displaying login section');
+          try {
+            const loginSection = document.getElementById('login-section');
+            const dashboardSection = document.getElementById('dashboard-section');
+            const nav = document.getElementById('nav');
+            if (loginSection && dashboardSection && nav) {
+              loginSection.classList.remove('hidden');
+              loginSection.style.display = 'block';
+              dashboardSection.classList.add('hidden');
+              nav.classList.add('hidden');
+            } else {
+              console.error('showLogin: One or more elements not found');
+            }
+          } catch (err) {
+            console.error('showLogin error:', err);
+            showNotification('Failed to show login: ' + err.message, 'red');
+          }
+        }
+
         // Initial Check
-        // clearCookie('jwt'); // Uncomment for testing to force login screen
         const token = getCookie('jwt');
         console.log('Initial check: JWT token exists:', !!token);
         if (token) {
