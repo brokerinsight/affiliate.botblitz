@@ -481,11 +481,11 @@
     }
 
     function setCookie(name, value, maxAge) {
-      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; httpOnly`;
+      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; SameSite=Strict`;
     }
 
     function clearCookie(name) {
-      document.cookie = `${name}=; max-age=0; path=/; secure; httpOnly`;
+      document.cookie = `${name}=; max-age=0; path=/; secure; SameSite=Strict`;
     }
 
     function showNotification(message, color, id = `NOTIF${Date.now()}`) {
@@ -538,24 +538,46 @@
 
     // WebSocket Setup
     function initWebSocket(token) {
-      ws = new WebSocket(`${WS_BASE}?token=${token}`);
-      ws.onopen = () => console.log('WebSocket connected');
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'update') {
-          dashboardData = { ...dashboardData, ...data.data };
-          updateDashboard();
-        } else if (data.type === 'notification') {
-          showNotification(data.message, data.colour, data.id);
-        } else if (data.type === 'logout') {
-          clearCookie('jwt');
-          ws.close();
-          showNotification('Session expired, please login', 'red');
-          showLogin();
-        }
-      };
-      ws.onclose = () => console.log('WebSocket disconnected');
-      ws.onerror = (err) => console.error('WebSocket error:', err);
+      let reconnectAttempts = 0;
+      const maxAttempts = 5;
+      const baseDelay = 1000;
+
+      function connect() {
+        ws = new WebSocket(`${WS_BASE}?token=${token}`);
+        ws.onopen = () => {
+          console.log('WebSocket connected');
+          reconnectAttempts = 0;
+        };
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === 'update') {
+            dashboardData = { ...dashboardData, ...data.data };
+            updateDashboard();
+          } else if (data.type === 'notification') {
+            showNotification(data.message, data.colour, data.id);
+          } else if (data.type === 'logout') {
+            clearCookie('jwt');
+            ws.close();
+            showNotification('Session expired, please login', 'red');
+            showLogin();
+          }
+        };
+        ws.onclose = () => {
+          console.log('WebSocket disconnected');
+          if (reconnectAttempts < maxAttempts) {
+            const delay = baseDelay * Math.pow(2, reconnectAttempts);
+            setTimeout(() => {
+              console.log(`Reconnecting WebSocket, attempt ${reconnectAttempts + 1}`);
+              reconnectAttempts++;
+              connect();
+            }, delay);
+          } else {
+            showNotification('Lost connection to server', 'red');
+          }
+        };
+        ws.onerror = (err) => console.error('WebSocket error:', err);
+      }
+      connect();
     }
 
     // Dashboard Rendering
@@ -569,16 +591,16 @@
       document.getElementById('logo').innerHTML = settings.logoUrl
         ? `<img src="${settings.logoUrl}" alt="Deriv Bot Store Affiliates Admin" class="h-8">`
         : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates Admin</h1>';
-      document.getElementById('copyright').textContent = settings.copyrightText || 'Deriv Bot Store Affiliates 2025';
+      document.getElementById('copyright').textContent = settings.copyrightText || '';
 
       // Home Tab
-      document.getElementById('support-email').value = settings.supportEmail || 'derivbotstore@gmail.com';
-      document.getElementById('copyright-text').value = settings.copyrightText || 'Deriv Bot Store Affiliates 2025';
-      document.getElementById('whatsapp-link').value = settings.whatsappLink || 'https://wa.link/4wppln';
-      document.getElementById('commission-rate').value = settings.commissionRate || 0.2;
+      document.getElementById('support-email').value = settings.supportEmail || '';
+      document.getElementById('copyright-text').value = settings.copyrightText || '';
+      document.getElementById('whatsapp-link').value = settings.whatsappLink || '';
+      document.getElementById('commission-rate').value = settings.commissionRate || 0;
       document.getElementById('logo-url').value = settings.logoUrl || '';
-      document.getElementById('admin-email').value = settings.adminEmail || 'martinke444@gmail.com';
-      document.getElementById('admin-password').value = settings.adminPassword || 'kaylie2025';
+      document.getElementById('admin-email').value = settings.adminEmail || '';
+      document.getElementById('admin-password').value = settings.adminPassword || '';
 
       // Affiliates Tab
       const affiliatesTable = document.getElementById('affiliates-table');
@@ -724,8 +746,8 @@
       });
 
       // Settings Tab
-      document.getElementById('settings-admin-email').value = settings.adminEmail || 'martinke444@gmail.com';
-      document.getElementById('settings-admin-password').value = settings.adminPassword || 'kaylie2025';
+      document.getElementById('settings-admin-email').value = settings.adminEmail || '';
+      document.getElementById('settings-admin-password').value = settings.adminPassword || '';
     }
 
     function filterAndSortAffiliates(affiliates) {
@@ -765,7 +787,7 @@
 
     async function fetchDashboard() {
       try {
-        const response = await fetch(`${API_BASE}/api/admin/affiliate/data`, {
+        const response = await fetch(`${API_BASE}/api/admin/data`, {
           headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
         });
         const data = await response.json();
@@ -787,7 +809,7 @@
         try {
           const response = await fetch(url, options);
           if (response.status === 429) {
-            const waitTime = delay * Math.pow(2, i); // Exponential backoff
+            const waitTime = delay * Math.pow(2, i);
             await new Promise(resolve => setTimeout(resolve, waitTime));
             continue;
           }
@@ -836,7 +858,7 @@
 
         document.getElementById('login-loading').classList.remove('hidden');
         try {
-          const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/login`, {
+          const response = await fetchWithRetry(`${API_BASE}/api/admin/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
@@ -844,7 +866,7 @@
           if (!response.ok) {
             throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
           }
-          const text = await response.text(); // Get raw response first
+          const text = await response.text();
           let data;
           try {
             data = text ? JSON.parse(text) : { success: false, error: 'Empty response' };
@@ -899,8 +921,8 @@
 
         document.getElementById('settings-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/settings`, {
-            method: 'POST',
+          const response = await fetch(`${API_BASE}/api/admin/settings`, {
+            method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
               'Content-Type': 'application/json'
@@ -931,13 +953,13 @@
           const email = e.target.dataset.email;
           const status = e.target.value;
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliate/update-status`, {
-              method: 'POST',
+            const response = await fetch(`${API_BASE}/api/admin/affiliates/${email}/status`, {
+              method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ email, status })
+              body: JSON.stringify({ status })
             });
             const data = await response.json();
             if (data.success) {
@@ -962,13 +984,13 @@
           if (status === 'Done' && !refCode) return showNotification('Enter the ref code', 'red');
 
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliate/withdrawals/update`, {
-              method: 'POST',
+            const response = await fetch(`${API_BASE}/api/admin/withdrawals/${withdrawalId}`, {
+              method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ email, withdrawalId, status, refCode })
+              body: JSON.stringify({ email, status, refCode })
             });
             const data = await response.json();
             if (data.success) {
@@ -1023,7 +1045,7 @@
 
         document.getElementById('percentage-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/rewards`, {
+          const response = await fetch(`${API_BASE}/api/admin/rewards`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1074,7 +1096,7 @@
 
         document.getElementById('spot-reward-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/rewards`, {
+          const response = await fetch(`${API_BASE}/api/admin/rewards`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1133,8 +1155,8 @@
 
         document.getElementById('static-page-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/staticpages`, {
-            method: 'POST',
+          const response = await fetch(`${API_BASE}/api/admin/static-pages`, {
+            method: currentSlug ? 'PATCH' : 'POST',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
               'Content-Type': 'application/json'
@@ -1157,18 +1179,18 @@
       });
 
       document.getElementById('close-static-page').addEventListener('click', () => {
-        document.getElementById('static-page-modal').classList.add('hidden');      });
+        document.getElementById('static-page-modal').classList.add('hidden');
+      });
 
       document.getElementById('confirm-delete-page').addEventListener('click', async () => {
         document.getElementById('delete-page-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/staticpages`, {
+          const response = await fetch(`${API_BASE}/api/admin/static-pages/${currentSlug}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
               'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ slug: currentSlug })
+            }
           });
           const data = await response.json();
           document.getElementById('delete-page-loading').classList.add('hidden');
@@ -1197,8 +1219,8 @@
 
         document.getElementById('urgent-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/urgent`, {
-            method: 'POST',
+          const response = await fetch(`${API_BASE}/api/admin/urgent-message`, {
+            method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
               'Content-Type': 'application/json'
@@ -1227,7 +1249,7 @@
 
         document.getElementById('news-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/news`, {
+          const response = await fetch(`${API_BASE}/api/admin/news`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1256,13 +1278,13 @@
           const status = e.target.value;
 
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliate/reset-password`, {
-              method: 'POST',
+            const response = await fetch(`${API_BASE}/api/admin/password-resets/${email}`, {
+              method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ email, status })
+              body: JSON.stringify({ status })
             });
             const data = await response.json();
             if (data.success) {
@@ -1299,8 +1321,8 @@
 
         document.getElementById('admin-settings-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/settings`, {
-            method: 'POST',
+          const response = await fetch(`${API_BASE}/api/admin/settings`, {
+            method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
               'Content-Type': 'application/json'
