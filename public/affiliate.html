@@ -738,7 +738,13 @@
       document.getElementById('dashboard-section').classList.add('hidden');
       document.getElementById('welcome-message').classList.add('hidden');
       document.getElementById('auth-buttons').classList.add('hidden');
-      document.getElementById('login-tab').click();
+      // Ensure login form is shown by default
+      document.getElementById('login-tab').classList.replace('bg-gray-500', 'bg-blue-500');
+      document.getElementById('signup-tab').classList.replace('bg-blue-500', 'bg-gray-500');
+      document.getElementById('forgot-tab').classList.replace('bg-blue-500', 'bg-gray-500');
+      document.getElementById('login-form').classList.remove('hidden');
+      document.getElementById('signup-form').classList.add('hidden');
+      document.getElementById('forgot-form').classList.add('hidden');
     }
 
     function showDashboard() {
@@ -1255,9 +1261,8 @@
           document.getElementById('delete-loading').classList.add('hidden');
           if (data.success) {
             clearCookie('jwt');
-            ws?.close();
             document.getElementById('delete-account-modal').classList.add('hidden');
-            showNotification('Account deleted', 'green');
+            showNotification('Account deleted successfully', 'green');
             showAuth();
           } else {
             showNotification(data.error || 'Failed to delete account', 'red');
@@ -1277,7 +1282,7 @@
         showAuth();
       });
 
-      // Check Authentication
+      // Initial Auth Check
       const token = getCookie('jwt');
       if (token) {
         try {
@@ -1288,9 +1293,8 @@
           } else {
             clearCookie('jwt');
             showAuth();
-          }          }
+          }
         } catch (err) {
-          console.error('Token validation error:', err);
           clearCookie('jwt');
           showAuth();
         }
@@ -1298,23 +1302,4 @@
         showAuth();
       }
     });
-
-    // Close modals on outside click
-    document.querySelectorAll('.fixed.inset-0').forEach(modal => {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          modal.classList.add('hidden');
-        }
-      });
-    });
-
-    // Prevent modal close on inner content click
-    document.querySelectorAll('.fixed.inset-0 > div').forEach(inner => {
-      inner.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
-    });
-  });
   </script>
-</body>
-</html>
