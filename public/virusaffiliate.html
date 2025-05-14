@@ -450,7 +450,7 @@
   <script>
     // Constants
     const API_BASE = 'https://affiliate-botblitz.onrender.com';
-    const WS_BASE = 'wss://affiliate-botblitz.onrender.com/ws/admin/affiliates';
+    const WS_BASE = 'wss://affiliate-botblitz.onrender.com/ws/admin';
     const NOTIFICATION_TIMEOUT = 30000; // 30s
     const ITEMS_PER_PAGE = 20;
 
@@ -791,11 +791,20 @@
     function showLogin() {
       console.log('showLogin: Displaying login section');
       try {
-        document.getElementById('login-section').classList.remove('hidden');
-        document.getElementById('dashboard-section').classList.add('hidden');
-        document.getElementById('nav').classList.add('hidden');
+        const loginSection = document.getElementById('login-section');
+        const dashboardSection = document.getElementById('dashboard-section');
+        const nav = document.getElementById('nav');
+        if (loginSection && dashboardSection && nav) {
+          loginSection.classList.remove('hidden');
+          loginSection.style.display = 'block';
+          dashboardSection.classList.add('hidden');
+          nav.classList.add('hidden');
+        } else {
+          console.error('showLogin: One or more elements not found');
+        }
       } catch (err) {
         console.error('showLogin error:', err);
+        showNotification('Failed to show login: ' + err.message, 'red');
       }
     }
 
@@ -815,7 +824,7 @@
 
     async function fetchDashboard() {
       try {
-        const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliates/dashboard`, {
+        const response = await fetchWithRetry(`${API_BASE}/api/admin/dashboard`, {
           headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
         });
         if (!response.ok) {
@@ -892,7 +901,7 @@
 
           document.getElementById('login-loading').classList.remove('hidden');
           try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliates/login`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/login`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email, password })
@@ -955,7 +964,7 @@
 
           document.getElementById('settings-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliates/settings`, {
+            const response = await fetch(`${API_BASE}/api/admin/settings`, {
               method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1018,7 +1027,7 @@
             if (status === 'Done' && !refCode) return showNotification('Enter the ref code', 'red');
 
             try {
-              const response = await fetch(`${API_BASE}/api/admin/affiliates/withdrawals/${withdrawalId}`, {
+              const response = await fetch(`${API_BASE}/api/admin/withdrawals/${withdrawalId}`, {
                 method: 'PATCH',
                 headers: {
                   'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1080,7 +1089,7 @@
 
           document.getElementById('percentage-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliates/rewards`, {
+            const response = await fetch(`${API_BASE}/api/admin/rewards`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1131,7 +1140,7 @@
 
           document.getElementById('spot-reward-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliates/rewards`, {
+            const response = await fetch(`${API_BASE}/api/admin/rewards`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1190,7 +1199,7 @@
 
           document.getElementById('static-page-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliates/static-pages`, {
+            const response = await fetch(`${API_BASE}/api/admin/static-pages`, {
               method: currentSlug ? 'PATCH' : 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1220,7 +1229,7 @@
         document.getElementById('confirm-delete-page').addEventListener('click', async () => {
           document.getElementById('delete-page-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliates/static-pages/${currentSlug}`, {
+            const response = await fetch(`${API_BASE}/api/admin/static-pages/${currentSlug}`, {
               method: 'DELETE',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1254,7 +1263,7 @@
 
           document.getElementById('urgent-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliates/urgent`, {
+            const response = await fetch(`${API_BASE}/api/admin/urgent`, {
               method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1284,7 +1293,7 @@
 
           document.getElementById('news-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliates/news`, {
+            const response = await fetch(`${API_BASE}/api/admin/news`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1313,7 +1322,7 @@
             const status = e.target.value;
 
             try {
-              const response = await fetch(`${API_BASE}/api/admin/affiliates/reset-password/${email}`, {
+              const response = await fetch(`${API_BASE}/api/admin/password-resets/${email}`, {
                 method: 'PATCH',
                 headers: {
                   'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1323,10 +1332,10 @@
               });
               const data = await response.json();
               if (data.success) {
-                showNotification('Password reset status updated', 'green');
+                showNotification('Reset status updated', 'green');
                 fetchDashboard();
               } else {
-                showNotification(data.error || 'Failed to update password reset status', 'red');
+                showNotification(data.error || 'Failed to update reset status', 'red');
               }
             } catch (err) {
               showNotification('Error: ' + err.message, 'red');
@@ -1356,7 +1365,7 @@
 
           document.getElementById('admin-settings-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliates/credentials`, {
+            const response = await fetch(`${API_BASE}/api/admin/credentials`, {
               method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1368,8 +1377,6 @@
             document.getElementById('admin-settings-loading').classList.add('hidden');
             if (data.success) {
               showNotification('Credentials updated', 'green');
-              setCookie('jwt', data.token, 604800);
-              initWebSocket(data.token);
               fetchDashboard();
             } else {
               showNotification(data.error || 'Failed to update credentials', 'red');
@@ -1384,54 +1391,27 @@
         document.getElementById('logout').addEventListener('click', () => {
           clearCookie('jwt');
           if (ws) ws.close();
-          showLogin();
           showNotification('Logged out', 'green');
+          showLogin();
         });
-
-        // Modified showLogin to ensure visibility
-        function showLogin() {
-          console.log('showLogin: Displaying login section');
-          try {
-            const loginSection = document.getElementById('login-section');
-            const dashboardSection = document.getElementById('dashboard-section');
-            const nav = document.getElementById('nav');
-            if (loginSection && dashboardSection && nav) {
-              loginSection.classList.remove('hidden');
-              loginSection.style.display = 'block';
-              dashboardSection.classList.add('hidden');
-              nav.classList.add('hidden');
-            } else {
-              console.error('showLogin: One or more elements not found');
-            }
-          } catch (err) {
-            console.error('showLogin error:', err);
-            showNotification('Failed to show login: ' + err.message, 'red');
-          }
-        }
 
         // Initial Check
         const token = getCookie('jwt');
-        console.log('Initial check: JWT token exists:', !!token);
         if (token) {
           try {
             const decoded = jwt_decode(token);
-            console.log('Initial check: Token decoded, exp:', decoded.exp);
             if (decoded.exp * 1000 > Date.now()) {
-              console.log('Initial check: Token valid, initializing WebSocket and showing dashboard');
               initWebSocket(token);
               showDashboard();
             } else {
-              console.log('Initial check: Token expired, clearing cookie and showing login');
               clearCookie('jwt');
               showLogin();
             }
           } catch (err) {
-            console.error('Initial check: Token decode error:', err);
             clearCookie('jwt');
             showLogin();
           }
         } else {
-          console.log('Initial check: No token, showing login');
           showLogin();
         }
       } catch (err) {
