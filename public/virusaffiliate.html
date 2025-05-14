@@ -140,6 +140,16 @@
             </button>
           </form>
         </div>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
+          <h2 class="text-lg font-bold mb-4">Sync Sales</h2>
+          <button id="sync-sales" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
+            <span>Sync Sales</span>
+            <svg id="sync-sales-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </button>
+        </div>
       </div>
       <div id="affiliates-content" class="hidden">
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover mb-4">
@@ -310,6 +320,8 @@
               <label for="news-filter" class="block text-sm font-medium">Filter</label>
               <select id="news-filter" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
                 <option value="all">All Affiliates</option>
+                <option value="active">Active Affiliates</option>
+                <option value="blocked">Blocked Affiliates</option>
               </select>
             </div>
             <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
@@ -327,7 +339,7 @@
           <thead>
             <tr class="bg-gray-200 dark:bg-gray-700">
               <th class="p-2 text-left">Email</th>
-              <th class="p-2 text-left">Username</th>
+              <th class="p-2 text-left">USERNAME</th>
               <th class="p-2 text-left">Name</th>
               <th class="p-2 text-left">Last Withdrawal Amount</th>
               <th class="p-2 text-left">Description</th>
@@ -625,7 +637,7 @@
             <td class="p-2">${(a.WithdrawnTotal || 0).toFixed(2)}</td>
             <td class="p-2">${a.TotalSalesMonthly || 0}</td>
             <td class="p-2">
-              <select class="status-select w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${a.Email || ''}">
+              <select class="affiliate-status w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${a.Email || ''}">
                 <option value="active" ${a.Statusjson?.status === 'active' ? 'selected' : ''}>Active</option>
                 <option value="blocked" ${a.Statusjson?.status === 'blocked' ? 'selected' : ''}>Blocked</option>
                 <option value="deleted" ${a.Statusjson?.status === 'deleted' ? 'selected' : ''}>Delete</option>
@@ -654,7 +666,7 @@
               <input class="refcode-input w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${w.PaymentRefcode || ''}">
             </td>
             <td class="p-2">
-              <select class="status-select w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-id="${w.withdrawalId || ''}" data-email="${w.Email || ''}">
+              <select class="withdrawal-status w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-id="${w.withdrawalId || ''}" data-email="${w.Email || ''}">
                 <option value="Pending" ${w.Status === 'Pending' ? 'selected' : ''}>Pending</option>
                 <option value="Done">Done</option>
                 <option value="Dispute">Dispute</option>
@@ -687,9 +699,7 @@
           sortedWithdrawalsTable.appendChild(row);
         });
         document.getElementById('sorted-withdrawals-prev').disabled = pagination.sortedWithdrawals.page === 1;
-        document.getElementById('sorted-withdrawals-next').disabled = (Number.isInteger(pagination.sortedWithdrawals.page) && Number.isInteger(pagination.sortedWithdrawals.total)) 
-          ? pagination.sortedWithdrawals.page * ITEMS_PER_PAGE >= pagination.sortedWithdrawals.total 
-          : true;
+        document.getElementById('sorted-withdrawals-next').disabled = pagination.sortedWithdrawals.page * ITEMS_PER_PAGE >= pagination.sortedWithdrawals.total;
 
         // Rewards Tab
         const leaderboardTable = document.getElementById('leaderboard-table');
@@ -733,16 +743,19 @@
             <td class="p-2">${r.LastWithdrawalAmount ? r.LastWithdrawalAmount.toFixed(2) : '0.00'}</td>
             <td class="p-2">${r.Description || '-'}</td>
             <td class="p-2">${r.Timestamp ? new Date(r.Timestamp).toLocaleString() : '-'}</td>
+            <td class="p-2">${r.Status || '-'}</td>
             <td class="p-2">
               <select class="reset-status w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${r.Email || ''}">
                 <option value="Pending" ${r.Status === 'Pending' ? 'selected' : ''}>Pending</option>
                 <option value="Approved" ${r.Status === 'Approved' ? 'selected' : ''}>Approved</option>
                 <option value="Declined" ${r.Status === 'Declined' ? 'selected' : ''}>Declined</option>
               </select>
-            </td>
-            <td class="p-2">
+              ${r.Status === 'Pending' ? `
+                <input type="text" class="reset-password w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 mt-2" placeholder="Enter new password" data-email="${r.Email || ''}">
+                <button class="approve-reset bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600 mt-2" data-email="${r.Email || ''}">Approve</button>
+              ` : ''}
               ${r.Status === 'Approved' && r.Password ? `
-                <div class="flex space-x-2">
+                <div class="flex space-x-2 mt-2">
                   <input type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${r.Password}" readonly>
                   <button class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${r.Password}">Copy</button>
                   <a href="mailto:${r.Email}?subject=Deriv Bot Store Affiliate&body=Your password was reset, use this password to login: ${r.Password}. Regards, Deriv Bot Store Affiliate" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</a>
@@ -824,19 +837,32 @@
 
     async function fetchDashboard() {
       try {
-        const response = await fetchWithRetry(`${API_BASE}/api/admin/dashboard`, {
+        const endpoints = [
+          { url: '/api/admin/affiliate/affiliates', key: 'affiliates' },
+          { url: '/api/admin/affiliate/withdrawals', key: 'pendingWithdrawals' },
+          { url: '/api/admin/affiliate/sorted-withdrawals', key: 'sortedWithdrawals' },
+          { url: '/api/admin/affiliate/staticpages', key: 'staticPages' },
+          { url: '/api/admin/affiliate/reset-passwords', key: 'passwordResets' }
+        ];
+        const promises = endpoints.map(({ url, key }) =>
+          fetchWithRetry(`${API_BASE}${url}`, {
+            headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
+          }).then(res => res.json()).then(data => ({ key, data: data.success ? data[key] : [] }))
+        );
+        const results = await Promise.all(promises);
+        results.forEach(({ key, data }) => {
+          dashboardData[key] = data;
+        });
+        dashboardData.leaderboard = dashboardData.affiliates
+          .sort((a, b) => (b.TotalSalesMonthly || 0) - (a.TotalSalesMonthly || 0))
+          .slice(0, 10)
+          .map((a, i) => ({ ...a, rank: i + 1 }));
+        const settingsRes = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/settings`, {
           headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
         });
-        if (!response.ok) {
-          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-        }
-        const data = await response.json();
-        if (data.success) {
-          dashboardData = data.data;
-          updateDashboard();
-        } else {
-          throw new Error(data.error || 'Failed to load dashboard data');
-        }
+        const settingsData = await settingsRes.json();
+        if (settingsData.success) dashboardData.settings = settingsData.settings;
+        updateDashboard();
       } catch (err) {
         console.error('fetchDashboard error:', err);
         showNotification(`Failed to load dashboard: ${err.message}`, 'red');
@@ -854,6 +880,7 @@
             await new Promise(resolve => setTimeout(resolve, waitTime));
             continue;
           }
+          if (!response.ok) throw new Error(`HTTP error ${response.status}`);
           return response;
         } catch (err) {
           if (i === retries - 1) throw err;
@@ -891,7 +918,7 @@
           }
         });
 
-        // Login Form
+        // Login Form // ENDPOINT_1
         document.getElementById('login-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const email = document.getElementById('login-email').value;
@@ -901,28 +928,19 @@
 
           document.getElementById('login-loading').classList.remove('hidden');
           try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/login`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/login`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email, password })
             });
-            if (!response.ok) {
-              throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-            }
-            const text = await response.text();
-            let data;
-            try {
-              data = text ? JSON.parse(text) : { success: false, error: 'Empty response' };
-            } catch (err) {
-              throw new Error('Invalid JSON response from server');
-            }
+            const data = await response.json();
             document.getElementById('login-loading').classList.add('hidden');
             if (data.success) {
               setCookie('jwt', data.token, 604800);
               initWebSocket(data.token);
               showDashboard();
             } else {
-              showNotification(data.error || 'Invalid credentials', 'red');
+              showNotification(data.message || 'Invalid credentials', 'red');
             }
           } catch (err) {
             document.getElementById('login-loading').classList.add('hidden');
@@ -944,7 +962,7 @@
           });
         });
 
-        // Home/Settings Form
+        // Settings Form // ENDPOINT_13
         document.getElementById('settings-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const settings = {
@@ -964,8 +982,8 @@
 
           document.getElementById('settings-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/settings`, {
-              method: 'PATCH',
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/settings`, {
+              method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
@@ -978,10 +996,35 @@
               showNotification('Settings updated', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.error || 'Failed to update settings', 'red');
+              showNotification(data.message || 'Failed to update settings', 'red');
             }
           } catch (err) {
             document.getElementById('settings-loading').classList.add('hidden');
+            showNotification('Error: ' + err.message, 'red');
+          }
+        });
+
+        // Sync Sales // ENDPOINT_7
+        document.getElementById('sync-sales').addEventListener('click', async () => {
+          document.getElementById('sync-sales-loading').classList.remove('hidden');
+          try {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/sync-sales`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${getCookie('jwt')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            const data = await response.json();
+            document.getElementById('sync-sales-loading').classList.add('hidden');
+            if (data.success) {
+              showNotification('Sales synced successfully', 'green');
+              fetchDashboard();
+            } else {
+              showNotification(data.message || 'Failed to sync sales', 'red');
+            }
+          } catch (err) {
+            document.getElementById('sync-sales-loading').classList.add('hidden');
             showNotification('Error: ' + err.message, 'red');
           }
         });
@@ -990,13 +1033,13 @@
         document.getElementById('affiliate-search').addEventListener('input', () => updateDashboard());
         document.getElementById('affiliate-sort').addEventListener('change', () => updateDashboard());
 
-        // Affiliates Status Update
+        // Affiliates Status Update // ENDPOINT_15
         document.getElementById('affiliates-table').addEventListener('change', async (e) => {
-          if (e.target.classList.contains('status-select')) {
+          if (e.target.classList.contains('affiliate-status')) {
             const email = e.target.dataset.email;
             const status = e.target.value;
             try {
-              const response = await fetch(`${API_BASE}/api/admin/affiliates/${email}/status`, {
+              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliates/${email}/status`, {
                 method: 'PATCH',
                 headers: {
                   'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1006,10 +1049,10 @@
               });
               const data = await response.json();
               if (data.success) {
-                showNotification('Status updated', 'green');
+                showNotification('Affiliate status updated', 'green');
                 fetchDashboard();
               } else {
-                showNotification(data.error || 'Failed to update status', 'red');
+                showNotification(data.message || 'Failed to update status', 'red');
               }
             } catch (err) {
               showNotification('Error: ' + err.message, 'red');
@@ -1017,9 +1060,9 @@
           }
         });
 
-        // Pending Withdrawals Status Update
+        // Pending Withdrawals Status Update // ENDPOINT_8
         document.getElementById('pending-withdrawals-table').addEventListener('change', async (e) => {
-          if (e.target.classList.contains('status-select')) {
+          if (e.target.classList.contains('withdrawal-status')) {
             const withdrawalId = e.target.dataset.id;
             const email = e.target.dataset.email;
             const status = e.target.value;
@@ -1027,20 +1070,20 @@
             if (status === 'Done' && !refCode) return showNotification('Enter the ref code', 'red');
 
             try {
-              const response = await fetch(`${API_BASE}/api/admin/withdrawals/${withdrawalId}`, {
-                method: 'PATCH',
+              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/withdrawals/${status.toLowerCase()}`, {
+                method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${getCookie('jwt')}`,
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ email, status, refCode })
+                body: JSON.stringify({ email, withdrawalId, status, refCode })
               });
               const data = await response.json();
               if (data.success) {
                 showNotification('Withdrawal processed', 'green');
                 fetchDashboard();
               } else {
-                showNotification(data.error || 'Failed to process withdrawal', 'red');
+                showNotification(data.message || 'Failed to process withdrawal', 'red');
               }
             } catch (err) {
               showNotification('Error: ' + err.message, 'red');
@@ -1068,8 +1111,7 @@
           }
         });
         document.getElementById('sorted-withdrawals-next').addEventListener('click', () => {
-          if ((Number.isInteger(pagination.sortedWithdrawals.page) && Number.isInteger(pagination.sortedWithdrawals.total)) &&
-              pagination.sortedWithdrawals.page * ITEMS_PER_PAGE < pagination.sortedWithdrawals.total) {
+          if (pagination.sortedWithdrawals.page * ITEMS_PER_PAGE < pagination.sortedWithdrawals.total) {
             pagination.sortedWithdrawals.page++;
             updateDashboard();
           }
@@ -1082,14 +1124,14 @@
           document.getElementById('spot-reward').classList.toggle('hidden', isPercentage);
         });
 
-        // Apply Percentage Reward
+        // Apply Percentage Reward // ENDPOINT_9
         document.getElementById('apply-percentage').addEventListener('click', async () => {
           const percentage = parseFloat(document.getElementById('percentage-amount').value);
           if (percentage <= 0 || percentage > 1) return showNotification('Percentage must be between 0 and 1', 'red');
 
           document.getElementById('percentage-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/rewards`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/rewards`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1103,7 +1145,7 @@
               showNotification('Rewards applied', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.error || 'Failed to apply rewards', 'red');
+              showNotification(data.message || 'Failed to apply rewards', 'red');
             }
           } catch (err) {
             document.getElementById('percentage-loading').classList.add('hidden');
@@ -1131,7 +1173,7 @@
           document.getElementById('spot-reward-modal').classList.remove('hidden');
         });
 
-        // Apply Spot Reward
+        // Apply Spot Reward // ENDPOINT_9
         document.getElementById('apply-spot-reward').addEventListener('click', async () => {
           const amount = parseFloat(document.getElementById('spot-amount').value);
           if (amount <= 0) return showNotification('Amount must be greater than 0', 'red');
@@ -1140,7 +1182,7 @@
 
           document.getElementById('spot-reward-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/rewards`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/rewards`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1155,7 +1197,7 @@
               showNotification('Rewards applied', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.error || 'Failed to apply rewards', 'red');
+              showNotification(data.message || 'Failed to apply rewards', 'red');
             }
           } catch (err) {
             document.getElementById('spot-reward-loading').classList.add('hidden');
@@ -1187,20 +1229,19 @@
             document.getElementById('static-page-modal').classList.remove('hidden');
           } else if (e.target.classList.contains('delete-page')) {
             currentSlug = e.target.dataset.slug;
-            document.getElementById('delete-page-modal').classList.remove('hidden');
-          }
-        });
+            document.getElementBy�다
 
+        // Static Page Form // ENDPOINT_10
         document.getElementById('static-page-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const title = document.getElementById('page-title').value;
           const content = document.getElementById('page-content').value;
-          const slug = currentSlug || title.toLowerCase().replace(/\s+/g, '-');
+          const slug = currentSlug || title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
           document.getElementById('static-page-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/static-pages`, {
-              method: currentSlug ? 'PATCH' : 'POST',
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/staticpages`, {
+              method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
@@ -1214,7 +1255,7 @@
               showNotification('Page saved', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.error || 'Failed to save page', 'red');
+              showNotification(data.message || 'Failed to save page', 'red');
             }
           } catch (err) {
             document.getElementById('static-page-loading').classList.add('hidden');
@@ -1226,15 +1267,17 @@
           document.getElementById('static-page-modal').classList.add('hidden');
         });
 
+        // Delete Static Page // ENDPOINT_11
         document.getElementById('confirm-delete-page').addEventListener('click', async () => {
           document.getElementById('delete-page-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/static-pages/${currentSlug}`, {
-              method: 'DELETE',
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/staticpages/delete`, {
+              method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
-              }
+              },
+              body: JSON.stringify({ slug: currentSlug })
             });
             const data = await response.json();
             document.getElementById('delete-page-loading').classList.add('hidden');
@@ -1243,7 +1286,7 @@
               showNotification('Page deleted', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.error || 'Failed to delete page', 'red');
+              showNotification(data.message || 'Failed to delete page', 'red');
             }
           } catch (err) {
             document.getElementById('delete-page-loading').classList.add('hidden');
@@ -1255,7 +1298,7 @@
           document.getElementById('delete-page-modal').classList.add('hidden');
         });
 
-        // Urgent Message Form
+        // Urgent Message Form // ENDPOINT_12
         document.getElementById('urgent-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const message = document.getElementById('urgent-message').value;
@@ -1263,13 +1306,13 @@
 
           document.getElementById('urgent-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/urgent`, {
-              method: 'PATCH',
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/communication`, {
+              method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ message, enabled })
+              body: JSON.stringify({ type: 'urgent', message,enabled })
             });
             const data = await response.json();
             document.getElementById('urgent-loading').classList.add('hidden');
@@ -1277,7 +1320,7 @@
               showNotification('Urgent message updated', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.error || 'Failed to update urgent message', 'red');
+              showNotification(data.message || 'Failed to update urgent message', 'red');
             }
           } catch (err) {
             document.getElementById('urgent-loading').classList.add('hidden');
@@ -1285,7 +1328,7 @@
           }
         });
 
-        // News Form
+        // News Form // ENDPOINT_12
         document.getElementById('news-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const message = document.getElementById('news-message').value;
@@ -1293,13 +1336,13 @@
 
           document.getElementById('news-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/news`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/communication`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ message, filter })
+              body: JSON.stringify({ type: 'news', message, filter })
             });
             const data = await response.json();
             document.getElementById('news-loading').classList.add('hidden');
@@ -1307,7 +1350,7 @@
               showNotification('News sent', 'green');
               document.getElementById('news-message').value = '';
             } else {
-              showNotification(data.error || 'Failed to send news', 'red');
+              showNotification(data.message || 'Failed to send news', 'red');
             }
           } catch (err) {
             document.getElementById('news-loading').classList.add('hidden');
@@ -1315,27 +1358,27 @@
           }
         });
 
-        // Password Resets Status Update
+        // Password Resets Status Update // ENDPOINT_14
         document.getElementById('password-resets-table').addEventListener('change', async (e) => {
           if (e.target.classList.contains('reset-status')) {
             const email = e.target.dataset.email;
             const status = e.target.value;
 
             try {
-              const response = await fetch(`${API_BASE}/api/admin/password-resets/${email}`, {
-                method: 'PATCH',
+              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-passwords`, {
+                method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${getCookie('jwt')}`,
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ status })
+                body: JSON.stringify({ email, status })
               });
               const data = await response.json();
               if (data.success) {
                 showNotification('Reset status updated', 'green');
                 fetchDashboard();
               } else {
-                showNotification(data.error || 'Failed to update reset status', 'red');
+                showNotification(data.message || 'Failed to update reset status', 'red');
               }
             } catch (err) {
               showNotification('Error: ' + err.message, 'red');
@@ -1343,9 +1386,33 @@
           }
         });
 
-        // Copy Password
-        document.getElementById('password-resets-table').addEventListener('click', (e) => {
-          if (e.target.classList.contains('copy-password')) {
+        // Approve Password Reset
+        document.getElementById('password-resets-table').addEventListener('click', async (e) => {
+          if (e.target.classList.contains('approve-reset')) {
+            const email = e.target.dataset.email;
+            const password = e.target.previousElementSibling.value;
+            if (!password) return showNotification('Enter a new password', 'red');
+
+            try {
+              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-passwords`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${getCookie('jwt')}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, status: 'Approved', password })
+              });
+              const data = await response.json();
+              if (data.success) {
+                showNotification('Password reset approved', 'green');
+                fetchDashboard();
+              } else {
+                showNotification(data.message || 'Failed to approve reset', 'red');
+              }
+            } catch (err) {
+              showNotification('Error: ' + err.message, 'red');
+            }
+          } else if (e.target.classList.contains('copy-password')) {
             const value = e.target.dataset.value;
             navigator.clipboard.writeText(value).then(() => {
               showNotification('Password copied', 'green');
@@ -1365,21 +1432,21 @@
 
           document.getElementById('admin-settings-loading').classList.remove('hidden');
           try {
-            const response = await fetch(`${API_BASE}/api/admin/credentials`, {
-              method: 'PATCH',
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/settings`, {
+              method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ email, password })
+              body: JSON.stringify({ adminEmail: email, adminPassword: password })
             });
             const data = await response.json();
             document.getElementById('admin-settings-loading').classList.add('hidden');
             if (data.success) {
-              showNotification('Credentials updated', 'green');
+              showNotification('Admin credentials updated', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.error || 'Failed to update credentials', 'red');
+              showNotification(data.message || 'Failed to update credentials', 'red');
             }
           } catch (err) {
             document.getElementById('admin-settings-loading').classList.add('hidden');
@@ -1391,23 +1458,23 @@
         document.getElementById('logout').addEventListener('click', () => {
           clearCookie('jwt');
           if (ws) ws.close();
-          showNotification('Logged out', 'green');
           showLogin();
+          showNotification('Logged out', 'green');
         });
 
-        // Initial Check
-        const token = getCookie('jwt');
-        if (token) {
+        // Check JWT and Initialize
+        const jwt = getCookie('jwt');
+        if (jwt) {
           try {
-            const decoded = jwt_decode(token);
+            const decoded = jwt_decode(jwt);
             if (decoded.exp * 1000 > Date.now()) {
-              initWebSocket(token);
+              initWebSocket(jwt);
               showDashboard();
             } else {
               clearCookie('jwt');
               showLogin();
             }
-          } catch (err) {
+          } catch {
             clearCookie('jwt');
             showLogin();
           }
