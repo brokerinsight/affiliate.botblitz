@@ -339,7 +339,7 @@
           <thead>
             <tr class="bg-gray-200 dark:bg-gray-700">
               <th class="p-2 text-left">Email</th>
-              <th class="p-2 text-left">USERNAME</th>
+              <th class="p-2 text-left">Username</th>
               <th class="p-2 text-left">Name</th>
               <th class="p-2 text-left">Last Withdrawal Amount</th>
               <th class="p-2 text-left">Description</th>
@@ -809,11 +809,10 @@
         const nav = document.getElementById('nav');
         if (loginSection && dashboardSection && nav) {
           loginSection.classList.remove('hidden');
-          loginSection.style.display = 'block';
           dashboardSection.classList.add('hidden');
           nav.classList.add('hidden');
         } else {
-          console.error('showLogin: One or more elements not found');
+          throw new Error('One or more elements not found');
         }
       } catch (err) {
         console.error('showLogin error:', err);
@@ -824,13 +823,21 @@
     function showDashboard() {
       console.log('showDashboard: Displaying dashboard section');
       try {
-        document.getElementById('login-section').classList.add('hidden');
-        document.getElementById('dashboard-section').classList.remove('hidden');
-        document.getElementById('nav').classList.remove('hidden');
-        document.getElementById('tab-home').click();
-        fetchDashboard();
+        const loginSection = document.getElementById('login-section');
+        const dashboardSection = document.getElementById('dashboard-section');
+        const nav = document.getElementById('nav');
+        if (loginSection && dashboardSection && nav) {
+          loginSection.classList.add('hidden');
+          dashboardSection.classList.remove('hidden');
+          nav.classList.remove('hidden');
+          document.getElementById('tab-home').click();
+          fetchDashboard();
+        } else {
+          throw new Error('One or more elements not found');
+        }
       } catch (err) {
         console.error('showDashboard error:', err);
+        showNotification('Failed to show dashboard: ' + err.message, 'red');
         showLogin();
       }
     }
@@ -1229,7 +1236,9 @@
             document.getElementById('static-page-modal').classList.remove('hidden');
           } else if (e.target.classList.contains('delete-page')) {
             currentSlug = e.target.dataset.slug;
-            document.getElementBy�다
+            document.getElementById('delete-page-modal').classList.remove('hidden');
+          }
+        });
 
         // Static Page Form // ENDPOINT_10
         document.getElementById('static-page-form').addEventListener('submit', async (e) => {
@@ -1306,19 +1315,18 @@
 
           document.getElementById('urgent-loading').classList.remove('hidden');
           try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/communication`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/urgent`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ type: 'urgent', message,enabled })
+              body: JSON.stringify({ message, enabled })
             });
             const data = await response.json();
             document.getElementById('urgent-loading').classList.add('hidden');
             if (data.success) {
               showNotification('Urgent message updated', 'green');
-              fetchDashboard();
             } else {
               showNotification(data.message || 'Failed to update urgent message', 'red');
             }
@@ -1336,19 +1344,18 @@
 
           document.getElementById('news-loading').classList.remove('hidden');
           try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/communication`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/news`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ type: 'news', message, filter })
+              body: JSON.stringify({ message, filter })
             });
             const data = await response.json();
             document.getElementById('news-loading').classList.add('hidden');
             if (data.success) {
               showNotification('News sent', 'green');
-              document.getElementById('news-message').value = '';
             } else {
               showNotification(data.message || 'Failed to send news', 'red');
             }
@@ -1358,35 +1365,7 @@
           }
         });
 
-        // Password Resets Status Update // ENDPOINT_14
-        document.getElementById('password-resets-table').addEventListener('change', async (e) => {
-          if (e.target.classList.contains('reset-status')) {
-            const email = e.target.dataset.email;
-            const status = e.target.value;
-
-            try {
-              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-passwords`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${getCookie('jwt')}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, status })
-              });
-              const data = await response.json();
-              if (data.success) {
-                showNotification('Reset status updated', 'green');
-                fetchDashboard();
-              } else {
-                showNotification(data.message || 'Failed to update reset status', 'red');
-              }
-            } catch (err) {
-              showNotification('Error: ' + err.message, 'red');
-            }
-          }
-        });
-
-        // Approve Password Reset
+        // Password Resets // ENDPOINT_14
         document.getElementById('password-resets-table').addEventListener('click', async (e) => {
           if (e.target.classList.contains('approve-reset')) {
             const email = e.target.dataset.email;
@@ -1394,13 +1373,13 @@
             if (!password) return showNotification('Enter a new password', 'red');
 
             try {
-              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-passwords`, {
+              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-password`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${getCookie('jwt')}`,
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ email, status: 'Approved', password })
+                body: JSON.stringify({ email, password, status: 'Approved' })
               });
               const data = await response.json();
               if (data.success) {
@@ -1422,7 +1401,34 @@
           }
         });
 
-        // Admin Settings Form
+        document.getElementById('password-resets-table').addEventListener('change', async (e) => {
+          if (e.target.classList.contains('reset-status')) {
+            const email = e.target.dataset.email;
+            const status = e.target.value;
+
+            try {
+              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-password`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${getCookie('jwt')}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, status })
+              });
+              const data = await response.json();
+              if (data.success) {
+                showNotification('Reset status updated', 'green');
+                fetchDashboard();
+              } else {
+                showNotification(data.message || 'Failed to update reset status', 'red');
+              }
+            } catch (err) {
+              showNotification('Error: ' + err.message, 'red');
+            }
+          }
+        });
+
+        // Admin Settings Form // ENDPOINT_13
         document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const email = document.getElementById('settings-admin-email').value;
@@ -1443,10 +1449,10 @@
             const data = await response.json();
             document.getElementById('admin-settings-loading').classList.add('hidden');
             if (data.success) {
-              showNotification('Admin credentials updated', 'green');
+              showNotification('Admin settings updated', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.message || 'Failed to update credentials', 'red');
+              showNotification(data.message || 'Failed to update admin settings', 'red');
             }
           } catch (err) {
             document.getElementById('admin-settings-loading').classList.add('hidden');
@@ -1462,21 +1468,22 @@
           showNotification('Logged out', 'green');
         });
 
-        // Check JWT and Initialize
-        const jwt = getCookie('jwt');
-        if (jwt) {
+        // Check JWT on Load
+        const token = getCookie('jwt');
+        if (token) {
           try {
-            const decoded = jwt_decode(jwt);
+            const decoded = jwt_decode(token);
             if (decoded.exp * 1000 > Date.now()) {
-              initWebSocket(jwt);
+              initWebSocket(token);
               showDashboard();
             } else {
               clearCookie('jwt');
               showLogin();
             }
-          } catch {
+          } catch (err) {
             clearCookie('jwt');
             showLogin();
+            showNotification('Invalid token: ' + err.message, 'red');
           }
         } else {
           showLogin();
