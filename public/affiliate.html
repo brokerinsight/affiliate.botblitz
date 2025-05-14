@@ -28,10 +28,6 @@
       transform: translateY(-2px);
       transition: transform 0.2s ease-in-out;
     }
-    /* Ensure buttons in dashboard header are visible */
-    #dashboard-section:not(.hidden) .flex.items-center.space-x-4 {
-      display: flex !important;
-    }
   </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
@@ -40,6 +36,16 @@
     <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
       <div id="logo" class="flex items-center">
         <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>
+      </div>
+      <div class="flex items-center space-x-4">
+        <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
+          <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
       </div>
     </div>
     <div id="welcome-message" class="max-w-7xl mx-auto px-4 py-2 text-sm text-gray-500 hidden"></div>
@@ -157,14 +163,15 @@
             <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>
           </div>
           <div class="flex items-center space-x-4">
-            <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
-              <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-              <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            </button>
+            <button id="contact-us" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Contact Us</button>
+            <div id="settings" class="relative">
+              <button id="settings-toggle" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Settings</button>
+              <div id="settings-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10">
+                <button id="change-password" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Change Password</button>
+                <button id="delete-account" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Delete Account</button>
+                <button id="logout" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Logout</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -177,8 +184,6 @@
         <button id="tab-leaderboard" class="px-4 py-2 bg-gray-500 text-white rounded-md">Leaderboard</button>
         <button id="tab-notifications" class="px-4 py-2 bg-gray-500 text-white rounded-md">Notifications History</button>
         <button id="tab-news" class="px-4 py-2 bg-gray-500 text-white rounded-md">News</button>
-        <button id="tab-settings" class="px-4 py-2 bg-gray-500 text-white rounded-md">Settings</button>
-        <button id="tab-contact" class="px-4 py-2 bg-gray-500 text-white rounded-md">Contact Us</button>
       </nav>
 
       <!-- Tab Content -->
@@ -295,29 +300,6 @@
           <button id="news-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Next</button>
         </div>
       </div>
-      <div id="settings-content" class="hidden">
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 class="text-lg font-bold mb-4">Settings</h2>
-          <div class="space-y-4">
-            <button id="change-password" class="block w-full text-left px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Change Password</button>
-            <button id="delete-account" class="block w-full text-left px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600">Delete Account</button>
-            <button id="logout" class="block w-full text-left px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600">Logout</button>
-            <div class="flex items-center">
-              <label for="theme-toggle-checkbox" class="text-sm font-medium mr-2">Toggle Theme</label>
-              <input id="theme-toggle-checkbox" type="checkbox" class="p-2 rounded-md" checked>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id="contact-content" class="hidden">
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 class="text-lg font-bold mb-4">Contact Us</h2>
-          <div class="space-y-4">
-            <a id="whatsapp-link" href="https://wa.link/4wppln" class="block bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 text-center">WhatsApp</a>
-            <a id="email-link" href="mailto:derivbotstore@gmail.com" class="block bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-center">Email</a>
-          </div>
-        </div>
-      </div>
     </div>
   </main>
 
@@ -330,6 +312,16 @@
   </footer>
 
   <!-- Modals -->
+  <div id="contact-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
+      <h2 class="text-xl font-bold mb-4">Contact Us</h2>
+      <div class="space-y-4">
+        <a id="whatsapp-link" href="https://wa.link/4wppln" class="block bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 text-center">WhatsApp</a>
+        <a id="email-link" href="mailto:derivbotstore@gmail.com" class="block bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-center">Email</a>
+      </div>
+      <button id="close-contact" class="mt-4 text-gray-500 hover:text-gray-700">Close</button>
+    </div>
+  </div>
   <div id="commission-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 class="text-xl font-bold mb-4">Commission Info</h2>
@@ -737,37 +729,17 @@
       document.getElementById('auth-section').classList.remove('hidden');
       document.getElementById('dashboard-section').classList.add('hidden');
       document.getElementById('welcome-message').classList.add('hidden');
-      // Safely switch to login tab
-      document.getElementById('login-tab').classList.replace('bg-gray-500', 'bg-blue-500');
-      document.getElementById('signup-tab').classList.replace('bg-blue-500', 'bg-gray-500');
-      document.getElementById('forgot-tab').classList.replace('bg-blue-500', 'bg-gray-500');
-      document.getElementById('login-form').classList.remove('hidden');
-      document.getElementById('signup-form').classList.add('hidden');
-      document.getElementById('forgot-form').classList.add('hidden');
+      document.getElementById('login-tab').click();
     }
 
     function showDashboard() {
       document.getElementById('auth-section').classList.add('hidden');
       document.getElementById('dashboard-section').classList.remove('hidden');
-      console.log('Dashboard hidden class:', document.getElementById('dashboard-section').classList.contains('hidden'));
       document.getElementById('tab-home').click();
-      const token = getCookie('jwt');
-      try {
-        const decoded = jwtDecode(token);
-        if (decoded.exp * 1000 <= Date.now()) {
-          throw new Error('Token expired');
-        }
-        initWebSocket(token);
-        fetchDashboard();
-      } catch (err) {
-        console.error('Token validation error:', err);
-        showNotification('Session invalid or expired. Please log in again.', 'red');
-        clearCookie('jwt');
-        showAuth();
-      }
+      fetchDashboard();
     }
 
-    async function fetchDashboard(attempts = 3, delay = 2000) {
+    async function fetchDashboard() {
       try {
         const token = getCookie('jwt');
         if (!token) throw new Error('No authentication token found');
@@ -778,13 +750,12 @@
             'Content-Type': 'application/json'
           }
         });
-        console.log('API Response Status:', response.status);
         if (!response.ok) {
           const errorMessage = await parseErrorMessage(response);
           throw new Error(errorMessage);
         }
+
         const data = await response.json();
-        console.log('API Data:', data);
         if (data.success) {
           dashboardData = data.data;
           updateDashboard();
@@ -798,18 +769,11 @@
           throw new Error(data.error || 'Failed to load dashboard');
         }
       } catch (err) {
-        console.error('Dashboard fetch error (attempt ' + (4 - attempts) + '):', err);
-        if (attempts > 1) {
-          showNotification(`Retrying to load dashboard... (${4 - attempts}/3)`, 'yellow');
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return fetchDashboard(attempts - 1, delay * 2);
-        }
-        showNotification(`Failed to load dashboard data: ${err.message}. Please try refreshing or contact support.`, 'red');
-        document.getElementById('home-content').innerHTML = `
-          <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-            <p class="text-red-500">Unable to load dashboard data. Please try again later or contact support.</p>
-          </div>
-        `;
+        console.error('Dashboard fetch error:', err);
+        showNotification(`Failed to load dashboard: ${err.message}`, 'red');
+        clearCookie('jwt');
+        ws?.close();
+        showAuth();
       }
     }
 
@@ -820,6 +784,7 @@
           const errorMessage = await parseErrorMessage(response);
           throw new Error(errorMessage);
         }
+
         const data = await response.json();
         if (data.success) {
           document.getElementById('static-title').textContent = data.page.title;
@@ -855,17 +820,11 @@
       document.documentElement.classList.toggle('dark', theme === 'dark');
       document.getElementById('sun-icon').classList.toggle('hidden', theme === 'dark');
       document.getElementById('moon-icon').classList.toggle('hidden', theme === 'light');
-      const themeToggleCheckbox = document.getElementById('theme-toggle-checkbox');
-      themeToggleCheckbox.checked = theme === 'dark';
-      themeToggleCheckbox.addEventListener('change', () => {
-        const isDark = themeToggleCheckbox.checked;
-        document.documentElement.classList.toggle('dark', isDark);
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const isDark = document.documentElement.classList.toggle('dark');
         localStorage.setItem('theme', isDark ? 'dark' : 'light');
         document.getElementById('sun-icon').classList.toggle('hidden', isDark);
         document.getElementById('moon-icon').classList.toggle('hidden', !isDark);
-      });
-      document.getElementById('theme-toggle').addEventListener('click', () => {
-        themeToggleCheckbox.click();
       });
 
       // Auth Tabs
@@ -940,6 +899,7 @@
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
+
           const data = await response.json();
           document.getElementById('signup-loading').classList.add('hidden');
           if (data.success) {
@@ -1004,17 +964,15 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
           });
-          console.log('Login Response Status:', response.status);
           if (!response.ok) {
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
+
           const data = await response.json();
-          console.log('Login Response Data:', data);
           document.getElementById('login-loading').classList.add('hidden');
           if (data.success) {
             setCookie('jwt', data.token, 604800);
-            console.log('Token set:', data.token.substring(0, 10) + '...');
             initWebSocket(data.token);
             document.getElementById('auth-section').innerHTML = '<p class="text-center text-lg">Initializing account, loading data…</p>';
             setTimeout(showDashboard, 2000);
@@ -1056,6 +1014,7 @@
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
+
           const data = await response.json();
           document.getElementById('forgot-loading').classList.add('hidden');
           if (data.success) {
@@ -1095,6 +1054,7 @@
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
+
           const data = await response.json();
           document.getElementById('change-password-loading').classList.add('hidden');
           if (data.success) {
@@ -1129,7 +1089,7 @@
       });
 
       // Dashboard Tabs
-      ['home', 'withdrawals', 'rewards', 'leaderboard', 'notifications', 'news', 'settings', 'contact'].forEach(tab => {
+      ['home', 'withdrawals', 'rewards', 'leaderboard', 'notifications', 'news'].forEach(tab => {
         document.getElementById(`tab-${tab}`).addEventListener('click', () => {
           document.querySelectorAll('nav button').forEach(btn => {
             btn.classList.replace('bg-blue-500', 'bg-gray-500');
@@ -1140,26 +1100,6 @@
           });
           document.getElementById(`${tab}-content`).classList.remove('hidden');
         });
-      });
-
-      // Settings Actions
-      document.getElementById('change-password').addEventListener('click', () => {
-        document.getElementById('change-password-modal').classList.remove('hidden');
-      });
-      document.getElementById('close-change-password').addEventListener('click', () => {
-        document.getElementById('change-password-modal').classList.add('hidden');
-      });
-      document.getElementById('delete-account').addEventListener('click', () => {
-        document.getElementById('delete-account-modal').classList.remove('hidden');
-      });
-      document.getElementById('close-delete').addEventListener('click', () => {
-        document.getElementById('delete-account-modal').classList.add('hidden');
-      });
-      document.getElementById('logout').addEventListener('click', () => {
-        clearCookie('jwt');
-        ws?.close();
-        showNotification('Logged out successfully', 'green');
-        showAuth();
       });
 
       // Pagination
@@ -1179,6 +1119,12 @@
       });
 
       // Modals
+      document.getElementById('contact-us').addEventListener('click', () => {
+        document.getElementById('contact-modal').classList.remove('hidden');
+      });
+      document.getElementById('close-contact').addEventListener('click', () => {
+        document.getElementById('contact-modal').classList.add('hidden');
+      });
       document.getElementById('commission-info').addEventListener('click', () => {
         document.getElementById('commission-modal').classList.remove('hidden');
       });
@@ -1201,8 +1147,37 @@
         document.getElementById('mpesa-name').value = '';
         document.getElementById('reuse-details').checked = false;
       });
+      document.getElementById('change-password').addEventListener('click', () => {
+        document.getElementById('settings-dropdown').classList.add('hidden');
+        document.getElementById('change-password-modal').classList.remove('hidden');
+      });
+      document.getElementById('close-change-password').addEventListener('click', () => {
+        document.getElementById('change-password-modal').classList.add('hidden');
+      });
+      document.getElementById('delete-account').addEventListener('click', () => {
+        document.getElementById('settings-dropdown').classList.add('hidden');
+        document.getElementById('delete-account-modal').classList.remove('hidden');
+      });
+      document.getElementById('close-delete').addEventListener('click', () => {
+        document.getElementById('delete-account-modal').classList.add('hidden');
+      });
       document.getElementById('close-static').addEventListener('click', () => {
         document.getElementById('static-page-modal').classList.add('hidden');
+      });
+
+      // Settings Dropdown
+      document.getElementById('settings-toggle').addEventListener('click', () => {
+        document.getElementById('settings-dropdown').classList.toggle('hidden');
+      });
+
+      // Copy Affiliate Link
+      document.getElementById('copy-link').addEventListener('click', () => {
+        const link = document.getElementById('affiliate-link').value;
+        navigator.clipboard.writeText(link).then(() => {
+          showNotification('Link copied to clipboard', 'green');
+        }).catch(() => {
+          showNotification('Failed to copy link', 'red');
+        });
       });
 
       // Withdrawal Form
@@ -1214,11 +1189,9 @@
         const reuseDetails = document.getElementById('reuse-details').checked;
         const password = document.getElementById('withdrawal-password').value;
 
-        if (amount < 1) return showNotification('Amount must be at least 1 KES', 'red');
-        if (!validateMpesaNumber(mpesaNumber)) return showNotification('Invalid MPESA number format (e.g., 07XXXXXXXX)', 'red');
+        if (amount <= 0 || amount > dashboardData.currentBalance) return showNotification('Invalid amount', 'red');
+        if (!validateMpesaNumber(mpesaNumber)) return showNotification('MPESA number must be 10 digits starting with 07 or 01', 'red');
         if (!validateName(mpesaName)) return showNotification('MPESA name must have at least two words', 'red');
-        if (hasInvalidCharacters(password)) return showNotification('Only numbers and letters are allowed in password', 'red');
-        if (!validatePassword(password)) return showNotification('Password must be 8+ characters with at least one letter and one number', 'red');
 
         document.getElementById('withdrawal-loading').classList.remove('hidden');
         try {
@@ -1234,6 +1207,7 @@
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
+
           const data = await response.json();
           document.getElementById('withdrawal-loading').classList.add('hidden');
           if (data.success) {
@@ -1241,7 +1215,7 @@
               mpesaDetails = { mpesaNumber, mpesaName };
             }
             document.getElementById('withdrawal-modal').classList.add('hidden');
-            showNotification('Withdrawal request submitted successfully', 'green');
+            showNotification('Withdrawal submitted. You’ll receive it soon as processed.', 'green');
             fetchDashboard();
           } else {
             showNotification(data.error || 'Failed to request withdrawal', 'red');
@@ -1252,28 +1226,26 @@
         }
       });
 
-      // Delete Account Confirmation
+      // Delete Account
       document.getElementById('confirm-delete').addEventListener('click', async () => {
         document.getElementById('delete-loading').classList.remove('hidden');
         try {
           const response = await fetch(`${API_BASE}/api/affiliate/delete-account`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            }
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
           });
           if (!response.ok) {
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
+
           const data = await response.json();
           document.getElementById('delete-loading').classList.add('hidden');
           if (data.success) {
             clearCookie('jwt');
             ws?.close();
             document.getElementById('delete-account-modal').classList.add('hidden');
-            showNotification('Account deleted successfully', 'green');
+            showNotification('Account deleted', 'green');
             showAuth();
           } else {
             showNotification(data.error || 'Failed to delete account', 'red');
@@ -1284,18 +1256,31 @@
         }
       });
 
-      // Copy Affiliate Link
-      document.getElementById('copy-link').addEventListener('click', () => {
-        const affiliateLink = document.getElementById('affiliate-link');
-        affiliateLink.select();
-        document.execCommand('copy');
-        showNotification('Affiliate link copied to clipboard', 'green');
+      // Logout
+      document.getElementById('logout').addEventListener('click', () => {
+        clearCookie('jwt');
+        ws?.close();
+        document.getElementById('settings-dropdown').classList.add('hidden');
+        showNotification('Logged out successfully', 'green');
+        showAuth();
       });
 
-      // Initial Auth Check
+      // Check Authentication
       const token = getCookie('jwt');
       if (token) {
-        showDashboard();
+        try {
+          const decoded = jwt_decode(token);
+          if (decoded.exp * 1000 > Date.now()) {
+            initWebSocket(token);
+            showDashboard();
+          } else {
+            clearCookie('jwt');
+            showAuth();
+          }
+        } catch (err) {
+          clearCookie('jwt');
+          showAuth();
+        }
       } else {
         showAuth();
       }
