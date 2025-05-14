@@ -737,7 +737,13 @@
       document.getElementById('auth-section').classList.remove('hidden');
       document.getElementById('dashboard-section').classList.add('hidden');
       document.getElementById('welcome-message').classList.add('hidden');
-      document.getElementById('login-tab').click();
+      // Safely switch to login tab
+      document.getElementById('login-tab').classList.replace('bg-gray-500', 'bg-blue-500');
+      document.getElementById('signup-tab').classList.replace('bg-blue-500', 'bg-gray-500');
+      document.getElementById('forgot-tab').classList.replace('bg-blue-500', 'bg-gray-500');
+      document.getElementById('login-form').classList.remove('hidden');
+      document.getElementById('signup-form').classList.add('hidden');
+      document.getElementById('forgot-form').classList.add('hidden');
     }
 
     function showDashboard() {
@@ -747,7 +753,7 @@
       document.getElementById('tab-home').click();
       const token = getCookie('jwt');
       try {
-        const decoded = jwt_decode(token);
+        const decoded = jwtDecode(token);
         if (decoded.exp * 1000 <= Date.now()) {
           throw new Error('Token expired');
         }
@@ -1199,16 +1205,6 @@
         document.getElementById('static-page-modal').classList.add('hidden');
       });
 
-      // Copy Affiliate Link
-      document.getElementById('copy-link').addEventListener('click', () => {
-        const link = document.getElementById('affiliate-link').value;
-        navigator.clipboard.writeText(link).then(() => {
-          showNotification('Link copied to clipboard', 'green');
-        }).catch(() => {
-          showNotification('Failed to copy link', 'red');
-        });
-      });
-
       // Withdrawal Form
       document.getElementById('withdrawal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1218,18 +1214,11 @@
         const reuseDetails = document.getElementById('reuse-details').checked;
         const password = document.getElementById('withdrawal-password').value;
 
-        if (amount <= 0 || amount > dashboardData.currentBalance) {
-          return showNotification('Invalid withdrawal amount', 'red');
-        }
-        if (!validateMpesaNumber(mpesaNumber)) {
-          return showNotification('Invalid MPESA number (e.g., 0712345678)', 'red');
-        }
-        if (!mpesaName.trim()) {
-          return showNotification('MPESA name is required', 'red');
-        }
-        if (!password) {
-          return showNotification('Password is required', 'red');
-        }
+        if (amount < 1) return showNotification('Amount must be at least 1 KES', 'red');
+        if (!validateMpesaNumber(mpesaNumber)) return showNotification('Invalid MPESA number format (e.g., 07XXXXXXXX)', 'red');
+        if (!validateName(mpesaName)) return showNotification('MPESA name must have at least two words', 'red');
+        if (hasInvalidCharacters(password)) return showNotification('Only numbers and letters are allowed in password', 'red');
+        if (!validatePassword(password)) return showNotification('Password must be 8+ characters with at least one letter and one number', 'red');
 
         document.getElementById('withdrawal-loading').classList.remove('hidden');
         try {
@@ -1239,7 +1228,7 @@
               'Authorization': `Bearer ${getCookie('jwt')}`,
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ amount, mpesaNumber, mpesaName, password, reuseDetails })
+            body: JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails, password })
           });
           if (!response.ok) {
             const errorMessage = await parseErrorMessage(response);
@@ -1253,9 +1242,9 @@
             }
             document.getElementById('withdrawal-modal').classList.add('hidden');
             showNotification('Withdrawal request submitted successfully', 'green');
-            fetchDashboard(); // Refresh dashboard data
+            fetchDashboard();
           } else {
-            showNotification(data.error || 'Failed to submit withdrawal request', 'red');
+            showNotification(data.error || 'Failed to request withdrawal', 'red');
           }
         } catch (err) {
           document.getElementById('withdrawal-loading').classList.add('hidden');
@@ -1263,12 +1252,12 @@
         }
       });
 
-      // Delete Account
+      // Delete Account Confirmation
       document.getElementById('confirm-delete').addEventListener('click', async () => {
         document.getElementById('delete-loading').classList.remove('hidden');
         try {
           const response = await fetch(`${API_BASE}/api/affiliate/delete-account`, {
-            method: 'POST',
+            method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
               'Content-Type': 'application/json'
@@ -1295,26 +1284,19 @@
         }
       });
 
+      // Copy Affiliate Link
+      document.getElementById('copy-link').addEventListener('click', () => {
+        const affiliateLink = document.getElementById('affiliate-link');
+        affiliateLink.select();
+        document.execCommand('copy');
+        showNotification('Affiliate link copied to clipboard', 'green');
+      });
+
       // Initial Auth Check
       const token = getCookie('jwt');
       if (token) {
-        try {
-          const decoded = jwt_decode(token);
-          console.log('Decoded JWT:', decoded);
-          if (decoded.exp * 1000 > Date.now()) {
-            showDashboard();
-          } else {
-            console.log('Token expired');
-            clearCookie('jwt');
-            showAuth();
-          }
-        } catch (err) {
-          console.error('JWT decode error:', err);
-          clearCookie('jwt');
-          showAuth();
-        }
+        showDashboard();
       } else {
-        console.log('No token found');
         showAuth();
       }
     });
