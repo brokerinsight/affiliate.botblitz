@@ -1387,6 +1387,37 @@ app.post('/api/admin/affiliate/reset-password', authenticateAdmin, async (req, r
   res.json({ success: true });
 });
 
+// ADD_HERE: PATCH /api/admin/affiliates/:email/status
+app.patch('/api/admin/affiliates/:email/status', authenticateAdmin, async (req, res) => {
+  const { email } = req.params;
+  const { status } = req.body;
+  if (!['active', 'blocked', 'deleted'].includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid status' });
+  }
+  try {
+    const affiliates = await fetchAffiliates();
+    const affiliate = affiliates.find(a => a.Email === email);
+    if (!affiliate) {
+      return res.status(404).json({ success: false, message: 'Affiliate not found' });
+    }
+    affiliate.Statusjson = { status };
+    await updateAffiliateByEmail(affiliate.Email, affiliate);
+    await logTransaction(email, 'update_status', { status });
+    if (wsClients.has(affiliate.Email)) {
+      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
+      if (status === 'blocked' || status === 'deleted') {
+        wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
+        wsClients.delete(affiliate.Email);
+      }
+    }
+    await updateCache();
+    res.json({ success: true, message: 'Affiliate status updated' });
+  } catch (err) {
+    console.error('Error updating affiliate status:', err.message);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 // Admin Route to Serve virusaffiliate.html (Added)
 app.get('/admin', (req, res) => {
   const filePath = path.join(publicPath, 'virusaffiliate.html');
