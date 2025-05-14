@@ -737,7 +737,7 @@
               <div class="flex space-x-2">
                 <input type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${r.Password}" readonly>
                 <button class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${r.Password}">Copy</button>
-                <a href="mailto:${r.Email}?subject=Deriv Bot Store Affiliate&body=Your password was reset, use this password to login: ${r.Password}. Regards, Deriv Bot Store Affiliate" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</a>
+                <a href="mailto:${r email}?subject=Deriv Bot Store Affiliate&body=Your password was reset, use this password to login: ${r.Password}. Regards, Deriv Bot Store Affiliate" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</a>
               </div>
             ` : ''}
           </td>
@@ -787,15 +787,18 @@
 
     async function fetchDashboard() {
       try {
-        const response = await fetch(`${API_BASE}/api/admin/affiliate/data`, {
+        const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/dashboard`, {
           headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
         });
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+        }
         const data = await response.json();
         if (data.success) {
           dashboardData = data.data;
           updateDashboard();
         } else {
-          throw new Error(data.error);
+          throw new Error(data.error || 'Failed to load dashboard data');
         }
       } catch (err) {
         showNotification(`Failed to load dashboard: ${err.message}`, 'red');
@@ -1291,7 +1294,7 @@
               showNotification('Password reset status updated', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.error || 'Failed to update status', 'red');
+              showNotification(data.error || 'Failed to update password reset status', 'red');
             }
           } catch (err) {
             showNotification('Error: ' + err.message, 'red');
@@ -1312,65 +1315,65 @@
       });
 
       // Admin Settings Form
-document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('settings-admin-email').value;
-  const password = document.getElementById('settings-admin-password').value;
+      document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const adminEmail = document.getElementById('settings-admin-email').value;
+        const adminPassword = document.getElementById('settings-admin-password').value;
 
-  if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
+        if (!validateEmail(adminEmail)) return showNotification('Invalid email format', 'red');
 
-  document.getElementById('admin-settings-loading').classList.remove('hidden');
-  try {
-    const response = await fetch(`${API_BASE}/api/admin/affiliate/settings`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${getCookie('jwt')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ adminEmail: email, adminPassword: password })
+        document.getElementById('admin-settings-loading').classList.remove('hidden');
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/affiliate/settings`, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${getCookie('jwt')}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ adminEmail, adminPassword })
+          });
+          const data = await response.json();
+          document.getElementById('admin-settings-loading').classList.add('hidden');
+          if (data.success) {
+            showNotification('Admin settings updated', 'green');
+            fetchDashboard();
+          } else {
+            showNotification(data.error || 'Failed to update admin settings', 'red');
+          }
+        } catch (err) {
+          document.getElementById('admin-settings-loading').classList.add('hidden');
+          showNotification('Error: ' + err.message, 'red');
+        }
+      });
+
+      // Logout
+      document.getElementById('logout').addEventListener('click', () => {
+        clearCookie('jwt');
+        if (ws) ws.close();
+        showLogin();
+        showNotification('Logged out', 'green');
+      });
+
+      // Initial Check
+      const token = getCookie('jwt');
+      if (token) {
+        try {
+          const decoded = jwt_decode(token);
+          if (decoded.exp * 1000 > Date.now()) {
+            initWebSocket(token);
+            showDashboard();
+          } else {
+            clearCookie('jwt');
+            showLogin();
+          }
+        } catch (err) {
+          clearCookie('jwt');
+          showLogin();
+        }
+      } else {
+        showLogin();
+      }
     });
-    const data = await response.json();
-    document.getElementById('admin-settings-loading').classList.add('hidden');
-    if (data.success) {
-      showNotification('Admin credentials updated', 'green');
-      fetchDashboard();
-    } else {
-      showNotification(data.error || 'Failed to update admin credentials', 'red');
-    }
-  } catch (err) {
-    document.getElementById('admin-settings-loading').classList.add('hidden');
-    showNotification('Error: ' + err.message, 'red');
-  }
-});
-
-// Logout
-document.getElementById('logout').addEventListener('click', () => {
-  clearCookie('jwt');
-  if (ws) ws.close();
-  showLogin();
-  showNotification('Logged out', 'green');
-});
-
-// Initial Check
-const token = getCookie('jwt');
-if (token) {
-  try {
-    const decoded = jwt_decode(token);
-    if (decoded.exp * 1000 > Date.now()) {
-      initWebSocket(token);
-      showDashboard();
-    } else {
-      clearCookie('jwt');
-      showLogin();
-    }
-  } catch {
-    clearCookie('jwt');
-    showLogin();
-  }
-} else {
-  showLogin();
-}
-});
-</script>
+  </script>
 </body>
 </html>
