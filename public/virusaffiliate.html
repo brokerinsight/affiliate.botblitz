@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -450,7 +451,7 @@
   <script>
     // Constants
     const API_BASE = 'https://affiliate-botblitz.onrender.com';
-    const WS_BASE = 'wss://affiliate-botblitz.onrender.com/ws/admin/affiliate';
+    const WS_BASE = 'wss://affiliate-botblitz.onrender.com/ws/admin/affiliates';
     const NOTIFICATION_TIMEOUT = 30000; // 30s
     const ITEMS_PER_PAGE = 20;
 
@@ -681,6 +682,10 @@
         sortedWithdrawalsTable.appendChild(row);
       });
       document.getElementById('sorted-withdrawals-prev').disabled = pagination.sortedWithdrawals.page === 1;
+      document.getElementByIdساس
+
+System: * Today's date and time is 12:08 AM EAT on Thursday, May 15, 2025.
+      document.getElementById('sorted-withdrawals-prev').disabled = pagination.sortedWithdrawals.page === 1;
       document.getElementById('sorted-withdrawals-next').disabled = pagination.sortedWithdrawals.page * ITEMS_PER_PAGE >= pagination.sortedWithdrawals.total;
 
       // Rewards Tab
@@ -737,7 +742,7 @@
               <div class="flex space-x-2">
                 <input type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${r.Password}" readonly>
                 <button class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${r.Password}">Copy</button>
-                <a href="mailto:${r email}?subject=Deriv Bot Store Affiliate&body=Your password was reset, use this password to login: ${r.Password}. Regards, Deriv Bot Store Affiliate" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</a>
+                <a href="mailto:${r.Email}?subject=Deriv Bot Store Affiliate&body=Your password was reset, use this password to login: ${r.Password}. Regards, Deriv Bot Store Affiliate" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</a>
               </div>
             ` : ''}
           </td>
@@ -772,12 +777,14 @@
 
     // Authentication
     function showLogin() {
+      console.log('showLogin: Displaying login section');
       document.getElementById('login-section').classList.remove('hidden');
       document.getElementById('dashboard-section').classList.add('hidden');
       document.getElementById('nav').classList.add('hidden');
     }
 
     function showDashboard() {
+      console.log('showDashboard: Displaying dashboard section');
       document.getElementById('login-section').classList.add('hidden');
       document.getElementById('dashboard-section').classList.remove('hidden');
       document.getElementById('nav').classList.remove('hidden');
@@ -787,7 +794,7 @@
 
     async function fetchDashboard() {
       try {
-        const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/dashboard`, {
+        const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliates/dashboard`, {
           headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
         });
         if (!response.ok) {
@@ -861,7 +868,7 @@
 
         document.getElementById('login-loading').classList.remove('hidden');
         try {
-          const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/login`, {
+          const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliates/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
@@ -924,7 +931,7 @@
 
         document.getElementById('settings-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/settings`, {
+          const response = await fetch(`${API_BASE}/api/admin/affiliates/settings`, {
             method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -956,7 +963,7 @@
           const email = e.target.dataset.email;
           const status = e.target.value;
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliate/affiliates/${email}/status`, {
+            const response = await fetch(`${API_BASE}/api/admin/affiliates/${email}/status`, {
               method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -987,7 +994,7 @@
           if (status === 'Done' && !refCode) return showNotification('Enter the ref code', 'red');
 
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliate/withdrawals/${withdrawalId}`, {
+            const response = await fetch(`${API_BASE}/api/admin/affiliates/withdrawals/${withdrawalId}`, {
               method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1048,7 +1055,7 @@
 
         document.getElementById('percentage-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/rewards`, {
+          const response = await fetch(`${API_BASE}/api/admin/affiliates/rewards`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1099,7 +1106,7 @@
 
         document.getElementById('spot-reward-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/rewards`, {
+          const response = await fetch(`${API_BASE}/api/admin/affiliates/rewards`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1158,7 +1165,7 @@
 
         document.getElementById('static-page-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/static-pages`, {
+          const response = await fetch(`${API_BASE}/api/admin/affiliates/static-pages`, {
             method: currentSlug ? 'PATCH' : 'POST',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1188,7 +1195,7 @@
       document.getElementById('confirm-delete-page').addEventListener('click', async () => {
         document.getElementById('delete-page-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/static-pages/${currentSlug}`, {
+          const response = await fetch(`${API_BASE}/api/admin/affiliates/static-pages/${currentSlug}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1222,7 +1229,7 @@
 
         document.getElementById('urgent-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/urgent-message`, {
+          const response = await fetch(`${API_BASE}/api/admin/affiliates/urgent-message`, {
             method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1252,7 +1259,7 @@
 
         document.getElementById('news-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/news`, {
+          const response = await fetch(`${API_BASE}/api/admin/affiliates/news`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1281,7 +1288,7 @@
           const status = e.target.value;
 
           try {
-            const response = await fetch(`${API_BASE}/api/admin/affiliate/password-resets/${email}`, {
+            const response = await fetch(`${API_BASE}/api/admin/affiliates/password-resets/${email}`, {
               method: 'PATCH',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1324,7 +1331,7 @@
 
         document.getElementById('admin-settings-loading').classList.remove('hidden');
         try {
-          const response = await fetch(`${API_BASE}/api/admin/affiliate/settings`, {
+          const response = await fetch(`${API_BASE}/api/admin/affiliates/settings`, {
             method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${getCookie('jwt')}`,
