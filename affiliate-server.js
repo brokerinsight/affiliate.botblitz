@@ -66,10 +66,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate Limiting
-const loginLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 5 });
-const registerLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 5 });
-const resetLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 5 });
+// Rate Limiting - Modified to use email as key
+const loginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 5,
+  keyGenerator: (req) => req.body.email || 'unknown', // Use email from request body
+  message: 'Too many login attempts, please try again later'
+});
+const registerLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => req.body.email || 'unknown',
+  message: 'Too many registration attempts, please try again later'
+});
+const resetLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => req.body.email || 'unknown',
+  message: 'Too many reset attempts, please try again later'
+});
 
 // Google Sheets Setup
 const sheets = google.sheets({ version: 'v4', auth: new google.auth.JWT({
@@ -205,7 +220,7 @@ async function logTransaction(email, action, details) {
   }
 }
 
-// Fetch and Cache Data
+// Fetch and Cache Data - Modified to ensure fresh data
 const fetchAffiliates = async () => {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: AFFILIATES_SHEET_ID,
@@ -254,6 +269,31 @@ const fetchStaticPages = async () => {
   return rows.map(row => ({ Slug: row[0], Title: row[1], Content: row[2] }));
 };
 
+// New function to update affiliate data by email
+const updateAffiliateByEmail = async (email, updatedData) => {
+  const affiliates = await fetchAffiliates(); // Fetch fresh data
+  const affiliateIndex = affiliates.findIndex(a => a.Email === email);
+  if (affiliateIndex === -1) throw new Error('Affiliate not found');
+  const rowIndex = affiliateIndex + 2;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: AFFILIATES_SHEET_ID,
+    range: `all affiliates!A${rowIndex}:P${rowIndex}`,
+    valueInputOption: 'RAW',
+    resource: {
+      values: [[
+        updatedData.Email, updatedData.Username, updatedData.Name, updatedData.JoinDate,
+        updatedData.RefCode, updatedData.Password, JSON.stringify(updatedData.Statusjson),
+        updatedData.LinkClicks, updatedData.TotalSales, updatedData.TotalSalesMonthly,
+        updatedData.CurrentBalance, updatedData.WithdrawnTotal,
+        JSON.stringify(updatedData.WithdrawalsJSON), JSON.stringify(updatedData.RewardsJSON),
+        JSON.stringify(updatedData.NotificationsJSON), JSON.stringify(updatedData.MpesaDetails)
+      ]]
+    }
+  });
+  await updateCache(); // Update cache after direct sheet update
+};
+
+// Modified cache update to ensure consistency
 const updateCache = async () => {
   cachedDataAffiliate.affiliates = await fetchAffiliates();
   cachedDataAffiliate.settings = await fetchSettings();
@@ -287,7 +327,7 @@ function startHeartbeat(ws, key) {
     }
     ws.isAlive = false;
     ws.ping();
-  }, 30000); // Ping every 30 seconds
+  }, 30000);
 }
 
 wss.on('connection', (ws, request, decoded) => {
@@ -329,12 +369,7 @@ cron.schedule('0 0 1 * *', async () => {
   const affiliates = await fetchAffiliates();
   for (const affiliate of affiliates) {
     affiliate.TotalSalesMonthly = 0;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: `all affiliates!J${affiliates.indexOf(affiliate) + 2}`,
-      valueInputOption: 'RAW',
-      resource: { values: [[0]] }
-    });
+    await updateAffiliateByEmail(affiliate.Email, affiliate);
   }
   leaderboardCache = {};
   await updateCache();
@@ -371,12 +406,7 @@ cron.schedule('0 0 * * *', async () => {
         console.log(`Trimmed ${key} for ${affiliate.Email} due to size`);
       }
     }
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: `all affiliates!A${affiliates.indexOf(affiliate) + 2}:P`,
-      valueInputOption: 'RAW',
-      resource: { values: [Object.values(affiliate)] }
-    });
+    await updateAffiliateByEmail(affiliate.Email, affiliate);
   }
 
   let response = await sheets.spreadsheets.values.get({
@@ -478,20 +508,7 @@ cron.schedule('0 * * * *', async () => {
       if (affiliate.NotificationsJSON.length > 20) {
         affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
       }
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: AFFILIATES_SHEET_ID,
-        range: `all affiliates!I${affiliates.indexOf(affiliate) + 2}:O`,
-        valueInputOption: 'RAW',
-        resource: { values: [[
-          affiliate.TotalSales,
-          affiliate.TotalSalesMonthly,
-          affiliate.CurrentBalance,
-          affiliate.WithdrawnTotal,
-          JSON.stringify(affiliate.WithdrawalsJSON),
-          JSON.stringify(affiliate.RewardsJSON),
-          JSON.stringify(affiliate.NotificationsJSON)
-        ]] }
-      });
+      await updateAffiliateByEmail(affiliate.Email, affiliate); // Use email-based update
       await logTransaction(affiliate.Email, 'sale_confirmed', { refCode, amount, commission, item });
       if (wsClients.has(affiliate.Email)) {
         wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
@@ -547,7 +564,8 @@ app.post('/api/affiliate/mark-notification', authenticateAffiliate, async (req, 
   try {
     const { notificationId } = req.body;
     if (!notificationId) return res.status(400).json({ success: false, message: 'Notification ID required' });
-    const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
+    const affiliates = await fetchAffiliates();
+    const affiliate = affiliates.find(a => a.Email === req.user.email);
     if (!affiliate) return res.status(404).json({ success: false, message: 'Affiliate not found' });
 
     const notifications = affiliate.NotificationsJSON || [];
@@ -555,14 +573,7 @@ app.post('/api/affiliate/mark-notification', authenticateAffiliate, async (req, 
     if (!notification) return res.status(404).json({ success: false, message: 'Notification not found' });
 
     notification.read = true;
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: `all affiliates!O${cachedDataAffiliate.affiliates.indexOf(affiliate) + 2}`,
-      valueInputOption: 'RAW',
-      resource: { values: [[JSON.stringify(notifications)]] },
-    });
-
+    await updateAffiliateByEmail(affiliate.Email, affiliate);
     await logTransaction(req.user.email, 'mark_notification', { notificationId });
     if (wsClients.has(affiliate.Email)) {
       wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
@@ -596,16 +607,16 @@ app.post('/api/affiliate/register', registerLimiter, async (req, res) => {
     JoinDate: new Date().toISOString(),
     RefCode: refCode,
     Password: hashedPassword,
-    Statusjson: JSON.stringify({ status: 'active' }),
+    Statusjson: { status: 'active' },
     LinkClicks: 0,
     TotalSales: 0,
     TotalSalesMonthly: 0,
     CurrentBalance: 0,
     WithdrawnTotal: 0,
-    WithdrawalsJSON: JSON.stringify([]),
-    RewardsJSON: JSON.stringify([]),
-    NotificationsJSON: JSON.stringify([]),
-    MpesaDetails: JSON.stringify({})
+    WithdrawalsJSON: [],
+    RewardsJSON: [],
+    NotificationsJSON: [],
+    MpesaDetails: {}
   };
   await sheets.spreadsheets.values.append({
     spreadsheetId: AFFILIATES_SHEET_ID,
@@ -686,7 +697,6 @@ app.get('/api/affiliate/data', authenticateAffiliate, async (req, res) => {
   const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
   if (!affiliate) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-  // Update leaderboard with accurate momentum
   const leaderboard = cachedDataAffiliate.affiliates
     .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
     .slice(0, 10)
@@ -819,17 +829,12 @@ app.get('/api/admin/affiliate/reset-passwords', authenticateAdmin, async (req, r
 
 app.post('/api/affiliate/track-click', async (req, res) => {
   const { refCode } = req.body;
-  const affiliate = cachedDataAffiliate.affiliates.find(a => a.RefCode === refCode);
+  const affiliates = await fetchAffiliates();
+  const affiliate = affiliates.find(a => a.RefCode === refCode);
   if (!affiliate) return res.status(400).json({ success: false, message: 'Invalid refCode' });
   affiliate.LinkClicks += 1;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!H${cachedDataAffiliate.affiliates.indexOf(affiliate) + 2}`,
-    valueInputOption: 'RAW',
-    resource: { values: [[affiliate.LinkClicks]] }
-  });
+  await updateAffiliateByEmail(affiliate.Email, affiliate);
   await logTransaction(affiliate.Email, 'track_click', { refCode });
-  await updateCache();
   if (wsClients.has(affiliate.Email)) {
     wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
   }
@@ -840,7 +845,8 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
   const { refCode, amount, item, apiKey } = req.body;
   if (apiKey !== AFFILIATE_API_KEY) return res.status(401).json({ success: false, message: 'Invalid API key' });
   if (amount <= 0) return res.status(400).json({ success: false, message: 'Invalid amount' });
-  const affiliate = cachedDataAffiliate.affiliates.find(a => a.RefCode === refCode);
+  const affiliates = await fetchAffiliates();
+  const affiliate = affiliates.find(a => a.RefCode === refCode);
   if (!affiliate) return res.status(400).json({ success: false, message: 'Invalid refCode' });
   const commission = amount * cachedDataAffiliate.settings.commissionRate;
   affiliate.TotalSales += 1;
@@ -856,7 +862,7 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
   if (affiliate.NotificationsJSON.length > 20) {
     affiliate.NotificationsJSON = affiliate.NotificationsJSON.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-20);
   }
-  const leaderboard = cachedDataAffiliate.affiliates
+  const leaderboard = affiliates
     .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
     .slice(0, 10)
     .map((a, i) => ({ email: a.Email, rank: i + 1 }));
@@ -875,22 +881,8 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
     }
   }
   leaderboardCache = Object.fromEntries(leaderboard.map(l => [l.email, { rank: l.rank }]));
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!I${cachedDataAffiliate.affiliates.indexOf(affiliate) + 2}:O`,
-    valueInputOption: 'RAW',
-    resource: { values: [[
-      affiliate.TotalSales,
-      affiliate.TotalSalesMonthly,
-      affiliate.CurrentBalance,
-      affiliate.WithdrawnTotal,
-      JSON.stringify(affiliate.WithdrawalsJSON),
-      JSON.stringify(affiliate.RewardsJSON),
-      JSON.stringify(affiliate.NotificationsJSON)
-    ]] }
-  });
+  await updateAffiliateByEmail(affiliate.Email, affiliate);
   await logTransaction(affiliate.Email, 'confirmed_sale', { refCode, amount, commission, item });
-  await updateCache();
   if (wsClients.has(affiliate.Email)) {
     wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
     wsClients.get(affiliate.Email).send(JSON.stringify({
@@ -937,20 +929,7 @@ app.post('/api/affiliate/sync-sales', authenticateAdmin, async (req, res) => {
       if (affiliate.NotificationsJSON.length > 20) {
         affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
       }
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: AFFILIATES_SHEET_ID,
-        range: `all affiliates!I${affiliates.indexOf(affiliate) + 2}:O`,
-        valueInputOption: 'RAW',
-        resource: { values: [[
-          affiliate.TotalSales,
-          affiliate.TotalSalesMonthly,
-          affiliate.CurrentBalance,
-          affiliate.WithdrawnTotal,
-          JSON.stringify(affiliate.WithdrawalsJSON),
-          JSON.stringify(affiliate.RewardsJSON),
-          JSON.stringify(affiliate.NotificationsJSON)
-        ]] }
-      });
+      await updateAffiliateByEmail(affiliate.Email, affiliate);
       await logTransaction(affiliate.Email, 'sync_sale', { refCode, amount, commission, item });
       updatedAffiliates.push(affiliate.Email);
       if (wsClients.has(affiliate.Email)) {
@@ -971,10 +950,11 @@ app.post('/api/affiliate/sync-sales', authenticateAdmin, async (req, res) => {
 
 app.post('/api/affiliate/request-withdrawal', authenticateAffiliate, async (req, res) => {
   const { amount, mpesaNumber, mpesaName, reuseDetails, password } = req.body;
-  if (amount <= 0 || amount > cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email).CurrentBalance || !validateMpesaNumber(mpesaNumber) || !validateName(mpesaName)) {
+  const affiliates = await fetchAffiliates();
+  const affiliate = affiliates.find(a => a.Email === req.user.email);
+  if (amount <= 0 || amount > affiliate.CurrentBalance || !validateMpesaNumber(mpesaNumber) || !validateName(mpesaName)) {
     return res.status(400).json({ success: false, message: 'Invalid input' });
   }
-  const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
   if (!(await bcrypt.compare(password, affiliate.Password))) {
     return res.status(401).json({ success: false, message: 'Incorrect password' });
   }
@@ -1004,7 +984,6 @@ app.post('/api/affiliate/request-withdrawal', authenticateAffiliate, async (req,
   if (reuseDetails) {
     affiliate.MpesaDetails = { mpesaNumber, mpesaName };
   }
-  const affiliateIndex = cachedDataAffiliate.affiliates.findIndex(a => a.Email === affiliate.Email);
   await sheets.spreadsheets.values.append({
     spreadsheetId: ADMIN_SHEET_ID,
     range: 'pendingWithdrawals!A:H',
@@ -1014,26 +993,13 @@ app.post('/api/affiliate/request-withdrawal', authenticateAffiliate, async (req,
       mpesaNumber, mpesaName, '', 'Pending'
     ]] }
   });
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!K${affiliateIndex + 2}:P`,
-    valueInputOption: 'RAW',
-    resource: { values: [[
-      affiliate.CurrentBalance,
-      affiliate.WithdrawnTotal,
-      JSON.stringify(affiliate.WithdrawalsJSON),
-      JSON.stringify(affiliate.RewardsJSON),
-      JSON.stringify(affiliate.NotificationsJSON),
-      JSON.stringify(affiliate.MpesaDetails)
-    ]] }
-  });
+  await updateAffiliateByEmail(affiliate.Email, affiliate);
   await sendEmail(
     APP_EMAIL,
     'New Withdrawal Request',
     `Affiliate: ${affiliate.Email}, Amount: ${amount} KES, MPESA: ${mpesaNumber}, Name: ${mpesaName}`
   );
   await logTransaction(affiliate.Email, 'request_withdrawal', { amount, mpesaNumber, mpesaName });
-  await updateCache();
   if (wsClients.has(affiliate.Email)) {
     wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
     wsClients.get(affiliate.Email).send(JSON.stringify({
@@ -1048,7 +1014,8 @@ app.post('/api/admin/affiliate/withdrawals/:action', authenticateAdmin, async (r
   const { email, withdrawalId, status, refCode } = req.body;
   if (!['Done', 'Dispute'].includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
   if (status === 'Done' && !refCode) return res.status(400).json({ success: false, message: 'Enter the ref code' });
-  const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === email);
+  const affiliates = await fetchAffiliates();
+  const affiliate = affiliates.find(a => a.Email === email);
   if (!affiliate) return res.status(400).json({ success: false, message: 'Affiliate not found' });
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: ADMIN_SHEET_ID,
@@ -1093,20 +1060,8 @@ app.post('/api/admin/affiliate/withdrawals/:action', authenticateAdmin, async (r
     spreadsheetId: ADMIN_SHEET_ID,
     range: `pendingWithdrawals!A${withdrawal.index}:H${withdrawal.index}`
   });
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!K${cachedDataAffiliate.affiliates.indexOf(affiliate) + 2}:O`,
-    valueInputOption: 'RAW',
-    resource: { values: [[
-      affiliate.CurrentBalance,
-      affiliate.WithdrawnTotal,
-      JSON.stringify(affiliate.WithdrawalsJSON),
-      JSON.stringify(affiliate.RewardsJSON),
-      JSON.stringify(affiliate.NotificationsJSON)
-    ]] }
-  });
+  await updateAffiliateByEmail(affiliate.Email, affiliate);
   await logTransaction(affiliate.Email, 'withdrawal_action', { status, refCode, amount: withdrawalData.amount });
-  await updateCache();
   if (wsClients.has(affiliate.Email)) {
     wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
     wsClients.get(affiliate.Email).send(JSON.stringify({
@@ -1125,7 +1080,7 @@ app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => 
   if (type === 'spot' && (!amount || amount <= 0 || !recipients?.length)) {
     return res.status(400).json({ success: false, message: 'Invalid amount or recipients' });
   }
-  const affiliates = cachedDataAffiliate.affiliates;
+  const affiliates = await fetchAffiliates();
   if (type === 'percentage') {
     const topAffiliates = affiliates
       .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
@@ -1152,18 +1107,7 @@ app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => 
       if (affiliate.NotificationsJSON.length > 20) {
         affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
       }
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: AFFILIATES_SHEET_ID,
-        range: `all affiliates!K${affiliates.indexOf(affiliate) + 2}:O`,
-        valueInputOption: 'RAW',
-        resource: { values: [[
-          affiliate.CurrentBalance,
-          affiliate.WithdrawnTotal,
-          JSON.stringify(affiliate.WithdrawalsJSON),
-          JSON.stringify(affiliate.RewardsJSON),
-          JSON.stringify(affiliate.NotificationsJSON)
-        ]] }
-      });
+      await updateAffiliateByEmail(affiliate.Email, affiliate);
       await logTransaction(affiliate.Email, 'reward_percentage', { reward, percentage });
       if (wsClients.has(affiliate.Email)) {
         wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
@@ -1197,18 +1141,7 @@ app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => 
       if (affiliate.NotificationsJSON.length > 20) {
         affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
       }
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: AFFILIATES_SHEET_ID,
-        range: `all affiliates!K${affiliates.indexOf(affiliate) + 2}:O`,
-        valueInputOption: 'RAW',
-        resource: { values: [[
-          affiliate.CurrentBalance,
-          affiliate.WithdrawnTotal,
-          JSON.stringify(affiliate.WithdrawalsJSON),
-          JSON.stringify(affiliate.RewardsJSON),
-          JSON.stringify(affiliate.NotificationsJSON)
-        ]] }
-      });
+      await updateAffiliateByEmail(affiliate.Email, affiliate);
       await logTransaction(affiliate.Email, 'reward_spot', { amount });
       if (wsClients.has(affiliate.Email)) {
         wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
@@ -1301,17 +1234,13 @@ app.post('/api/admin/affiliate/communication', authenticateAdmin, async (req, re
         message,
         timestamp: new Date().toISOString()
       };
-      for (const affiliate of cachedDataAffiliate.affiliates) {
+      const affiliates = await fetchAffiliates();
+      for (const affiliate of affiliates) {
         affiliate.NotificationsJSON.push(notification);
         if (affiliate.NotificationsJSON.length > 20) {
           affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
         }
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: AFFILIATES_SHEET_ID,
-          range: `all affiliates!O${cachedDataAffiliate.affiliates.indexOf(affiliate) + 2}`,
-          valueInputOption: 'RAW',
-          resource: { values: [[JSON.stringify(affiliate.NotificationsJSON)]] }
-        });
+        await updateAffiliateByEmail(affiliate.Email, affiliate);
         await logTransaction(affiliate.Email, 'urgent_notification', { message });
         if (wsClients.has(affiliate.Email)) {
           wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'notification', data: notification }));
@@ -1381,28 +1310,24 @@ app.post('/api/admin/affiliate/settings', authenticateAdmin, async (req, res) =>
 app.post('/api/affiliate/update-password', authenticateAffiliate, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!validatePassword(newPassword)) return res.status(400).json({ success: false, message: 'Invalid new password' });
-  const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
+  const affiliates = await fetchAffiliates();
+  const affiliate = affiliates.find(a => a.Email === req.user.email);
   if (!(await bcrypt.compare(currentPassword, affiliate.Password))) {
     return res.status(401).json({ success: false, message: 'Incorrect current password' });
   }
   affiliate.Password = await bcrypt.hash(newPassword, 10);
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!F${cachedDataAffiliate.affiliates.indexOf(affiliate) + 2}`,
-    valueInputOption: 'RAW',
-    resource: { values: [[affiliate.Password]] }
-  });
+  await updateAffiliateByEmail(affiliate.Email, affiliate);
   await logTransaction(affiliate.Email, 'update_password', {});
   if (wsClients.has(affiliate.Email)) {
     wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
     wsClients.delete(affiliate.Email);
   }
-  await updateCache();
   res.json({ success: true });
 });
 
 app.post('/api/affiliate/delete-account', authenticateAffiliate, async (req, res) => {
-  const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
+  const affiliates = await fetchAffiliates();
+  const affiliate = affiliates.find(a => a.Email === req.user.email);
   if (affiliate.CurrentBalance >= 1 || affiliate.WithdrawalsJSON.some(w => w.status === 'Pending')) {
     return res.status(400).json({ success: false, message: 'Withdraw all money before deleting account' });
   }
@@ -1417,28 +1342,12 @@ app.post('/api/affiliate/delete-account', authenticateAffiliate, async (req, res
   if (affiliate.NotificationsJSON.length > 20) {
     affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
   }
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!G${cachedDataAffiliate.affiliates.indexOf(affiliate) + 2}:O`,
-    valueInputOption: 'RAW',
-    resource: { values: [[
-      JSON.stringify(affiliate.Statusjson),
-      affiliate.LinkClicks,
-      affiliate.TotalSales,
-      affiliate.TotalSalesMonthly,
-      affiliate.CurrentBalance,
-      affiliate.WithdrawnTotal,
-      JSON.stringify(affiliate.WithdrawalsJSON),
-      JSON.stringify(affiliate.RewardsJSON),
-      JSON.stringify(affiliate.NotificationsJSON)
-    ]] }
-  });
+  await updateAffiliateByEmail(affiliate.Email, affiliate);
   await logTransaction(affiliate.Email, 'delete_account', {});
   if (wsClients.has(affiliate.Email)) {
     wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
     wsClients.delete(affiliate.Email);
   }
-  await updateCache();
   res.json({ success: true });
 });
 
@@ -1454,14 +1363,10 @@ app.post('/api/admin/affiliate/reset-password', authenticateAdmin, async (req, r
   if (!resetEntry) return res.status(400).json({ success: false, message: 'Reset request not found' });
   if (status === 'approved') {
     if (!password || password.length < 12) return res.status(400).json({ success: false, message: 'Invalid password' });
-    const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === email);
+    const affiliates = await fetchAffiliates();
+    const affiliate = affiliates.find(a => a.Email === email);
     affiliate.Password = await bcrypt.hash(password, 10);
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: `all affiliates!F${cachedDataAffiliate.affiliates.indexOf(affiliate) + 2}`,
-      valueInputOption: 'RAW',
-      resource: { values: [[affiliate.Password]] }
-    });
+    await updateAffiliateByEmail(affiliate.Email, affiliate);
     await sheets.spreadsheets.values.update({
       spreadsheetId: ADMIN_SHEET_ID,
       range: `reset!G${resetEntry.index}:H${resetEntry.index}`,
