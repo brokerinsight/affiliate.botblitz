@@ -566,7 +566,7 @@
             dashboardData = { ...dashboardData, ...data.data };
             updateDashboard();
           } else if (data.type === 'notification') {
-            showNotification(data.message, data.colour, data.id);
+            showNotification(data.data.message, data.data.colour, data.data.id);
           } else if (data.type === 'logout') {
             clearCookie('jwt');
             ws.close();
@@ -848,13 +848,13 @@
           { url: '/api/admin/affiliate/affiliates', key: 'affiliates' },
           { url: '/api/admin/affiliate/withdrawals', key: 'pendingWithdrawals' },
           { url: '/api/admin/affiliate/sorted-withdrawals', key: 'sortedWithdrawals' },
-          { url: '/api/admin/affiliate/staticpages', key: 'staticPages' },
-          { url: '/api/admin/affiliate/reset-passwords', key: 'passwordResets' }
+          { url: '/api/admin/affiliate/staticpages', key: 'pages', responseKey: 'staticPages' },
+          { url: '/api/admin/affiliate/reset-passwords', key: 'requests', responseKey: 'passwordResets' }
         ];
-        const promises = endpoints.map(({ url, key }) =>
+        const promises = endpoints.map(({ url, key, responseKey }) =>
           fetchWithRetry(`${API_BASE}${url}`, {
             headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
-          }).then(res => res.json()).then(data => ({ key, data: data.success ? data[key] : [] }))
+          }).then(res => res.json()).then(data => ({ key: responseKey || key, data: data.success ? data[key] : [] }))
         );
         const results = await Promise.all(promises);
         results.forEach(({ key, data }) => {
@@ -864,11 +864,6 @@
           .sort((a, b) => (b.TotalSalesMonthly || 0) - (a.TotalSalesMonthly || 0))
           .slice(0, 10)
           .map((a, i) => ({ ...a, rank: i + 1 }));
-        const settingsRes = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/settings`, {
-          headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
-        });
-        const settingsData = await settingsRes.json();
-        if (settingsData.success) dashboardData.settings = settingsData.settings;
         updateDashboard();
       } catch (err) {
         console.error('fetchDashboard error:', err);
@@ -925,7 +920,7 @@
           }
         });
 
-        // Login Form // ENDPOINT_1
+        // Login Form
         document.getElementById('login-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const email = document.getElementById('login-email').value;
@@ -969,7 +964,7 @@
           });
         });
 
-        // Settings Form // ENDPOINT_13
+        // Settings Form
         document.getElementById('settings-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const settings = {
@@ -1011,7 +1006,7 @@
           }
         });
 
-        // Sync Sales // ENDPOINT_7
+        // Sync Sales
         document.getElementById('sync-sales').addEventListener('click', async () => {
           document.getElementById('sync-sales-loading').classList.remove('hidden');
           try {
@@ -1040,7 +1035,7 @@
         document.getElementById('affiliate-search').addEventListener('input', () => updateDashboard());
         document.getElementById('affiliate-sort').addEventListener('change', () => updateDashboard());
 
-        // Affiliates Status Update // ENDPOINT_15
+        // Affiliates Status Update
         document.getElementById('affiliates-table').addEventListener('change', async (e) => {
           if (e.target.classList.contains('affiliate-status')) {
             const email = e.target.dataset.email;
@@ -1067,7 +1062,7 @@
           }
         });
 
-        // Pending Withdrawals Status Update // ENDPOINT_8
+        // Pending Withdrawals Status Update
         document.getElementById('pending-withdrawals-table').addEventListener('change', async (e) => {
           if (e.target.classList.contains('withdrawal-status')) {
             const withdrawalId = e.target.dataset.id;
@@ -1131,7 +1126,7 @@
           document.getElementById('spot-reward').classList.toggle('hidden', isPercentage);
         });
 
-        // Apply Percentage Reward // ENDPOINT_9
+        // Apply Percentage Reward
         document.getElementById('apply-percentage').addEventListener('click', async () => {
           const percentage = parseFloat(document.getElementById('percentage-amount').value);
           if (percentage <= 0 || percentage > 1) return showNotification('Percentage must be between 0 and 1', 'red');
@@ -1180,7 +1175,7 @@
           document.getElementById('spot-reward-modal').classList.remove('hidden');
         });
 
-        // Apply Spot Reward // ENDPOINT_9
+        // Apply Spot Reward
         document.getElementById('apply-spot-reward').addEventListener('click', async () => {
           const amount = parseFloat(document.getElementById('spot-amount').value);
           if (amount <= 0) return showNotification('Amount must be greater than 0', 'red');
@@ -1240,7 +1235,7 @@
           }
         });
 
-        // Static Page Form // ENDPOINT_10
+        // Static Page Form
         document.getElementById('static-page-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const title = document.getElementById('page-title').value;
@@ -1276,7 +1271,7 @@
           document.getElementById('static-page-modal').classList.add('hidden');
         });
 
-        // Delete Static Page // ENDPOINT_11
+        // Delete Static Page
         document.getElementById('confirm-delete-page').addEventListener('click', async () => {
           document.getElementById('delete-page-loading').classList.remove('hidden');
           try {
@@ -1295,7 +1290,7 @@
               showNotification('Page deleted', 'green');
               fetchDashboard();
             } else {
-              showNotification(data.message || 'Failed to delete page', 'red');
+                            showNotification(data.message || 'Failed to delete page', 'red');
             }
           } catch (err) {
             document.getElementById('delete-page-loading').classList.add('hidden');
@@ -1307,7 +1302,7 @@
           document.getElementById('delete-page-modal').classList.add('hidden');
         });
 
-        // Urgent Message Form // ENDPOINT_12
+        // Urgent Message
         document.getElementById('urgent-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const message = document.getElementById('urgent-message').value;
@@ -1315,20 +1310,21 @@
 
           document.getElementById('urgent-loading').classList.remove('hidden');
           try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/urgent`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/communication`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ message, enabled })
+              body: JSON.stringify({ type: 'urgent', message, enabled })
             });
             const data = await response.json();
             document.getElementById('urgent-loading').classList.add('hidden');
             if (data.success) {
-              showNotification('Urgent message updated', 'green');
+              showNotification('Urgent message saved', 'green');
+              fetchDashboard();
             } else {
-              showNotification(data.message || 'Failed to update urgent message', 'red');
+              showNotification(data.message || 'Failed to save urgent message', 'red');
             }
           } catch (err) {
             document.getElementById('urgent-loading').classList.add('hidden');
@@ -1336,7 +1332,7 @@
           }
         });
 
-        // News Form // ENDPOINT_12
+        // News Message
         document.getElementById('news-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const message = document.getElementById('news-message').value;
@@ -1344,20 +1340,21 @@
 
           document.getElementById('news-loading').classList.remove('hidden');
           try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/news`, {
+            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/communication`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ message, filter })
+              body: JSON.stringify({ type: 'news', message, filter })
             });
             const data = await response.json();
             document.getElementById('news-loading').classList.add('hidden');
             if (data.success) {
-              showNotification('News sent', 'green');
+              showNotification('News message sent', 'green');
+              fetchDashboard();
             } else {
-              showNotification(data.message || 'Failed to send news', 'red');
+              showNotification(data.message || 'Failed to send news message', 'red');
             }
           } catch (err) {
             document.getElementById('news-loading').classList.add('hidden');
@@ -1365,21 +1362,28 @@
           }
         });
 
-        // Password Resets // ENDPOINT_14
+        // Password Resets
         document.getElementById('password-resets-table').addEventListener('click', async (e) => {
-          if (e.target.classList.contains('approve-reset')) {
+          if (e.target.classList.contains('copy-password')) {
+            const value = e.target.dataset.value;
+            navigator.clipboard.writeText(value).then(() => {
+              showNotification('Password copied', 'green');
+            }).catch(() => {
+              showNotification('Failed to copy', 'red');
+            });
+          } else if (e.target.classList.contains('approve-reset')) {
             const email = e.target.dataset.email;
             const password = e.target.previousElementSibling.value;
             if (!password) return showNotification('Enter a new password', 'red');
 
             try {
-              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-password`, {
+              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-passwords`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${getCookie('jwt')}`,
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ email, password, status: 'Approved' })
+                body: JSON.stringify({ email, status: 'Approved', password })
               });
               const data = await response.json();
               if (data.success) {
@@ -1391,13 +1395,6 @@
             } catch (err) {
               showNotification('Error: ' + err.message, 'red');
             }
-          } else if (e.target.classList.contains('copy-password')) {
-            const value = e.target.dataset.value;
-            navigator.clipboard.writeText(value).then(() => {
-              showNotification('Password copied', 'green');
-            }).catch(() => {
-              showNotification('Failed to copy', 'red');
-            });
           }
         });
 
@@ -1407,7 +1404,7 @@
             const status = e.target.value;
 
             try {
-              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-password`, {
+              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-passwords`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${getCookie('jwt')}`,
@@ -1428,13 +1425,13 @@
           }
         });
 
-        // Admin Settings Form // ENDPOINT_13
+        // Admin Settings Form
         document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
           e.preventDefault();
-          const email = document.getElementById('settings-admin-email').value;
-          const password = document.getElementById('settings-admin-password').value;
+          const adminEmail = document.getElementById('settings-admin-email').value;
+          const adminPassword = document.getElementById('settings-admin-password').value;
 
-          if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
+          if (!validateEmail(adminEmail)) return showNotification('Invalid email format', 'red');
 
           document.getElementById('admin-settings-loading').classList.remove('hidden');
           try {
@@ -1444,7 +1441,7 @@
                 'Authorization': `Bearer ${getCookie('jwt')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ adminEmail: email, adminPassword: password })
+              body: JSON.stringify({ adminEmail, adminPassword })
             });
             const data = await response.json();
             document.getElementById('admin-settings-loading').classList.add('hidden');
@@ -1464,11 +1461,11 @@
         document.getElementById('logout').addEventListener('click', () => {
           clearCookie('jwt');
           if (ws) ws.close();
-          showLogin();
           showNotification('Logged out', 'green');
+          showLogin();
         });
 
-        // Check JWT on Load
+        // Initial Check
         const token = getCookie('jwt');
         if (token) {
           try {
@@ -1483,17 +1480,14 @@
           } catch (err) {
             clearCookie('jwt');
             showLogin();
-            showNotification('Invalid token: ' + err.message, 'red');
           }
         } else {
           showLogin();
         }
       } catch (err) {
-        console.error('DOMContentLoaded error:', err);
-        showNotification('Initialization error: ' + err.message, 'red');
+        console.error('Initialization error:', err);
+        showNotification('Initialization failed: ' + err.message, 'red');
         showLogin();
       }
     });
   </script>
-</body>
-</html>
