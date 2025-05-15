@@ -586,48 +586,73 @@ app.post('/api/affiliate/mark-notification', authenticateAffiliate, async (req, 
 });
 
 // Endpoints
+
 app.post('/api/affiliate/register', registerLimiter, async (req, res) => {
-  const { name, username, email, password, termsAccepted } = req.body;
-  if (!validateName(name) || !validateUsername(username) || !validateEmail(email) || !validatePassword(password) || !termsAccepted) {
-    return res.status(400).json({ success: false, message: 'Invalid input' });
+  try {
+    const { name, username, email, password, termsAccepted } = req.body;
+    if (!validateName(name) || !validateUsername(username) || !validateEmail(email) || !validatePassword(password) || !termsAccepted) {
+      return res.status(400).json({ success: false, message: 'Invalid input' });
+    }
+    const affiliates = await fetchAffiliates();
+    if (affiliates.some(a => a.Email === email || a.Username === username)) {
+      return res.status(400).json({ success: false, message: 'Email or username taken' });
+    }
+    if (affiliates.some(a => a.Email === email && ['blocked', 'deleted'].includes(a.Statusjson.status))) {
+      return res.status(400).json({ success: false, message: 'Account blocked' });
+    }
+    const refCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const affiliate = {
+      Email: email,
+      Username: username,
+      Name: name,
+      JoinDate: new Date().toISOString(),
+      RefCode: refCode,
+      Password: hashedPassword,
+      Statusjson: { status: 'active' },
+      LinkClicks: 0,
+      TotalSales: 0,
+      TotalSalesMonthly: 0,
+      CurrentBalance: 0,
+      WithdrawnTotal: 0,
+      WithdrawalsJSON: [],
+      RewardsJSON: [],
+      NotificationsJSON: [],
+      MpesaDetails: {}
+    };
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: AFFILIATES_SHEET_ID,
+      range: 'all affiliates!A:P',
+      valueInputOption: 'RAW',
+      resource: {
+        values: [[
+          affiliate.Email,
+          affiliate.Username,
+          affiliate.Name,
+          affiliate.JoinDate,
+          affiliate.RefCode,
+          affiliate.Password,
+          JSON.stringify(affiliate.Statusjson), // Stringify Statusjson
+          affiliate.LinkClicks,
+          affiliate.TotalSales,
+          affiliate.TotalSalesMonthly,
+          affiliate.CurrentBalance,
+          affiliate.WithdrawnTotal,
+          JSON.stringify(affiliate.WithdrawalsJSON), // Stringify WithdrawalsJSON
+          JSON.stringify(affiliate.RewardsJSON), // Stringify RewardsJSON
+          JSON.stringify(affiliate.NotificationsJSON), // Stringify NotificationsJSON
+          JSON.stringify(affiliate.MpesaDetails) // Stringify MpesaDetails
+        ]]
+      }
+    });
+    await logTransaction(email, 'register', { username, refCode });
+    const token = jwt.sign({ email, username, role: 'affiliate' }, JWT_SECRET, { expiresIn: '7d' });
+    await updateCache();
+    res.json({ success: true, token, data: { name, username, refCode } });
+  } catch (error) {
+    console.error('Error in /api/affiliate/register:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to register affiliate' });
   }
-  const affiliates = await fetchAffiliates();
-  if (affiliates.some(a => a.Email === email || a.Username === username)) {
-    return res.status(400).json({ success: false, message: 'Email or username taken' });
-  }
-  if (affiliates.some(a => a.Email === email && ['blocked', 'deleted'].includes(a.Statusjson.status))) {
-    return res.status(400).json({ success: false, message: 'Account blocked' });
-  }
-  const refCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const affiliate = {
-    Email: email,
-    Username: username,
-    Name: name,
-    JoinDate: new Date().toISOString(),
-    RefCode: refCode,
-    Password: hashedPassword,
-    Statusjson: { status: 'active' },
-    LinkClicks: 0,
-    TotalSales: 0,
-    TotalSalesMonthly: 0,
-    CurrentBalance: 0,
-    WithdrawnTotal: 0,
-    WithdrawalsJSON: [],
-    RewardsJSON: [],
-    NotificationsJSON: [],
-    MpesaDetails: {}
-  };
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: 'all affiliates!A:P',
-    valueInputOption: 'RAW',
-    resource: { values: [Object.values(affiliate)] }
-  });
-  await logTransaction(email, 'register', { username, refCode });
-  const token = jwt.sign({ email, username, role: 'affiliate' }, JWT_SECRET, { expiresIn: '7d' });
-  await updateCache();
-  res.json({ success: true, token, data: { name, username, refCode } });
 });
 
 app.post('/api/affiliate/login', loginLimiter, async (req, res) => {
