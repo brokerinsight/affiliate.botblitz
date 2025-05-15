@@ -7,44 +7,26 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>
   <style>
-    /* Custom animations */
-    .notification-enter {
-      transform: translateX(100%);
-      opacity: 0;
-      transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
-    }
-    .notification-enter-active {
-      transform: translateX(0);
-      opacity: 1;
-    }
-    .notification-exit {
-      opacity: 1;
-      transition: opacity 0.3s ease-in-out;
-    }
-    .notification-exit-active {
-      opacity: 0;
-    }
-    .card-hover:hover {
-      transform: translateY(-2px);
-      transition: transform 0.2s ease-in-out;
-    }
+    .notification { transform: translateX(100%); transition: transform 0.3s ease-in-out, opacity 0.3s; }
+    .notification.show { transform: translateX(0); }
+    .notification.hide { opacity: 0; }
+    .card-hover:hover { transform: translateY(-2px); transition: transform 0.2s; }
+    .fade-out { animation: fadeOut 0.3s forwards; }
+    @keyframes fadeOut { to { opacity: 0; } }
   </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
   <!-- Header -->
   <header class="bg-white dark:bg-gray-800 shadow">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-      <div id="logo" class="flex items-center">
-        <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates Admin</h1>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+      <div class="flex items-center">
+        <span id="logo" class="text-2xl font-bold">Deriv Bot Store Affiliates Admin</span>
       </div>
-      <div id="nav" class="flex items-center space-x-4 hidden">
-        <button id="logout" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Logout</button>
-        <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
-          <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="flex items-center space-x-4">
+        <button id="logout-btn" class="hidden bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Logout</button>
+        <button id="theme-toggle" aria-label="Toggle theme" class="p-2">
+          <svg id="theme-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-          <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
           </svg>
         </button>
       </div>
@@ -52,344 +34,355 @@
   </header>
 
   <!-- Main Content -->
-  <main class="max-w-7xl mx-auto px-4 py-6">
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Login Page -->
-    <div id="login-section" class="hidden">
-      <div class="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-        <h2 class="text-xl font-bold mb-4 text-center">Admin Login</h2>
-        <form id="login-form" class="space-y-4">
+    <div id="login-page" class="flex items-center justify-center min-h-[calc(100vh-8rem)]">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow max-w-md w-full">
+        <h2 class="text-2xl font-bold mb-6 text-center">Admin Login</h2>
+        <div class="space-y-4">
           <div>
             <label for="login-email" class="block text-sm font-medium">Email</label>
-            <input id="login-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-label="Admin Email">
+            <input id="login-email" type="email" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" required>
           </div>
           <div>
             <label for="login-password" class="block text-sm font-medium">Password</label>
             <div class="relative">
-              <input id="login-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-label="Admin Password">
-              <button type="button" id="login-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+              <input id="login-password" type="password" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" required>
+              <button id="toggle-login-password" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
             </div>
           </div>
-          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Login">
-            <span>Login</span>
-            <svg id="login-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+          <button id="login-submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex justify-center items-center">
+            Login
+            <svg id="login-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
             </svg>
           </button>
-        </form>
+        </div>
+        <p class="text-center text-sm text-gray-500 mt-4">Deriv Bot Store Affiliates 2025</p>
       </div>
     </div>
 
-    <!-- Dashboard Section -->
-    <div id="dashboard-section" class="hidden">
-      <!-- Tabs -->
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden">
+      <!-- Tabs Navigation -->
       <nav class="flex flex-wrap gap-2 mb-6">
-        <button id="tab-home" class="px-4 py-2 bg-blue-500 text-white rounded-md">Home</button>
-        <button id="tab-affiliates" class="px-4 py-2 bg-gray-500 text-white rounded-md">Affiliates</button>
-        <button id="tab-pending-withdrawals" class="px-4 py-2 bg-gray-500 text-white rounded-md">Pending Withdrawals</button>
-        <button id="tab-sorted-withdrawals" class="px-4 py-2 bg-gray-500 text-white rounded-md">Sorted Withdrawals</button>
-        <button id="tab-rewards" class="px-4 py-2 bg-gray-500 text-white rounded-md">Rewards</button>
-        <button id="tab-static-pages" class="px-4 py-2 bg-gray-500 text-white rounded-md">Static Pages</button>
-        <button id="tab-communication" class="px-4 py-2 bg-gray-500 text-white rounded-md">Communication</button>
-        <button id="tab-password-resets" class="px-4 py-2 bg-gray-500 text-white rounded-md">Password Resets</button>
-        <button id="tab-settings" class="px-4 py-2 bg-gray-500 text-white rounded-md">Settings</button>
+        <button data-tab="home" class="tab-btn bg-blue-500 text-white px-4 py-2 rounded-md">Home</button>
+        <button data-tab="affiliates" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Affiliates</button>
+        <button data-tab="pending-withdrawals" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Pending Withdrawals</button>
+        <button data-tab="sorted-withdrawals" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Sorted Withdrawals</button>
+        <button data-tab="rewards" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Rewards</button>
+        <button data-tab="static-pages" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Static Pages</button>
+        <button data-tab="communication" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Communication</button>
+        <button data-tab="password-resets" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Password Resets</button>
+        <button data-tab="settings" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Settings</button>
       </nav>
 
       <!-- Tab Content -->
-      <div id="home-content" class="space-y-6">
+      <div id="home-tab" class="tab-content">
+        <h2 class="text-xl font-bold mb-4">Settings Overview</h2>
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
-          <h2 class="text-lg font-bold mb-4">Global Settings</h2>
-          <form id="settings-form" class="space-y-4">
+          <div class="space-y-4">
             <div>
               <label for="support-email" class="block text-sm font-medium">Support Email</label>
-              <input id="support-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
-            </div>
+              <input id="support-email" type="email" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" value="derivbotstore@gmail.com">
+            </arbon>
             <div>
               <label for="copyright-text" class="block text-sm font-medium">Copyright Text</label>
-              <input id="copyright-text" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+              <input id="copyright-text" type="text" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" value="Deriv Bot Store Affiliates 2025">
             </div>
             <div>
               <label for="whatsapp-link" class="block text-sm font-medium">WhatsApp Link</label>
-              <input id="whatsapp-link" type="url" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+              <input id="whatsapp-link" type="url" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" value="https://wa.link/4wppln">
             </div>
             <div>
               <label for="commission-rate" class="block text-sm font-medium">Commission Rate (0–1)</label>
-              <input id="commission-rate" type="number" step="0.01" min="0" max="1" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+              <input id="commission-rate" type="number" step="0.01" min="0" max="1" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" value="0.2">
             </div>
             <div>
               <label for="logo-url" class="block text-sm font-medium">Logo URL</label>
-              <input id="logo-url" type="url" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
+              <input id="logo-url" type="url" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
             </div>
-            <div>
-              <label for="admin-email" class="block text-sm font-medium">Admin Email</label>
-              <input id="admin-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
-            </div>
-            <div>
-              <label for="admin-password" class="block text-sm font-medium">Admin Password</label>
-              <div class="relative">
-                <input id="admin-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
-                <button type="button" id="admin-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
-              </div>
-            </div>
-            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
-              <span>Save Settings</span>
-              <svg id="settings-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+            <button id="save-settings" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+              Save Settings
+              <svg id="save-settings-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
               </svg>
             </button>
-          </form>
-        </div>
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
-          <h2 class="text-lg font-bold mb-4">Sync Sales</h2>
-          <button id="sync-sales" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
-            <span>Sync Sales</span>
-            <svg id="sync-sales-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          </button>
+          </div>
         </div>
       </div>
-      <div id="affiliates-content" class="hidden">
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover mb-4">
-          <div class="flex flex-col md:flex-row gap-4">
-            <div>
-              <label for="affiliate-search" class="block text-sm font-medium">Search</label>
-              <input id="affiliate-search" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="Search by Name, Email, or Username">
-            </div>
-            <div>
-              <label for="affiliate-sort" class="block text-sm font-medium">Sort By</label>
-              <select id="affiliate-sort" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
-                <option value="monthly-sales-desc">Monthly Sales: High to Low</option>
-                <option value="status-active">Status: Active</option>
-                <option value="status-blocked">Status: Blocked</option>
-                <option value="status-deleted">Status: Deleted</option>
-              </select>
+
+      <div id="affiliates-tab" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-4">Affiliates</h2>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
+          <div class="flex flex-col md:flex-row gap-4 mb-4">
+            <input id="affiliate-search" type="text" placeholder="Search by Name, Email, or Username" class="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+            <select id="affiliate-sort" class="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+              <option value="monthly-sales">Monthly Sales: High to Low</option>
+              <option value="status-active">Status: Active</option>
+              <option value="status-blocked">Status: Blocked</option>
+              <option value="status-deleted">Status: Deleted</option>
+            </select>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse">
+              <thead>
+                <tr class="bg-gray-200 dark:bg-gray-700">
+                  <th class="p-2 text-left">Name</th>
+                  <th class="p-2 text-left">Email</th>
+                  <th class="p-2 text-left">Username</th>
+                  <th class="p-2 text-left">Join Date</th>
+                  <th class="p-2 text-left">Link Clicks</th>
+                  <th class="p-2 text-left">Sale Count</th>
+                  <th class="p-2 text-left">Current Balance (KES)</th>
+                  <th class="p-2 text-left">Withdrawn Total (KES)</th>
+                  <th class="p-2 text-left">Monthly Sales</th>
+                  <th class="p-2 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody id="affiliates-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="pending-withdrawals-tab" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-4">Pending Withdrawals</h2>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse">
+              <thead>
+                <tr class="bg-gray-200 dark:bg-gray-700">
+                  <th class="p-2 text-left">Email</th>
+                  <th class="p-2 text-left">Name</th>
+                  <th class="p-2 text-left">Timestamp</th>
+                  <th class="p-2 text-left">Amount (KES)</th>
+                  <th class="p-2 text-left">MPESA Number</th>
+                  <th class="p-2 text-left">MPESA Name</th>
+                  <th class="p-2 text-left">Payment Refcode</th>
+                  <th class="p-2 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody id="pending-withdrawals-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="sorted-withdrawals-tab" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-4">Sorted Withdrawals</h2>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse">
+              <thead>
+                <tr class="bg-gray-200 dark:bg-gray-700">
+                  <th class="p-2 text-left">Email</th>
+                  <th class="p-2 text-left">Name</th>
+                  <th class="p-2 text-left">Timestamp</th>
+                  <th class="p-2 text-left">Amount (KES)</th>
+                  <th class="p-2 text-left">MPESA Number</th>
+                  <th class="p-2 text-left">MPESA Name</th>
+                  <th class="p-2 text-left">Payment Refcode</th>
+                  <th class="p-2 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody id="sorted-withdrawals-table"></tbody>
+            </table>
+            <div class="flex justify-between mt-4">
+              <button id="prev-sorted-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 disabled:opacity-50">Previous</button>
+              <button id="next-sorted-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 disabled:opacity-50">Next</button>
             </div>
           </div>
         </div>
-        <table class="w-full border-collapse">
-          <thead>
-            <tr class="bg-gray-200 dark:bg-gray-700">
-              <th class="p-2 text-left">Name</th>
-              <th class="p-2 text-left">Email</th>
-              <th class="p-2 text-left">Username</th>
-              <th class="p-2 text-left">Join Date</th>
-              <th class="p-2 text-left">Link Clicks</th>
-              <th class="p-2 text-left">Sale Count</th>
-              <th class="p-2 text-left">Total Earnings (KES)</th>
-              <th class="p-2 text-left">Withdrawn Total (KES)</th>
-              <th class="p-2 text-left">Monthly Sales</th>
-              <th class="p-2 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody id="affiliates-table"></tbody>
-        </table>
       </div>
-      <div id="pending-withdrawals-content" class="hidden">
-        <table class="w-full border-collapse">
-          <thead>
-            <tr class="bg-gray-200 dark:bg-gray-700">
-              <th class="p-2 text-left">Email</th>
-              <th class="p-2 text-left">Name</th>
-              <th class="p-2 text-left">Timestamp</th>
-              <th class="p-2 text-left">Amount (KES)</th>
-              <th class="p-2 text-left">MPESA Number</th>
-              <th class="p-2 text-left">MPESA Name</th>
-              <th class="p-2 text-left">Payment Refcode</th>
-              <th class="p-2 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody id="pending-withdrawals-table"></tbody>
-        </table>
-      </div>
-      <div id="sorted-withdrawals-content" class="hidden">
-        <p class="text-sm text-gray-500 mb-4">Showing up to 40 recent withdrawals.</p>
-        <table class="w-full border-collapse">
-          <thead>
-            <tr class="bg-gray-200 dark:bg-gray-700">
-              <th class="p-2 text-left">Email</th>
-              <th class="p-2 text-left">Name</th>
-              <th class="p-2 text-left">Timestamp</th>
-              <th class="p-2 text-left">Amount (KES)</th>
-              <th class="p-2 text-left">MPESA Number</th>
-              <th class="p-2 text-left">MPESA Name</th>
-              <th class="p-2 text-left">Payment Refcode</th>
-              <th class="p-2 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody id="sorted-withdrawals-table"></tbody>
-        </table>
-        <div class="flex justify-between mt-4">
-          <button id="sorted-withdrawals-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Previous</button>
-          <button id="sorted-withdrawals-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Next</button>
-        </div>
-      </div>
-      <div id="rewards-content" class="hidden">
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover mb-4">
-          <h2 class="text-lg font-bold mb-4">Leaderboard Rewards</h2>
-          <table class="w-full border-collapse mb-4">
-            <thead>
-              <tr class="bg-gray-200 dark:bg-gray-700">
-                <th class="p-2 text-left">Rank</th>
-                <th class="p-2 text-left">Name</th>
-                <th class="p-2 text-left">Email</th>
-                <th class="p-2 text-left">Monthly Sales</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboard-table"></tbody>
-          </table>
-          <div class="space-y-4">
-            <div>
-              <label for="reward-type" class="block text-sm font-medium">Reward Type</label>
-              <select id="reward-type" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
-                <option value="percentage">Percentage</option>
-                <option value="spot">Spot</option>
-              </select>
-            </div>
-            <div id="percentage-reward" class="space-y-4">
-              <div>
-                <label for="percentage-amount" class="block text-sm font-medium">Percentage (e.g., 10% = 0.1)</label>
-                <input id="percentage-amount" type="number" step="0.01" min="0" max="1" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
-              </div>
-              <button id="apply-percentage" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
-                <span>Apply Reward</span>
-                <svg id="percentage-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+
+      <div id="rewards-tab" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-4">Rewards</h2>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
+          <h3 class="text-lg font-semibold mb-2">Leaderboard Rewards</h3>
+          <div class="mb-4">
+            <table class="w-full border-collapse">
+              <thead>
+                <tr class="bg-gray-200 dark:bg-gray-700">
+                  <th class="p-2 text-left">Rank</th>
+                  <th class="p-2 text-left">Name</th>
+                  <th class="p-2 text-left">Email</th>
+                  <th class="p-2 text-left">Monthly Sales</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table"></tbody>
+            </table>
+            <div class="mt-4">
+              <label for="percentage-reward" class="block text-sm font-medium">Percentage Reward (0–1)</label>
+              <input id="percentage-reward" type="number" step="0.01" min="0" max="1" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+              <button id="apply-percentage-reward" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+                Apply Reward
+                <svg id="percentage-reward-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
               </button>
             </div>
-            <div id="spot-reward" class="space-y-4 hidden">
-              <div>
-                <label for="spot-amount" class="block text-sm font-medium">Fixed Amount (KES)</label>
-                <input id="spot-amount" type="number" min="0" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
-              </div>
-              <button id="select-recipients" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Select Recipients</button>
-            </div>
+          </div>
+          <h3 class="text-lg font-semibold mb-2">Spot Rewards</h3>
+          <div>
+            <label for="spot-amount" class="block text-sm font-medium">Spot Amount (KES)</label>
+            <input id="spot-amount" type="number" min="0" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+            <button id="select-recipients" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Select Recipients</button>
           </div>
         </div>
       </div>
-      <div id="static-pages-content" class="hidden">
-        <div class="flex justify-end mb-4">
-          <button id="create-page" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Create Page</button>
+
+      <div id="static-pages-tab" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-4">Static Pages</h2>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
+          <button id="create-page" class="mb-4 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Create Page</button>
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="bg-gray-200 dark:bg-gray-700">
+                <th class="p-2 text-left">Slug</th>
+                <th class="p-2 text-left">Title</th>
+                <th class="p-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="static-pages-table"></tbody>
+          </table>
         </div>
-        <table class="w-full border-collapse">
-          <thead>
-            <tr class="bg-gray-200 dark:bg-gray-700">
-              <th class="p-2 text-left">Slug</th>
-              <th class="p-2 text-left">Title</th>
-              <th class="p-2 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="static-pages-table"></tbody>
-        </table>
       </div>
-      <div id="communication-content" class="hidden">
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover mb-4">
-          <h2 class="text-lg font-bold mb-4">Urgent Message</h2>
-          <form id="urgent-form" class="space-y-4">
+
+      <div id="communication-tab" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-4">Communication</h2>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
+          <h3 class="text-lg font-semibold mb-2">Urgent Message</h3>
+          <div class="space-y-4 mb-4">
             <div>
               <label for="urgent-message" class="block text-sm font-medium">Message</label>
-              <textarea id="urgent-message" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required></textarea>
+              <textarea id="urgent-message" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" rows="4"></textarea>
             </div>
             <div>
               <label class="flex items-center">
                 <input id="urgent-enabled" type="checkbox" class="mr-2">
-                <span class="text-sm">Enable Popup on Affiliate Dashboard</span>
+                <span>Enabled</span>
               </label>
             </div>
-            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
-              <span>Save</span>
-              <svg id="urgent-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+            <button id="save-urgent" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+              Save
+              <svg id="save-urgent-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
               </svg>
             </button>
-          </form>
-        </div>
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
-          <h2 class="text-lg font-bold mb-4">News</h2>
-          <form id="news-form" class="space-y-4">
+          </div>
+          <h3 class="text-lg font-semibold mb-2">News</h3>
+          <div class="space-y-4">
             <div>
               <label for="news-message" class="block text-sm font-medium">Message</label>
-              <textarea id="news-message" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required></textarea>
+              <textarea id="news-message" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" rows="4"></textarea>
             </div>
             <div>
               <label for="news-filter" class="block text-sm font-medium">Filter</label>
-              <select id="news-filter" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
+              <select id="news-filter" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
                 <option value="all">All Affiliates</option>
-                <option value="active">Active Affiliates</option>
-                <option value="blocked">Blocked Affiliates</option>
               </select>
             </div>
-            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
-              <span>Send</span>
-              <svg id="news-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+            <button id="send-news" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+              Send
+              <svg id="send-news-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
               </svg>
             </button>
-          </form>
+          </div>
         </div>
       </div>
-      <div id="password-resets-content" class="hidden">
-        <table class="w-full border-collapse">
-          <thead>
-            <tr class="bg-gray-200 dark:bg-gray-700">
-              <th class="p-2 text-left">Email</th>
-              <th class="p-2 text-left">Username</th>
-              <th class="p-2 text-left">Name</th>
-              <th class="p-2 text-left">Last Withdrawal Amount</th>
-              <th class="p-2 text-left">Description</th>
-              <th class="p-2 text-left">Timestamp</th>
-              <th class="p-2 text-left">Status</th>
-              <th class="p-2 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="password-resets-table"></tbody>
-        </table>
-      </div>
-      <div id="settings-content" class="hidden">
+
+      <div id="password-resets-tab" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-4">Password Resets</h2>
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
-          <h2 class="text-lg font-bold mb-4">Admin Credentials</h2>
-          <form id="admin-settings-form" class="space-y-4">
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse">
+              <thead>
+                <tr class="bg-gray-200 dark:bg-gray-700">
+                  <th class="p-2 text-left">Email</th>
+                  <th class="p-2 text-left">Username</th>
+                  <th class="p-2 text-left">Name</th>
+                  <th class="p-2 text-left">Last Withdrawal Amount</th>
+                  <th class="p-2 text-left">Description</th>
+                  <th class="p-2 text-left">Timestamp</th>
+                  <th class="p-2 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody id="password-resets-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="settings-tab" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-4">Admin Settings</h2>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
+          <div class="space-y-4">
             <div>
-              <label for="settings-admin-email" class="block text-sm font-medium">Admin Email</label>
-              <input id="settings-admin-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+              <label for="old-email" class="block text-sm font-medium">Old Email</label>
+              <input id="old-email" type="email" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
             </div>
             <div>
-              <label for="settings-admin-password" class="block text-sm font-medium">Admin Password</label>
+              <label for="new-email" class="block text-sm font-medium">New Email</label>
+              <input id="new-email" type="email" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+            </div>
+            <div>
+              <label for="old-password" class="block text-sm font-medium">Old Password</label>
               <div class="relative">
-                <input id="settings-admin-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
-                <button type="button" id="settings-admin-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+                <input id="old-password" type="password" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                <button id="toggle-old-password" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
               </div>
             </div>
-            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
-              <span>Save</span>
-              <svg id="admin-settings-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+            <div>
+              <label for="new-password" class="block text-sm font-medium">New Password</label>
+              <div class="relative">
+                <input id="new-password" type="password" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                <button id="toggle-new-password" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+              </div>
+            </div>
+            <div>
+              <label for="confirm-new-password" class="block text-sm font-medium">Confirm New Password</label>
+              <div class="relative">
+                <input id="confirm-new-password" type="password" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                <button id="toggle-confirm-password" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+              </div>
+            </div>
+            <button id="save-credentials" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+              Save Credentials
+              <svg id="save-credentials-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
               </svg>
             </button>
-          </form>
+          </div>
         </div>
       </div>
     </div>
   </main>
 
   <!-- Footer -->
-  <footer class="bg-white dark:bg-gray-800 py-6">
-    <div class="max-w-7xl mx-auto px-4 text-center">
-      <p id="copyright" class="text-sm text-gray-500">Deriv Bot Store Affiliates 2025</p>
+  <footer class="bg-white dark:bg-gray-800 py-4">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
+      <span id="footer-copyright">Deriv Bot Store Affiliates 2025</span>
     </div>
   </footer>
 
+  <!-- Notifications Container -->
+  <div id="notifications" class="fixed top-4 right-4 space-y-2 max-w-sm"></div>
+
   <!-- Modals -->
-  <div id="spot-reward-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div id="recipients-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-4xl w-full">
-      <h2 class="text-xl font-bold mb-4">Select Spot Reward Recipients</h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold">Select Recipients</h2>
+        <button id="close-recipients-modal" class="text-gray-500 hover:text-gray-700">&times;</button>
+      </div>
       <table class="w-full border-collapse">
         <thead>
           <tr class="bg-gray-200 dark:bg-gray-700">
@@ -400,89 +393,74 @@
             <th class="p-2 text-left">Select</th>
           </tr>
         </thead>
-        <tbody id="spot-reward-table"></tbody>
+        <tbody id="recipients-table"></tbody>
       </table>
-      <div class="flex justify-end mt-4 space-x-4">
-        <button id="apply-spot-reward" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
-          <span>Apply Spot Reward</span>
-          <svg id="spot-reward-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+      <div class="mt-4 flex justify-end">
+        <button id="apply-spot-reward" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+          Apply Spot Reward
+          <svg id="spot-reward-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
           </svg>
         </button>
-        <button id="close-spot-reward" class="text-gray-500 hover:text-gray-700">Cancel</button>
       </div>
     </div>
   </div>
-  <div id="static-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+
+  <div id="page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
-      <h2 id="static-page-title" class="text-xl font-bold mb-4">Create Page</h2>
-      <form id="static-page-form" class="space-y-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 id="page-modal-title" class="text-xl font-bold">Create Page</h2>
+        <button id="close-page-modal" class="text-gray-500 hover:text-gray-700">&times;</button>
+      </div>
+      <div class="space-y-4">
         <div>
           <label for="page-title" class="block text-sm font-medium">Title</label>
-          <input id="page-title" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+          <input id="page-title" type="text" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
         </div>
         <div>
-          <label for="page-content" class="block text-sm font-medium">Content (HTML/Markdown)</label>
-          <textarea id="page-content" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" rows="6" required></textarea>
+          <label for="page-content" class="block text-sm font-medium">Content</label>
+          <textarea id="page-content" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" rows="6"></textarea>
         </div>
-        <div class="flex justify-end space-x-4">
-          <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
-            <span>Save</span>
-            <svg id="static-page-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+        <div class="flex justify-end space-x-2">
+          <button id="save-page" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+            Save
+            <svg id="save-page-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
             </svg>
           </button>
-          <button type="button" id="close-static-page" class="text-gray-500 hover:text-gray-700">Cancel</button>
+          <button id="cancel-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Cancel</button>
         </div>
-      </form>
-    </div>
-  </div>
-  <div id="delete-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
-      <h2 class="text-xl font-bold mb-4">Delete Page</h2>
-      <p class="mb-4">Are you sure you want to delete this page? This action cannot be undone.</p>
-      <div class="flex justify-end space-x-4">
-        <button id="confirm-delete-page" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 flex justify-center items-center">
-          <span>Delete</span>
-          <svg id="delete-page-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </button>
-        <button id="close-delete-page" class="text-gray-500 hover:text-gray-700">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Notifications -->
-  <div id="notifications" class="fixed top-4 right-4 space-y-2"></div>
+  <div id="delete-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
+      <h2 class="text-xl font-bold mb-4">Confirm Deletion</h2>
+      <p>Are you sure you want to delete this page?</p>
+      <div class="flex justify-end space-x-2 mt-4">
+        <button id="confirm-delete-page" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Delete</button>
+        <button id="cancel-delete-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <script>
-    // Constants
     const API_BASE = 'https://affiliate-botblitz.onrender.com';
-    const WS_BASE = 'wss://affiliate-botblitz.onrender.com/ws/admin';
-    const NOTIFICATION_TIMEOUT = 30000; // 30s
-    const ITEMS_PER_PAGE = 20;
-
-    // State
     let ws = null;
+    let currentTab = 'home';
+    let affiliates = [];
+    let pendingWithdrawals = [];
+    let sortedWithdrawals = [];
+    let staticPages = [];
+    let passwordResets = [];
+    let leaderboard = [];
+    let settings = {};
     let notificationsQueue = [];
-    let activeNotifications = 0;
-    let dashboardData = {
-      settings: {},
-      affiliates: [],
-      pendingWithdrawals: [],
-      sortedWithdrawals: [],
-      leaderboard: [],
-      staticPages: [],
-      passwordResets: []
-    };
-    let pagination = {
-      sortedWithdrawals: { page: 1, total: 0 }
-    };
-    let currentSlug = null;
+    let currentSortedPage = 1;
+    let totalSortedPages = 1;
 
     // Utility Functions
     function getCookie(name) {
@@ -492,1002 +470,941 @@
       return null;
     }
 
-    function setCookie(name, value, maxAge) {
-      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; SameSite=Strict`;
+    function setCookie(name, value, days) {
+      const date = new Date();
+      date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+      document.cookie = `${name}=${value};expires=${date.toUTCString()};path=/;secure;httpOnly`;
     }
 
-    function clearCookie(name) {
-      document.cookie = `${name}=; max-age=0; path=/; secure; SameSite=Strict`;
+    function deleteCookie(name) {
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
     }
 
-    function showNotification(message, color, id = `NOTIF${Date.now()}`) {
-      if (activeNotifications >= 3) {
-        notificationsQueue.push({ message, color, id });
-        return;
+    function showNotification(message, color = 'blue') {
+      const id = `NOTIF${Date.now()}`;
+      notificationsQueue.push({ id, message, color });
+      if (notificationsQueue.length > 3) {
+        const oldest = notificationsQueue.shift();
+        const el = document.getElementById(oldest.id);
+        if (el) el.remove();
       }
-      activeNotifications++;
-      const notification = document.createElement('div');
-      notification.className = `bg-white dark:bg-gray-800 p-4 rounded shadow border-l-4 border-${color}-500 notification-enter`;
-      notification.innerHTML = `
-        <div class="flex justify-between items-center">
-          <p>${message}</p>
-          <button class="text-gray-500 hover:text-gray-700" onclick="closeNotification(this, '${id}')">X</button>
+      renderNotifications();
+    }
+
+    function renderNotifications() {
+      const container = document.getElementById('notifications');
+      container.innerHTML = notificationsQueue.map(n => `
+        <div id="${n.id}" class="notification bg-white dark:bg-gray-800 p-4 rounded shadow border-l-4 border-${n.color}-500 flex justify-between items-center">
+          <span>${n.message}</span>
+          <button onclick="closeNotification('${n.id}')" class="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
-      `;
-      document.getElementById('notifications').appendChild(notification);
-      setTimeout(() => notification.classList.add('notification-enter-active'), 10);
-      setTimeout(() => closeNotification(notification.querySelector('button'), id), NOTIFICATION_TIMEOUT);
-    }
-
-    function closeNotification(button, id) {
-      const notification = button.parentElement.parentElement;
-      notification.classList.add('notification-exit');
+      `).join('');
       setTimeout(() => {
-        notification.classList.add('notification-exit-active');
+        notificationsQueue.forEach(n => {
+          const el = document.getElementById(n.id);
+          if (el) el.classList.add('show');
+          setTimeout(() => {
+            closeNotification(n.id);
+          }, 30000);
+        });
+      }, 100);
+    }
+
+    function closeNotification(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add('hide');
         setTimeout(() => {
-          notification.remove();
-          activeNotifications--;
-          if (notificationsQueue.length > 0) {
-            const next = notificationsQueue.shift();
-            showNotification(next.message, next.color, next.id);
-          }
+          notificationsQueue = notificationsQueue.filter(n => n.id !== id);
+          el.remove();
+          renderNotifications();
         }, 300);
-      }, 10);
-    }
-
-    function validateEmail(email) {
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    }
-
-    function validateUrl(url) {
-      try {
-        new URL(url);
-        return true;
-      } catch {
-        return false;
       }
+    }
+
+    async function fetchWithAuth(url, options = {}) {
+      const token = getCookie('jwt');
+      options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      const res = await fetch(url, options);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    // Theme Toggle
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      document.getElementById('theme-icon').innerHTML = isDark
+        ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />`
+        : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />`;
+    });
+
+    // Initialize Theme
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+      document.getElementById('theme-icon').innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />`;
     }
 
     // WebSocket Setup
-    function initWebSocket(token) {
-      let reconnectAttempts = 0;
-      const maxAttempts = 5;
-      const baseDelay = 1000;
-
-      function connect() {
-        ws = new WebSocket(`${WS_BASE}?token=${token}`);
-        ws.onopen = () => {
-          console.log('WebSocket connected');
-          reconnectAttempts = 0;
-        };
-        ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'update') {
-            dashboardData = { ...dashboardData, ...data.data };
-            updateDashboard();
-          } else if (data.type === 'notification') {
-            showNotification(data.data.message, data.data.colour, data.data.id);
-          } else if (data.type === 'logout') {
-            clearCookie('jwt');
-            ws.close();
-            showNotification('Session expired, please login', 'red');
-            showLogin();
-          }
-        };
-        ws.onclose = () => {
-          console.log('WebSocket disconnected');
-          if (reconnectAttempts < maxAttempts) {
-            const delay = baseDelay * Math.pow(2, reconnectAttempts);
-            setTimeout(() => {
-              console.log(`Reconnecting WebSocket, attempt ${reconnectAttempts + 1}`);
-              reconnectAttempts++;
-              connect();
-            }, delay);
-          } else {
-            showNotification('Lost connection to server', 'red');
-          }
-        };
-        ws.onerror = (err) => console.error('WebSocket error:', err);
-      }
-      connect();
-    }
-
-    // Dashboard Rendering
-    function updateDashboard() {
-      try {
-        const {
-          settings = {},
-          affiliates = [],
-          pendingWithdrawals = [],
-          sortedWithdrawals = [],
-          leaderboard = [],
-          staticPages = [],
-          passwordResets = []
-        } = dashboardData;
-
-        // Header
-        document.getElementById('logo').innerHTML = settings.logoUrl
-          ? `<img src="${settings.logoUrl}" alt="Deriv Bot Store Affiliates Admin" class="h-8">`
-          : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates Admin</h1>';
-        document.getElementById('copyright').textContent = settings.copyrightText || '';
-
-        // Home Tab
-        document.getElementById('support-email').value = settings.supportEmail || '';
-        document.getElementById('copyright-text').value = settings.copyrightText || '';
-        document.getElementById('whatsapp-link').value = settings.whatsappLink || '';
-        document.getElementById('commission-rate').value = settings.commissionRate || 0;
-        document.getElementById('logo-url').value = settings.logoUrl || '';
-        document.getElementById('admin-email').value = settings.adminEmail || '';
-        document.getElementById('admin-password').value = settings.adminPassword || '';
-
-        // Affiliates Tab
-        const affiliatesTable = document.getElementById('affiliates-table');
-        affiliatesTable.innerHTML = '';
-        const filteredAffiliates = filterAndSortAffiliates(affiliates);
-        filteredAffiliates.forEach(a => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td class="p-2">${a.Name || '-'}</td>
-            <td class="p-2">${a.Email || '-'}</td>
-            <td class="p-2">${a.Username || '-'}</td>
-            <td class="p-2">${a.JoinDate ? new Date(a.JoinDate).toLocaleDateString() : '-'}</td>
-            <td class="p-2">${a.LinkClicks || 0}</td>
-            <td class="p-2">${a.TotalSales || 0}</td>
-            <td class="p-2">${((a.CurrentBalance || 0) + (a.WithdrawnTotal || 0)).toFixed(2)}</td>
-            <td class="p-2">${(a.WithdrawnTotal || 0).toFixed(2)}</td>
-            <td class="p-2">${a.TotalSalesMonthly || 0}</td>
-            <td class="p-2">
-              <select class="affiliate-status w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${a.Email || ''}">
-                <option value="active" ${a.Statusjson?.status === 'active' ? 'selected' : ''}>Active</option>
-                <option value="blocked" ${a.Statusjson?.status === 'blocked' ? 'selected' : ''}>Blocked</option>
-                <option value="deleted" ${a.Statusjson?.status === 'deleted' ? 'selected' : ''}>Delete</option>
-              </select>
-            </td>
-          `;
-          affiliatesTable.appendChild(row);
-        });
-
-        // Pending Withdrawals Tab
-        const pendingWithdrawalsTable = document.getElementById('pending-withdrawals-table');
-        pendingWithdrawalsTable.innerHTML = '';
-        pendingWithdrawals.forEach(w => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td class="p-2">${w.Email || '-'}</td>
-            <td class="p-2">${w.Name || '-'}</td>
-            <td class="p-2">${w.Timestamp ? new Date(w.Timestamp).toLocaleString() : '-'}</td>
-            <td class="p-2">${w.Amount ? w.Amount.toFixed(2) : '0.00'}</td>
-            <td class="p-2">
-              ${w.MpesaNumber || '-'}
-              ${w.MpesaNumber ? `<button class="copy-mpesa ml-2 bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${w.MpesaNumber}">Copy</button>` : ''}
-            </td>
-            <td class="p-2">${w.MpesaName || '-'}</td>
-            <td class="p-2">
-              <input class="refcode-input w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${w.PaymentRefcode || ''}">
-            </td>
-            <td class="p-2">
-              <select class="withdrawal-status w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-id="${w.withdrawalId || ''}" data-email="${w.Email || ''}">
-                <option value="Pending" ${w.Status === 'Pending' ? 'selected' : ''}>Pending</option>
-                <option value="Done">Done</option>
-                <option value="Dispute">Dispute</option>
-              </select>
-            </td>
-          `;
-          pendingWithdrawalsTable.appendChild(row);
-        });
-
-        // Sorted Withdrawals Tab
-        const sortedWithdrawalsTable = document.getElementById('sorted-withdrawals-table');
-        sortedWithdrawalsTable.innerHTML = '';
-        pagination.sortedWithdrawals.total = sortedWithdrawals.length;
-        const sortedPage = sortedWithdrawals.slice(
-          (pagination.sortedWithdrawals.page - 1) * ITEMS_PER_PAGE,
-          pagination.sortedWithdrawals.page * ITEMS_PER_PAGE
-        );
-        sortedPage.forEach(w => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td class="p-2">${w.Email || '-'}</td>
-            <td class="p-2">${w.Name || '-'}</td>
-            <td class="p-2">${w.Timestamp ? new Date(w.Timestamp).toLocaleString() : '-'}</td>
-            <td class="p-2">${w.Amount ? w.Amount.toFixed(2) : '0.00'}</td>
-            <td class="p-2">${w.MpesaNumber || '-'}</td>
-            <td class="p-2">${w.MpesaName || '-'}</td>
-            <td class="p-2">${w.PaymentRefcode || '-'}</td>
-            <td class="p-2">${w.Status || '-'}</td>
-          `;
-          sortedWithdrawalsTable.appendChild(row);
-        });
-        document.getElementById('sorted-withdrawals-prev').disabled = pagination.sortedWithdrawals.page === 1;
-        document.getElementById('sorted-withdrawals-next').disabled = pagination.sortedWithdrawals.page * ITEMS_PER_PAGE >= pagination.sortedWithdrawals.total;
-
-        // Rewards Tab
-        const leaderboardTable = document.getElementById('leaderboard-table');
-        leaderboardTable.innerHTML = '';
-        leaderboard.forEach(l => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td class="p-2">${l.rank || '-'}</td>
-            <td class="p-2">${l.Name || '-'}</td>
-            <td class="p-2">${l.Email || '-'}</td>
-            <td class="p-2">${l.TotalSalesMonthly || 0}</td>
-          `;
-          leaderboardTable.appendChild(row);
-        });
-
-        // Static Pages Tab
-        const staticPagesTable = document.getElementById('static-pages-table');
-        staticPagesTable.innerHTML = '';
-        staticPages.forEach(p => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td class="p-2">/affiliate-${p.Slug || '-'}</td>
-            <td class="p-2">${p.Title || '-'}</td>
-            <td class="p-2">
-              <button class="edit-page bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-slug="${p.Slug || ''}">Edit</button>
-              <button class="delete-page bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600" data-slug="${p.Slug || ''}">Delete</button>
-            </td>
-          `;
-          staticPagesTable.appendChild(row);
-        });
-
-        // Password Resets Tab
-        const passwordResetsTable = document.getElementById('password-resets-table');
-        passwordResetsTable.innerHTML = '';
-        passwordResets.forEach(r => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td class="p-2">${r.Email || '-'}</td>
-            <td class="p-2">${r.Username || '-'}</td>
-            <td class="p-2">${r.Name || '-'}</td>
-            <td class="p-2">${r.LastWithdrawalAmount ? r.LastWithdrawalAmount.toFixed(2) : '0.00'}</td>
-            <td class="p-2">${r.Description || '-'}</td>
-            <td class="p-2">${r.Timestamp ? new Date(r.Timestamp).toLocaleString() : '-'}</td>
-            <td class="p-2">${r.Status || '-'}</td>
-            <td class="p-2">
-              <select class="reset-status w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" data-email="${r.Email || ''}">
-                <option value="Pending" ${r.Status === 'Pending' ? 'selected' : ''}>Pending</option>
-                <option value="Approved" ${r.Status === 'Approved' ? 'selected' : ''}>Approved</option>
-                <option value="Declined" ${r.Status === 'Declined' ? 'selected' : ''}>Declined</option>
-              </select>
-              ${r.Status === 'Pending' ? `
-                <input type="text" class="reset-password w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 mt-2" placeholder="Enter new password" data-email="${r.Email || ''}">
-                <button class="approve-reset bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600 mt-2" data-email="${r.Email || ''}">Approve</button>
-              ` : ''}
-              ${r.Status === 'Approved' && r.Password ? `
-                <div class="flex space-x-2 mt-2">
-                  <input type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="${r.Password}" readonly>
-                  <button class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600" data-value="${r.Password}">Copy</button>
-                  <a href="mailto:${r.Email}?subject=Deriv Bot Store Affiliate&body=Your password was reset, use this password to login: ${r.Password}. Regards, Deriv Bot Store Affiliate" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</a>
-                </div>
-              ` : ''}
-            </td>
-          `;
-          passwordResetsTable.appendChild(row);
-        });
-
-        // Settings Tab
-        document.getElementById('settings-admin-email').value = settings.adminEmail || '';
-        document.getElementById('settings-admin-password').value = settings.adminPassword || '';
-      } catch (err) {
-        console.error('updateDashboard error:', err);
-        showNotification('Failed to update dashboard: ' + err.message, 'red');
-      }
-    }
-
-    function filterAndSortAffiliates(affiliates) {
-      try {
-        const search = document.getElementById('affiliate-search').value.toLowerCase();
-        const sort = document.getElementById('affiliate-sort').value;
-        let filtered = affiliates.filter(a =>
-          (a.Name || '').toLowerCase().includes(search) ||
-          (a.Email || '').toLowerCase().includes(search) ||
-          (a.Username || '').toLowerCase().includes(search)
-        );
-        if (sort === 'monthly-sales-desc') {
-          filtered.sort((a, b) => (b.TotalSalesMonthly || 0) - (a.TotalSalesMonthly || 0));
-        } else if (sort === 'status-active') {
-          filtered = filtered.filter(a => a.Statusjson?.status === 'active');
-        } else if (sort === 'status-blocked') {
-          filtered = filtered.filter(a => a.Statusjson?.status === 'blocked');
-        } else if (sort === 'status-deleted') {
-          filtered = filtered.filter(a => a.Statusjson?.status === 'deleted');
+    function setupWebSocket() {
+      const token = getCookie('jwt');
+      if (!token) return;
+      ws = new WebSocket(`wss://affiliate-botblitz.onrender.com/ws/affiliate?token=${token}`);
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'update') {
+          if (currentTab === 'home') fetchSettings();
+          if (currentTab === 'affiliates') fetchAffiliates();
+          if (currentTab === 'pending-withdrawals') fetchPendingWithdrawals();
+          if (currentTab === 'sorted-withdrawals') fetchSortedWithdrawals();
+          if (currentTab === 'rewards') fetchLeaderboard();
+        } else if (data.type === 'notification') {
+          showNotification(data.message, data.colour);
+        } else if (data.type === 'logout') {
+          deleteCookie('jwt');
+          ws.close();
+          showNotification('Logged out', 'green');
+          showLogin();
         }
-        return filtered;
+      };
+      ws.onclose = () => {
+        setTimeout(setupWebSocket, 5000);
+      };
+    }
+
+    // Authentication Check
+    async function checkAuth() {
+      const token = getCookie('jwt');
+      if (!token) {
+        showLogin();
+        return;
+      }
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/validate`);
+        showDashboard();
+        setupWebSocket();
+        fetchSettings();
+        if (currentTab === 'home') fetchSettings();
+        else document.querySelector(`[data-tab="${currentTab}"]`).click();
       } catch (err) {
-        console.error('filterAndSortAffiliates error:', err);
-        return affiliates;
+        deleteCookie('jwt');
+        showLogin();
+        showNotification('Session expired, please login', 'red');
       }
     }
 
-    // Authentication
     function showLogin() {
-      console.log('showLogin: Displaying login section');
-      try {
-        const loginSection = document.getElementById('login-section');
-        const dashboardSection = document.getElementById('dashboard-section');
-        const nav = document.getElementById('nav');
-        if (loginSection && dashboardSection && nav) {
-          loginSection.classList.remove('hidden');
-          dashboardSection.classList.add('hidden');
-          nav.classList.add('hidden');
-        } else {
-          throw new Error('One or more elements not found');
-        }
-      } catch (err) {
-        console.error('showLogin error:', err);
-        showNotification('Failed to show login: ' + err.message, 'red');
-      }
+      document.getElementById('login-page').classList.remove('hidden');
+      document.getElementById('dashboard').classList.add('hidden');
+      document.getElementById('logout-btn').classList.add('hidden');
     }
 
     function showDashboard() {
-      console.log('showDashboard: Displaying dashboard section');
-      try {
-        const loginSection = document.getElementById('login-section');
-        const dashboardSection = document.getElementById('dashboard-section');
-        const nav = document.getElementById('nav');
-        if (loginSection && dashboardSection && nav) {
-          loginSection.classList.add('hidden');
-          dashboardSection.classList.remove('hidden');
-          nav.classList.remove('hidden');
-          document.getElementById('tab-home').click();
-          fetchDashboard();
-        } else {
-          throw new Error('One or more elements not found');
-        }
-      } catch (err) {
-        console.error('showDashboard error:', err);
-        showNotification('Failed to show dashboard: ' + err.message, 'red');
-        showLogin();
-      }
+      document.getElementById('login-page').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+      document.getElementById('logout-btn').classList.remove('hidden');
     }
 
-    async function fetchDashboard() {
+    // Login
+    document.getElementById('login-submit').addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const btn = document.getElementById('login-submit');
+      const loading = document.getElementById('login-loading');
+      if (!email || !password) return showNotification('Please fill all fields', 'red');
+      btn.disabled = true;
+      loading.classList.remove('hidden');
       try {
-        const endpoints = [
-          { url: '/api/admin/affiliate/affiliates', key: 'affiliates' },
-          { url: '/api/admin/affiliate/withdrawals', key: 'pendingWithdrawals' },
-          { url: '/api/admin/affiliate/sorted-withdrawals', key: 'sortedWithdrawals' },
-          { url: '/api/admin/affiliate/staticpages', key: 'pages', responseKey: 'staticPages' },
-          { url: '/api/admin/affiliate/reset-passwords', key: 'requests', responseKey: 'passwordResets' }
-        ];
-        const promises = endpoints.map(({ url, key, responseKey }) =>
-          fetchWithRetry(`${API_BASE}${url}`, {
-            headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
-          }).then(res => res.json()).then(data => ({ key: responseKey || key, data: data.success ? data[key] : [] }))
-        );
-        const results = await Promise.all(promises);
-        results.forEach(({ key, data }) => {
-          dashboardData[key] = data;
-        });
-        dashboardData.leaderboard = dashboardData.affiliates
-          .sort((a, b) => (b.TotalSalesMonthly || 0) - (a.TotalSalesMonthly || 0))
-          .slice(0, 10)
-          .map((a, i) => ({ ...a, rank: i + 1 }));
-        updateDashboard();
+        const data = await fetch(`${API_BASE}/api/admin/affiliate/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        }).then(res => res.json());
+        if (!data.success) throw new Error(data.error);
+        setCookie('jwt', data.token, 7);
+        showDashboard();
+        setupWebSocket();
+        fetchSettings();
+        document.querySelector(`[data-tab="${currentTab}"]`).click();
       } catch (err) {
-        console.error('fetchDashboard error:', err);
-        showNotification(`Failed to load dashboard: ${err.message}`, 'red');
-        showLogin();
-      }
-    }
-
-    // Retry Fetch with Exponential Backoff
-    async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
-      for (let i = 0; i < retries; i++) {
-        try {
-          const response = await fetch(url, options);
-          if (response.status === 429) {
-            const waitTime = delay * Math.pow(2, i);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            continue;
-          }
-          if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-          return response;
-        } catch (err) {
-          if (i === retries - 1) throw err;
-          await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
-        }
-      }
-    }
-
-    // Event Listeners
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log('DOMContentLoaded: Initializing');
-      try {
-        // Theme Toggle
-        const theme = localStorage.getItem('theme') || 'dark';
-        document.documentElement.classList.toggle('dark', theme === 'dark');
-        document.getElementById('sun-icon').classList.toggle('hidden', theme === 'dark');
-        document.getElementById('moon-icon').classList.toggle('hidden', theme === 'light');
-        document.getElementById('theme-toggle').addEventListener('click', () => {
-          const isDark = document.documentElement.classList.toggle('dark');
-          localStorage.setItem('theme', isDark ? 'dark' : 'light');
-          document.getElementById('sun-icon').classList.toggle('hidden', isDark);
-          document.getElementById('moon-icon').classList.toggle('hidden', !isDark);
-        });
-
-        // Password Toggles
-        ['login', 'admin', 'settings-admin'].forEach(id => {
-          const toggle = document.getElementById(`${id}-password-toggle`);
-          const input = document.getElementById(`${id}-password`);
-          if (toggle && input) {
-            toggle.addEventListener('click', () => {
-              const isPassword = input.type === 'password';
-              input.type = isPassword ? 'text' : 'password';
-              toggle.textContent = isPassword ? 'Hide' : 'Show';
-            });
-          }
-        });
-
-        // Login Form
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-          e.preventDefault();
-          const email = document.getElementById('login-email').value;
-          const password = document.getElementById('login-password').value;
-
-          if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
-
-          document.getElementById('login-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/login`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, password })
-            });
-            const data = await response.json();
-            document.getElementById('login-loading').classList.add('hidden');
-            if (data.success) {
-              setCookie('jwt', data.token, 604800);
-              initWebSocket(data.token);
-              showDashboard();
-            } else {
-              showNotification(data.message || 'Invalid credentials', 'red');
-            }
-          } catch (err) {
-            document.getElementById('login-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        // Dashboard Tabs
-        ['home', 'affiliates', 'pending-withdrawals', 'sorted-withdrawals', 'rewards', 'static-pages', 'communication', 'password-resets', 'settings'].forEach(tab => {
-          document.getElementById(`tab-${tab}`).addEventListener('click', () => {
-            document.querySelectorAll('nav button').forEach(btn => {
-              btn.classList.replace('bg-blue-500', 'bg-gray-500');
-            });
-            document.getElementById(`tab-${tab}`).classList.replace('bg-gray-500', 'bg-blue-500');
-            document.querySelectorAll('#dashboard-section > div').forEach(div => {
-              div.classList.add('hidden');
-            });
-            document.getElementById(`${tab}-content`).classList.remove('hidden');
-          });
-        });
-
-        // Settings Form
-        document.getElementById('settings-form').addEventListener('submit', async (e) => {
-          e.preventDefault();
-          const settings = {
-            supportEmail: document.getElementById('support-email').value,
-            copyrightText: document.getElementById('copyright-text').value,
-            whatsappLink: document.getElementById('whatsapp-link').value,
-            commissionRate: parseFloat(document.getElementById('commission-rate').value),
-            logoUrl: document.getElementById('logo-url').value,
-            adminEmail: document.getElementById('admin-email').value,
-            adminPassword: document.getElementById('admin-password').value
-          };
-
-          if (!validateEmail(settings.supportEmail) || !validateEmail(settings.adminEmail)) return showNotification('Invalid email format', 'red');
-          if (!validateUrl(settings.whatsappLink)) return showNotification('Invalid WhatsApp link', 'red');
-          if (settings.commissionRate < 0 || settings.commissionRate > 1) return showNotification('Commission rate must be between 0 and 1', 'red');
-          if (settings.logoUrl && !validateUrl(settings.logoUrl)) return showNotification('Invalid logo URL', 'red');
-
-          document.getElementById('settings-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/settings`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(settings)
-            });
-            const data = await response.json();
-            document.getElementById('settings-loading').classList.add('hidden');
-            if (data.success) {
-              showNotification('Settings updated', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.message || 'Failed to update settings', 'red');
-            }
-          } catch (err) {
-            document.getElementById('settings-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        // Sync Sales
-        document.getElementById('sync-sales').addEventListener('click', async () => {
-          document.getElementById('sync-sales-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/sync-sales`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              }
-            });
-            const data = await response.json();
-            document.getElementById('sync-sales-loading').classList.add('hidden');
-            if (data.success) {
-              showNotification('Sales synced successfully', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.message || 'Failed to sync sales', 'red');
-            }
-          } catch (err) {
-            document.getElementById('sync-sales-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        // Affiliates Search and Sort
-        document.getElementById('affiliate-search').addEventListener('input', () => updateDashboard());
-        document.getElementById('affiliate-sort').addEventListener('change', () => updateDashboard());
-
-        // Affiliates Status Update
-        document.getElementById('affiliates-table').addEventListener('change', async (e) => {
-          if (e.target.classList.contains('affiliate-status')) {
-            const email = e.target.dataset.email;
-            const status = e.target.value;
-            try {
-              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliates/${email}/status`, {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': `Bearer ${getCookie('jwt')}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ status })
-              });
-              const data = await response.json();
-              if (data.success) {
-                showNotification('Affiliate status updated', 'green');
-                fetchDashboard();
-              } else {
-                showNotification(data.message || 'Failed to update status', 'red');
-              }
-            } catch (err) {
-              showNotification('Error: ' + err.message, 'red');
-            }
-          }
-        });
-
-        // Pending Withdrawals Status Update
-        document.getElementById('pending-withdrawals-table').addEventListener('change', async (e) => {
-          if (e.target.classList.contains('withdrawal-status')) {
-            const withdrawalId = e.target.dataset.id;
-            const email = e.target.dataset.email;
-            const status = e.target.value;
-            const refCode = e.target.parentElement.previousElementSibling.querySelector('.refcode-input').value;
-            if (status === 'Done' && !refCode) return showNotification('Enter the ref code', 'red');
-
-            try {
-              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/withdrawals/${status.toLowerCase()}`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${getCookie('jwt')}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, withdrawalId, status, refCode })
-              });
-              const data = await response.json();
-              if (data.success) {
-                showNotification('Withdrawal processed', 'green');
-                fetchDashboard();
-              } else {
-                showNotification(data.message || 'Failed to process withdrawal', 'red');
-              }
-            } catch (err) {
-              showNotification('Error: ' + err.message, 'red');
-            }
-          }
-        });
-
-        // Copy MPESA Number
-        document.getElementById('pending-withdrawals-table').addEventListener('click', (e) => {
-          if (e.target.classList.contains('copy-mpesa')) {
-            const value = e.target.dataset.value;
-            navigator.clipboard.writeText(value).then(() => {
-              showNotification('MPESA number copied', 'green');
-            }).catch(() => {
-              showNotification('Failed to copy', 'red');
-            });
-          }
-        });
-
-        // Sorted Withdrawals Pagination
-        document.getElementById('sorted-withdrawals-prev').addEventListener('click', () => {
-          if (pagination.sortedWithdrawals.page > 1) {
-            pagination.sortedWithdrawals.page--;
-            updateDashboard();
-          }
-        });
-        document.getElementById('sorted-withdrawals-next').addEventListener('click', () => {
-          if (pagination.sortedWithdrawals.page * ITEMS_PER_PAGE < pagination.sortedWithdrawals.total) {
-            pagination.sortedWithdrawals.page++;
-            updateDashboard();
-          }
-        });
-
-        // Rewards Type Toggle
-        document.getElementById('reward-type').addEventListener('change', (e) => {
-          const isPercentage = e.target.value === 'percentage';
-          document.getElementById('percentage-reward').classList.toggle('hidden', !isPercentage);
-          document.getElementById('spot-reward').classList.toggle('hidden', isPercentage);
-        });
-
-        // Apply Percentage Reward
-        document.getElementById('apply-percentage').addEventListener('click', async () => {
-          const percentage = parseFloat(document.getElementById('percentage-amount').value);
-          if (percentage <= 0 || percentage > 1) return showNotification('Percentage must be between 0 and 1', 'red');
-
-          document.getElementById('percentage-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/rewards`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ type: 'percentage', percentage })
-            });
-            const data = await response.json();
-            document.getElementById('percentage-loading').classList.add('hidden');
-            if (data.success) {
-              showNotification('Rewards applied', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.message || 'Failed to apply rewards', 'red');
-            }
-          } catch (err) {
-            document.getElementById('percentage-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        // Select Spot Reward Recipients
-        document.getElementById('select-recipients').addEventListener('click', () => {
-          const table = document.getElementById('spot-reward-table');
-          table.innerHTML = '';
-          dashboardData.affiliates.filter(a => a.Statusjson?.status === 'active').forEach(a => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-              <td class="p-2">${a.Email || '-'}</td>
-              <td class="p-2">${a.Name || '-'}</td>
-              <td class="p-2">${a.TotalSalesMonthly || 0}</td>
-              <td class="p-2">${a.Statusjson?.status || '-'}</td>
-              <td class="p-2">
-                <input type="checkbox" class="recipient-checkbox" data-email="${a.Email || ''}">
-              </td>
-            `;
-            table.appendChild(row);
-          });
-          document.getElementById('spot-reward-modal').classList.remove('hidden');
-        });
-
-        // Apply Spot Reward
-        document.getElementById('apply-spot-reward').addEventListener('click', async () => {
-          const amount = parseFloat(document.getElementById('spot-amount').value);
-          if (amount <= 0) return showNotification('Amount must be greater than 0', 'red');
-          const recipients = Array.from(document.querySelectorAll('.recipient-checkbox:checked')).map(cb => cb.dataset.email);
-          if (!recipients.length) return showNotification('Select at least one recipient', 'red');
-
-          document.getElementById('spot-reward-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/rewards`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ type: 'spot', amount, recipients })
-            });
-            const data = await response.json();
-            document.getElementById('spot-reward-loading').classList.add('hidden');
-            if (data.success) {
-              document.getElementById('spot-reward-modal').classList.add('hidden');
-              showNotification('Rewards applied', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.message || 'Failed to apply rewards', 'red');
-            }
-          } catch (err) {
-            document.getElementById('spot-reward-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        document.getElementById('close-spot-reward').addEventListener('click', () => {
-          document.getElementById('spot-reward-modal').classList.add('hidden');
-        });
-
-        // Static Pages
-        document.getElementById('create-page').addEventListener('click', () => {
-          document.getElementById('static-page-title').textContent = 'Create Page';
-          document.getElementById('page-title').value = '';
-          document.getElementById('page-content').value = '';
-          currentSlug = null;
-          document.getElementById('static-page-modal').classList.remove('hidden');
-        });
-
-        document.getElementById('static-pages-table').addEventListener('click', (e) => {
-          if (e.target.classList.contains('edit-page')) {
-            const slug = e.target.dataset.slug;
-            const page = dashboardData.staticPages.find(p => p.Slug === slug);
-            document.getElementById('static-page-title').textContent = 'Edit Page';
-            document.getElementById('page-title').value = page.Title || '';
-            document.getElementById('page-content').value = page.Content || '';
-            currentSlug = slug;
-            document.getElementById('static-page-modal').classList.remove('hidden');
-          } else if (e.target.classList.contains('delete-page')) {
-            currentSlug = e.target.dataset.slug;
-            document.getElementById('delete-page-modal').classList.remove('hidden');
-          }
-        });
-
-        // Static Page Form
-        document.getElementById('static-page-form').addEventListener('submit', async (e) => {
-          e.preventDefault();
-          const title = document.getElementById('page-title').value;
-          const content = document.getElementById('page-content').value;
-          const slug = currentSlug || title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-
-          document.getElementById('static-page-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/staticpages`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ slug, title, content })
-            });
-            const data = await response.json();
-            document.getElementById('static-page-loading').classList.add('hidden');
-            if (data.success) {
-              document.getElementById('static-page-modal').classList.add('hidden');
-              showNotification('Page saved', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.message || 'Failed to save page', 'red');
-            }
-          } catch (err) {
-            document.getElementById('static-page-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        document.getElementById('close-static-page').addEventListener('click', () => {
-          document.getElementById('static-page-modal').classList.add('hidden');
-        });
-
-        // Delete Static Page
-        document.getElementById('confirm-delete-page').addEventListener('click', async () => {
-          document.getElementById('delete-page-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/staticpages/delete`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ slug: currentSlug })
-            });
-            const data = await response.json();
-            document.getElementById('delete-page-loading').classList.add('hidden');
-            if (data.success) {
-              document.getElementById('delete-page-modal').classList.add('hidden');
-              showNotification('Page deleted', 'green');
-              fetchDashboard();
-            } else {
-                            showNotification(data.message || 'Failed to delete page', 'red');
-            }
-          } catch (err) {
-            document.getElementById('delete-page-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        document.getElementById('close-delete-page').addEventListener('click', () => {
-          document.getElementById('delete-page-modal').classList.add('hidden');
-        });
-
-        // Urgent Message
-        document.getElementById('urgent-form').addEventListener('submit', async (e) => {
-          e.preventDefault();
-          const message = document.getElementById('urgent-message').value;
-          const enabled = document.getElementById('urgent-enabled').checked;
-
-          document.getElementById('urgent-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/communication`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ type: 'urgent', message, enabled })
-            });
-            const data = await response.json();
-            document.getElementById('urgent-loading').classList.add('hidden');
-            if (data.success) {
-              showNotification('Urgent message saved', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.message || 'Failed to save urgent message', 'red');
-            }
-          } catch (err) {
-            document.getElementById('urgent-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        // News Message
-        document.getElementById('news-form').addEventListener('submit', async (e) => {
-          e.preventDefault();
-          const message = document.getElementById('news-message').value;
-          const filter = document.getElementById('news-filter').value;
-
-          document.getElementById('news-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/communication`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ type: 'news', message, filter })
-            });
-            const data = await response.json();
-            document.getElementById('news-loading').classList.add('hidden');
-            if (data.success) {
-              showNotification('News message sent', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.message || 'Failed to send news message', 'red');
-            }
-          } catch (err) {
-            document.getElementById('news-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        // Password Resets
-        document.getElementById('password-resets-table').addEventListener('click', async (e) => {
-          if (e.target.classList.contains('copy-password')) {
-            const value = e.target.dataset.value;
-            navigator.clipboard.writeText(value).then(() => {
-              showNotification('Password copied', 'green');
-            }).catch(() => {
-              showNotification('Failed to copy', 'red');
-            });
-          } else if (e.target.classList.contains('approve-reset')) {
-            const email = e.target.dataset.email;
-            const password = e.target.previousElementSibling.value;
-            if (!password) return showNotification('Enter a new password', 'red');
-
-            try {
-              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-passwords`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${getCookie('jwt')}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, status: 'Approved', password })
-              });
-              const data = await response.json();
-              if (data.success) {
-                showNotification('Password reset approved', 'green');
-                fetchDashboard();
-              } else {
-                showNotification(data.message || 'Failed to approve reset', 'red');
-              }
-            } catch (err) {
-              showNotification('Error: ' + err.message, 'red');
-            }
-          }
-        });
-
-        document.getElementById('password-resets-table').addEventListener('change', async (e) => {
-          if (e.target.classList.contains('reset-status')) {
-            const email = e.target.dataset.email;
-            const status = e.target.value;
-
-            try {
-              const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/reset-passwords`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${getCookie('jwt')}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, status })
-              });
-              const data = await response.json();
-              if (data.success) {
-                showNotification('Reset status updated', 'green');
-                fetchDashboard();
-              } else {
-                showNotification(data.message || 'Failed to update reset status', 'red');
-              }
-            } catch (err) {
-              showNotification('Error: ' + err.message, 'red');
-            }
-          }
-        });
-
-        // Admin Settings Form
-        document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
-          e.preventDefault();
-          const adminEmail = document.getElementById('settings-admin-email').value;
-          const adminPassword = document.getElementById('settings-admin-password').value;
-
-          if (!validateEmail(adminEmail)) return showNotification('Invalid email format', 'red');
-
-          document.getElementById('admin-settings-loading').classList.remove('hidden');
-          try {
-            const response = await fetchWithRetry(`${API_BASE}/api/admin/affiliate/settings`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${getCookie('jwt')}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ adminEmail, adminPassword })
-            });
-            const data = await response.json();
-            document.getElementById('admin-settings-loading').classList.add('hidden');
-            if (data.success) {
-              showNotification('Admin settings updated', 'green');
-              fetchDashboard();
-            } else {
-              showNotification(data.message || 'Failed to update admin settings', 'red');
-            }
-          } catch (err) {
-            document.getElementById('admin-settings-loading').classList.add('hidden');
-            showNotification('Error: ' + err.message, 'red');
-          }
-        });
-
-        // Logout
-        document.getElementById('logout').addEventListener('click', () => {
-          clearCookie('jwt');
-          if (ws) ws.close();
-          showNotification('Logged out', 'green');
-          showLogin();
-        });
-
-        // Initial Check
-        const token = getCookie('jwt');
-        if (token) {
-          try {
-            const decoded = jwt_decode(token);
-            if (decoded.exp * 1000 > Date.now()) {
-              initWebSocket(token);
-              showDashboard();
-            } else {
-              clearCookie('jwt');
-              showLogin();
-            }
-          } catch (err) {
-            clearCookie('jwt');
-            showLogin();
-          }
-        } else {
-          showLogin();
-        }
-      } catch (err) {
-        console.error('Initialization error:', err);
-        showNotification('Initialization failed: ' + err.message, 'red');
-        showLogin();
+        showNotification(err.message || 'Login failed', 'red');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
       }
     });
+
+    // Toggle Password Visibility
+    document.getElementById('toggle-login-password').addEventListener('click', () => {
+      const input = document.getElementById('login-password');
+      const btn = document.getElementById('toggle-login-password');
+      input.type = input.type === 'password' ? 'text' : 'password';
+      btn.textContent = input.type === 'password' ? 'Show' : 'Hide';
+    });
+
+    // Logout
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      deleteCookie('jwt');
+      if (ws) ws.close();
+      showLogin();
+      showNotification('Logged out successfully', 'green');
+    });
+
+    // Tab Switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentTab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.replace('bg-blue-500', 'bg-gray-500'));
+        btn.classList.replace('bg-gray-500', 'bg-blue-500');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.getElementById(`${currentTab}-tab`).classList.remove('hidden');
+        if (currentTab === 'home') fetchSettings();
+        if (currentTab === 'affiliates') fetchAffiliates();
+        if (currentTab === 'pending-withdrawals') fetchPendingWithdrawals();
+        if (currentTab === 'sorted-withdrawals') fetchSortedWithdrawals();
+        if (currentTab === 'rewards') fetchLeaderboard();
+        if (currentTab === 'static-pages') fetchStaticPages();
+        if (currentTab === 'communication') fetchCommunication();
+        if (currentTab === 'password-resets') fetchPasswordResets();
+      });
+    });
+
+    // Fetch Settings
+    async function fetchSettings() {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/settings`);
+        settings = data.settings;
+        document.getElementById('support-email').value = settings.supportEmail;
+        document.getElementById('copyright-text').value = settings.copyrightText;
+        document.getElementById('whatsapp-link').value = settings.whatsappLink;
+        document.getElementById('commission-rate').value = settings.commissionRate;
+        document.getElementById('logo-url').value = settings.logoUrl || '';
+        document.getElementById('footer-copyright').textContent = settings.copyrightText;
+        if (settings.logoUrl) {
+          document.getElementById('logo').innerHTML = `<img src="${settings.logoUrl}" alt="Deriv Bot Store Affiliates Admin" class="h-8">`;
+        }
+      } catch (err) {
+        showNotification('Failed to load settings', 'red');
+      }
+    }
+
+    // Save Settings
+    document.getElementById('save-settings').addEventListener('click', async () => {
+      const btn = document.getElementById('save-settings');
+      const loading = document.getElementById('save-settings-loading');
+      const settingsData = {
+        supportEmail: document.getElementById('support-email').value,
+        copyrightText: document.getElementById('copyright-text').value,
+        whatsappLink: document.getElementById('whatsapp-link').value,
+        commissionRate: parseFloat(document.getElementById('commission-rate').value),
+        logoUrl: document.getElementById('logo-url').value
+      };
+      btn.disabled = true;
+      loading.classList.remove('hidden');
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/settings`, {
+          method: 'POST',
+          body: JSON.stringify(settingsData)
+        });
+        showNotification('Settings updated', 'green');
+        fetchSettings();
+      } catch (err) {
+        showNotification(err.message || 'Failed to save settings', 'red');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    });
+
+    // Fetch Affiliates
+    async function fetchAffiliates() {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/affiliates`);
+        affiliates = data.affiliates;
+        renderAffiliates();
+      } catch (err) {
+        showNotification('Failed to load affiliates', 'red');
+      }
+    }
+
+    function renderAffiliates() {
+      const search = document.getElementById('affiliate-search').value.toLowerCase();
+      const sort = document.getElementById('affiliate-sort').value;
+      let filtered = affiliates.filter(a =>
+        a.name.toLowerCase().includes(search) ||
+        a.email.toLowerCase().includes(search) ||
+        a.username.toLowerCase().includes(search)
+      );
+      if (sort === 'monthly-sales') {
+        filtered.sort((a, b) => b.totalSalesMonthly - a.totalSalesMonthly);
+      } else if (sort === 'status-active') {
+        filtered = filtered.filter(a => a.statusjson.status === 'active');
+      } else if (sort === 'status-blocked') {
+        filtered = filtered.filter(a => a.statusjson.status === 'blocked');
+      } else if (sort === 'status-deleted') {
+        filtered = filtered.filter(a => a.statusjson.status === 'deleted');
+      }
+      document.getElementById('affiliates-table').innerHTML = filtered.map(a => `
+        <tr class="border-b dark:border-gray-700">
+          <td class="p-2">${a.name}</td>
+          <td class="p-2">${a.email}</td>
+          <td class="p-2">${a.username}</td>
+          <td class="p-2">${new Date(a.joinDate).toLocaleDateString()}</td>
+          <td class="p-2">${a.linkClicks}</td>
+          <td class="p-2">${a.totalSales}</td>
+          <td class="p-2">${a.currentBalance.toFixed(2)}</td>
+          <td class="p-2">${a.withdrawnTotal.toFixed(2)}</td>
+          <td class="p-2">${a.totalSalesMonthly}</td>
+          <td class="p-2">
+            <select data-email="${a.email}" class="status-select p-1 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+              <option value="active" ${a.statusjson.status === 'active' ? 'selected' : ''}>Active</option>
+              <option value="blocked" ${a.statusjson.status === 'blocked' ? 'selected' : ''}>Blocked</option>
+              <option value="deleted" ${a.statusjson.status === 'deleted' ? 'selected' : ''}>Delete</option>
+            </select>
+          </td>
+        </tr>
+      `).join('');
+      document.querySelectorAll('.status-select').forEach(select => {
+        select.addEventListener('change', async () => {
+          const email = select.dataset.email;
+          const status = select.value;
+          try {
+            await fetchWithAuth(`${API_BASE}/api/admin/affiliate/update-status`, {
+              method: 'POST',
+              body: JSON.stringify({ email, status })
+            });
+            showNotification('Status updated', 'green');
+            fetchAffiliates();
+          } catch (err) {
+            showNotification(err.message || 'Failed to update status', 'red');
+          }
+        });
+      });
+    }
+
+    document.getElementById('affiliate-search').addEventListener('input', renderAffiliates);
+    document.getElementById('affiliate-sort').addEventListener('change', renderAffiliates);
+
+    // Fetch Pending Withdrawals
+    async function fetchPendingWithdrawals() {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/withdrawals`);
+        pendingWithdrawals = data.withdrawals;
+        renderPendingWithdrawals();
+      } catch (err) {
+        showNotification('Failed to load pending withdrawals', 'red');
+      }
+    }
+
+    function renderPendingWithdrawals() {
+      document.getElementById('pending-withdrawals-table').innerHTML = pendingWithdrawals.map(w => `
+        <tr class="border-b dark:border-gray-700">
+          <td class="p-2">${w.email}</td>
+          <td class="p-2">${w.name}</td>
+          <td class="p-2">${new Date(w.timestamp).toLocaleString()}</td>
+          <td class="p-2">${w.amount.toFixed(2)}</td>
+          <td class="p-2">
+            ${w.mpesaNumber}
+            <button data-mpesa="${w.mpesaNumber}" class="copy-mpesa ml-2 bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Copy</button>
+          </td>
+          <td class="p-2">${w.mpesaName}</td>
+          <td class="p-2">
+            <input data-id="${w.id}" class="refcode-input p-1 border rounded-md dark:bg-gray-700 dark:border-gray-600" value="${w.paymentRefcode || ''}">
+          </td>
+          <td class="p-2">
+            <select data-id="${w.id}" class="status-select p-1 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+              <option value="Pending" ${w.status === 'Pending' ? 'selected' : ''}>Pending</option>
+              <option value="Done">Done</option>
+              <option value="Dispute">Dispute</option>
+            </select>
+          </td>
+        </tr>
+      `).join('');
+      document.querySelectorAll('.copy-mpesa').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const text = btn.dataset.mpesa;
+          navigator.clipboard.writeText(text).then(() => {
+            showNotification('MPESA number copied', 'green');
+          }).catch(() => {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showNotification('MPESA number copied', 'green');
+          });
+        });
+      });
+      document.querySelectorAll('.status-select').forEach(select => {
+        select.addEventListener('change', async () => {
+          const id = select.dataset.id;
+          const status = select.value;
+          const refcode = document.querySelector(`.refcode-input[data-id="${id}"]`).value;
+          if (status === 'Done' && !refcode) {
+            showNotification('Enter the ref code', 'red');
+            select.value = 'Pending';
+            return;
+          }
+          try {
+            await fetchWithAuth(`${API_BASE}/api/admin/affiliate/withdrawals/${status.toLowerCase()}`, {
+              method: 'POST',
+              body: JSON.stringify({ email: pendingWithdrawals.find(w => w.id === id).email, withdrawalId: id, status, refCode: refcode })
+            });
+            showNotification('Withdrawal processed', 'green');
+            fetchPendingWithdrawals();
+            fetchSortedWithdrawals();
+          } catch (err) {
+            showNotification(err.message || 'Failed to process withdrawal', 'red');
+            select.value = 'Pending';
+          }
+        });
+      });
+    }
+
+    // Fetch Sorted Withdrawals
+    async function fetchSortedWithdrawals() {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/sorted-withdrawals?page=${currentSortedPage}`);
+        sortedWithdrawals = data.withdrawals;
+        totalSortedPages = data.totalPages;
+        renderSortedWithdrawals();
+      } catch (err) {
+        showNotification('Failed to load sorted withdrawals', 'red');
+      }
+    }
+
+    function renderSortedWithdrawals() {
+      document.getElementById('sorted-withdrawals-table').innerHTML = sortedWithdrawals.map(w => `
+        <tr class="border-b dark:border-gray-700">
+          <td class="p-2">${w.email}</td>
+          <td class="p-2">${w.name}</td>
+          <td class="p-2">${new Date(w.timestamp).toLocaleString()}</td>
+          <td class="p-2">${w.amount.toFixed(2)}</td>
+          <td class="p-2">${w.mpesaNumber}</td>
+          <td class="p-2">${w.mpesaName}</td>
+          <td class="p-2">${w.paymentRefcode || ''}</td>
+          <td class="p-2">${w.status}</td>
+        </tr>
+      `).join('');
+      document.getElementById('prev-sorted-page').disabled = currentSortedPage === 1;
+      document.getElementById('next-sorted-page').disabled = currentSortedPage === totalSortedPages;
+    }
+
+    document.getElementById('prev-sorted-page').addEventListener('click', () => {
+      if (currentSortedPage > 1) {
+        currentSortedPage--;
+        fetchSortedWithdrawals();
+      }
+    });
+
+    document.getElementById('next-sorted-page').addEventListener('click', () => {
+      if (currentSortedPage < totalSortedPages) {
+        currentSortedPage++;
+        fetchSortedWithdrawals();
+      }
+    });
+
+    // Fetch Leaderboard
+    async function fetchLeaderboard() {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/affiliates`);
+        leaderboard = data.affiliates
+          .filter(a => a.statusjson.status === 'active')
+          .sort((a, b) => b.totalSalesMonthly - a.totalSalesMonthly)
+          .slice(0, 10);
+        renderLeaderboard();
+      } catch (err) {
+        showNotification('Failed to load leaderboard', 'red');
+      }
+    }
+
+    function renderLeaderboard() {
+      document.getElementById('leaderboard-table').innerHTML = leaderboard.map((a, i) => `
+        <tr class="border-b dark:border-gray-700">
+          <td class="p-2">${i + 1}</td>
+          <td class="p-2">${a.name}</td>
+          <td class="p-2">${a.email}</td>
+          <td class="p-2">${a.totalSalesMonthly}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Apply Percentage Reward
+    document.getElementById('apply-percentage-reward').addEventListener('click', async () => {
+      const percentage = parseFloat(document.getElementById('percentage-reward').value);
+      const btn = document.getElementById('apply-percentage-reward');
+      const loading = document.getElementById('percentage-reward-loading');
+      if (!percentage || percentage < 0 || percentage > 1) {
+        showNotification('Invalid percentage', 'red');
+        return;
+      }
+      btn.disabled = true;
+      loading.classList.remove('hidden');
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/rewards`, {
+          method: 'POST',
+          body: JSON.stringify({ type: 'percentage', percentage })
+        });
+        showNotification('Rewards applied', 'green');
+        fetchLeaderboard();
+      } catch (err) {
+        showNotification(err.message || 'Failed to apply rewards', 'red');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    });
+
+    // Select Recipients for Spot Reward
+    document.getElementById('select-recipients').addEventListener('click', async () => {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/affiliates`);
+        const activeAffiliates = data.affiliates.filter(a => a.statusjson.status === 'active');
+        document.getElementById('recipients-table').innerHTML = activeAffiliates.map(a => `
+          <tr class="border-b dark:border-gray-700">
+            <td class="p-2">${a.email}</td>
+            <td class="p-2">${a.name}</td>
+            <td class="p-2">${a.totalSalesMonthly}</td>
+            <td class="p-2">${a.statusjson.status}</td>
+            <td class="p-2">
+              <input type="checkbox" data-email="${a.email}" class="recipient-checkbox">
+            </td>
+          </tr>
+        `).join('');
+        document.getElementById('recipients-modal').classList.remove('hidden');
+      } catch (err) {
+        showNotification('Failed to load affiliates', 'red');
+      }
+    });
+
+    document.getElementById('close-recipients-modal').addEventListener('click', () => {
+      document.getElementById('recipients-modal').classList.add('hidden');
+    });
+
+    // Apply Spot Reward
+    document.getElementById('apply-spot-reward').addEventListener('click', async () => {
+      const amount = parseFloat(document.getElementById('spot-amount').value);
+      const recipients = Array.from(document.querySelectorAll('.recipient-checkbox:checked')).map(cb => cb.dataset.email);
+      const btn = document.getElementById('apply-spot-reward');
+      const loading = document.getElementById('spot-reward-loading');
+      if (!amount || amount <= 0) {
+        showNotification('Invalid amount', 'red');
+        return;
+      }
+      if (!recipients.length) {
+        showNotification('Select at least one recipient', 'red');
+        return;
+      }
+      btn.disabled = true;
+      loading.classList.remove('hidden');
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/rewards`, {
+          method: 'POST',
+          body: JSON.stringify({ type: 'spot', amount, recipients })
+        });
+        showNotification('Spot rewards applied', 'green');
+        document.getElementById('recipients-modal').classList.add('hidden');
+        fetchLeaderboard();
+      } catch (err) {
+        showNotification(err.message || 'Failed to apply spot rewards', 'red');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    });
+
+    // Fetch Static Pages
+    async function fetchStaticPages() {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/staticpages`);
+        staticPages = data.pages;
+        renderStaticPages();
+      } catch (err) {
+        showNotification('Failed to load static pages', 'red');
+      }
+    }
+
+    function renderStaticPages() {
+      document.getElementById('static-pages-table').innerHTML = staticPages.map(p => `
+        <tr class="border-b dark:border-gray-700">
+          <td class="p-2">${p.slug}</td>
+          <td class="p-2">${p.title}</td>
+          <td class="p-2">
+            <button data-slug="${p.slug}" class="edit-page bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Edit</button>
+            <button data-slug="${p.slug}" class="delete-page bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+      document.querySelectorAll('.edit-page').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const page = staticPages.find(p => p.slug === btn.dataset.slug);
+          document.getElementById('page-modal-title').textContent = 'Edit Page';
+          document.getElementById('page-title').value = page.title;
+          document.getElementById('page-content').value = page.content;
+          document.getElementById('save-page').dataset.slug = page.slug;
+          document.getElementById('page-modal').classList.remove('hidden');
+        });
+      });
+      document.querySelectorAll('.delete-page').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('confirm-delete-page').dataset.slug = btn.dataset.slug;
+          document.getElementById('delete-page-modal').classList.remove('hidden');
+        });
+      });
+    }
+
+    document.getElementById('create-page').addEventListener('click', () => {
+      document.getElementById('page-modal-title').textContent = 'Create Page';
+      document.getElementById('page-title').value = '';
+      document.getElementById('page-content').value = '';
+      delete document.getElementById('save-page').dataset.slug;
+      document.getElementById('page-modal').classList.remove('hidden');
+    });
+
+    document.getElementById('close-page-modal').addEventListener('click', () => {
+      document.getElementById('page-modal').classList.add('hidden');
+    });
+
+    document.getElementById('cancel-page').addEventListener('click', () => {
+      document.getElementById('page-modal').classList.add('hidden');
+    });
+
+    document.getElementById('save-page').addEventListener('click', async () => {
+      const title = document.getElementById('page-title').value;
+      const content = document.getElementById('page-content').value;
+      const slug = document.getElementById('save-page').dataset.slug || `/affiliate-${title.toLowerCase().replace(/\s+/g, '-')}`;
+      const btn = document.getElementById('save-page');
+      const loading = document.getElementById('save-page-loading');
+      if (!title || !content) {
+        showNotification('Please fill all fields', 'red');
+        return;
+      }
+      btn.disabled = true;
+      loading.classList.remove('hidden');
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/staticpages`, {
+          method: 'POST',
+          body: JSON.stringify({ slug, title, content })
+        });
+        showNotification('Page saved', 'green');
+        document.getElementById('page-modal').classList.add('hidden');
+        fetchStaticPages();
+      } catch (err) {
+        showNotification(err.message || 'Failed to save page', 'red');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('confirm-delete-page').addEventListener('click', async () => {
+      const slug = document.getElementById('confirm-delete-page').dataset.slug;
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/staticpages/delete`, {
+          method: 'POST',
+          body: JSON.stringify({ slug })
+        });
+        showNotification('Page deleted', 'green');
+        document.getElementById('delete-page-modal').classList.add('hidden');
+        fetchStaticPages();
+      } catch (err) {
+        showNotification(err.message || 'Failed to delete page', 'red');
+      }
+    });
+
+    document.getElementById('cancel-delete-page').addEventListener('click', () => {
+      document.getElementById('delete-page-modal').classList.add('hidden');
+    });
+
+    // Fetch Communication
+    async function fetchCommunication() {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/settings`);
+        const urgent = JSON.parse(data.settings.urgentPopup || '{}');
+        document.getElementById('urgent-message').value = urgent.message || '';
+        document.getElementById('urgent-enabled').checked = urgent.enabled || false;
+      } catch (err) {
+        showNotification('Failed to load communication settings', 'red');
+      }
+    }
+
+    document.getElementById('save-urgent').addEventListener('click', async () => {
+      const message = document.getElementById('urgent-message').value;
+      const enabled = document.getElementById('urgent-enabled').checked;
+      const btn = document.getElementById('save-urgent');
+      const loading = document.getElementById('save-urgent-loading');
+      if (!message) {
+        showNotification('Message is required', 'red');
+        return;
+      }
+      btn.disabled = true;
+      loading.classList.remove('hidden');
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/communication`, {
+          method: 'POST',
+          body: JSON.stringify({ type: 'urgent', message, enabled })
+        });
+        showNotification('Urgent message updated', 'green');
+      } catch (err) {
+        showNotification(err.message || 'Failed to save urgent message', 'red');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('send-news').addEventListener('click', async () => {
+      const message = document.getElementById('news-message').value;
+      const filter = document.getElementById('news-filter').value;
+      const btn = document.getElementById('send-news');
+      const loading = document.getElementById('send-news-loading');
+      if (!message) {
+        showNotification('Message is required', 'red');
+        return;
+      }
+      btn.disabled = true;
+      loading.classList.remove('hidden');
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/communication`, {
+          method: 'POST',
+          body: JSON.stringify({ type: 'news', message, filter })
+        });
+        showNotification('News sent', 'green');
+        document.getElementById('news-message').value = '';
+      } catch (err) {
+        showNotification(err.message || 'Failed to send news', 'red');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    });
+
+    // Fetch Password Resets
+    async function fetchPasswordResets() {
+      try {
+        const data = await fetchWithAuth(`${API_BASE}/api/admin/affiliate/reset-passwords`);
+        passwordResets = data.requests;
+        renderPasswordResets();
+      } catch (err) {
+        showNotification('Failed to load password resets', 'red');
+      }
+    }
+
+    function renderPasswordResets() {
+      document.getElementById('password-resets-table').innerHTML = passwordResets.map(r => `
+        <tr class="border-b dark:border-gray-700">
+          <td class="p-2">${r.email}</td>
+          <td class="p-2">${r.username}</td>
+          <td class="p-2">${r.name}</td>
+          <td class="p-2">${r.lastWithdrawalAmount || 0}</td>
+          <td class="p-2">${r.description}</td>
+          <td class="p-2">${new Date(r.timestamp).toLocaleString()}</td>
+          <td class="p-2">
+            <select data-email="${r.email}" class="reset-status p-1 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+              <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>Pending</option>
+              <option value="approved" ${r.status === 'approved' ? 'selected' : ''}>Approved</option>
+              <option value="declined" ${r.status === 'declined' ? 'selected' : ''}>Declined</option>
+            </select>
+            ${r.status === 'approved' ? `
+              <div class="mt-2">
+                <input type="text" value="${r.password}" class="p-1 border rounded-md dark:bg-gray-700 dark:border-gray-600" readonly>
+                <button data-password="${r.password}" class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Copy</button>
+                <button data-email="${r.email}" data-password="${r.password}" class="email-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</button>
+              </div>
+            ` : ''}
+          </td>
+        </tr>
+      `).join('');
+      document.querySelectorAll('.reset-status').forEach(select => {
+        select.addEventListener('change', async () => {
+          const email = select.dataset.email;
+          const status = select.value;
+          let password = '';
+          if (status === 'approved') {
+            password = Math.random().toString(36).slice(2, 14); // 12-char password
+            if (!/^(?=.*[a-zA-Z])(?=.*\d)/.test(password)) {
+              password = password.slice(0, 10) + 'a1';
+            }
+          }
+          try {
+            await fetchWithAuth(`${API_BASE}/api/admin/affiliate/reset-password`, {
+              method: 'POST',
+              body: JSON.stringify({ email, status, password })
+            });
+            showNotification('Reset request processed', 'green');
+            fetchPasswordResets();
+          } catch (err) {
+            showNotification(err.message || 'Failed to process reset', 'red');
+            select.value = 'pending';
+          }
+        });
+      });
+      document.querySelectorAll('.copy-password').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const text = btn.dataset.password;
+          navigator.clipboard.writeText(text).then(() => {
+            showNotification('Password copied', 'green');
+          }).catch(() => {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showNotification('Password copied', 'green');
+          });
+        });
+      });
+      document.querySelectorAll('.email-password').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const email = btn.dataset.email;
+          const password = btn.dataset.password;
+          window.location.href = `mailto:${email}?subject=Deriv%20Bot%20Store%20Affiliate&body=Your%20password%20was%20reset,%20use%20this%20password%20to%20login:%20${password}.%20Regards,%20Deriv%20Bot%20Store%20Affiliate`;
+        });
+      });
+    }
+
+    // Save Admin Credentials
+    document.getElementById('save-credentials').addEventListener('click', async () => {
+      const oldEmail = document.getElementById('old-email').value;
+      const newEmail = document.getElementById('new-email').value;
+      const oldPassword = document.getElementById('old-password').value;
+      const newPassword = document.getElementById('new-password').value;
+      const confirmNewPassword = document.getElementById('confirm-new-password').value;
+      const btn = document.getElementById('save-credentials');
+      const loading = document.getElementById('save-credentials-loading');
+      if (!oldEmail || !newEmail || !oldPassword || !newPassword || !confirmNewPassword) {
+        showNotification('Please fill all fields', 'red');
+        return;
+      }
+      if (newPassword !== confirmNewPassword) {
+        showNotification('New passwords do not match', 'red');
+        return;
+      }
+      if (!/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(newPassword)) {
+        showNotification('New password must be at least 8 characters with 1 letter and 1 number', 'red');
+        return;
+      }
+      btn.disabled = true;
+      loading.classList.remove('hidden');
+      try {
+        await fetchWithAuth(`${API_BASE}/api/admin/affiliate/settings`, {
+          method: 'POST',
+          body: JSON.stringify({ adminEmail: newEmail, adminPassword: newPassword, oldEmail, oldPassword })
+        });
+        showNotification('Credentials updated', 'green');
+        deleteCookie('jwt');
+        if (ws) ws.close();
+        showLogin();
+      } catch (err) {
+        showNotification(err.message || 'Failed to update credentials', 'red');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    });
+
+    // Toggle Password Visibility for Settings
+    ['old-password', 'new-password', 'confirm-new-password'].forEach(id => {
+      document.getElementById(`toggle-${id}`).addEventListener('click', () => {
+        const input = document.getElementById(id);
+        const btn = document.getElementById(`toggle-${id}`);
+        input.type = input.type === 'password' ? 'text' : 'password';
+        btn.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      });
+    });
+
+    // Initialize
+    checkAuth();
+  // Prevent form submissions
+    document.querySelectorAll('form').forEach(form => {
+      form.addEventListener('submit', (e) => e.preventDefault());
+    });
+
+    // Handle window resize for responsive adjustments
+    window.addEventListener('resize', () => {
+      // Adjust table layouts if needed
+      renderAffiliates();
+      renderPendingWithdrawals();
+      renderSortedWithdrawals();
+      renderLeaderboard();
+      renderStaticPages();
+      renderPasswordResets();
+    });
+
+    // Periodic data refresh
+    setInterval(() => {
+      if (document.getElementById('dashboard').classList.contains('hidden')) return;
+      if (currentTab === 'home') fetchSettings();
+      if (currentTab === 'affiliates') fetchAffiliates();
+      if (currentTab === 'pending-withdrawals') fetchPendingWithdrawals();
+      if (currentTab === 'sorted-withdrawals') fetchSortedWithdrawals();
+      if (currentTab === 'rewards') fetchLeaderboard();
+      if (currentTab === 'static-pages') fetchStaticPages();
+      if (currentTab === 'communication') fetchCommunication();
+      if (currentTab === 'password-resets') fetchPasswordResets();
+    }, 60000); // Refresh every 60 seconds
+
+    // Handle browser back/forward navigation
+    window.addEventListener('popstate', () => {
+      const tab = new URLSearchParams(window.location.search).get('tab') || 'home';
+      document.querySelector(`[data-tab="${tab}"]`)?.click();
+    });
+
+    // Update URL without reloading
+    function updateURL(tab) {
+      history.pushState({}, '', `?tab=${tab}`);
+    }
+
+    // Sync tab changes with URL
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        updateURL(btn.dataset.tab);
+      });
+    });
+
+    // Handle WebSocket errors
+    ws?.addEventListener('error', () => {
+      showNotification('WebSocket connection error, attempting to reconnect...', 'red');
+    });
+
+    // Clean up WebSocket on page unload
+    window.addEventListener('beforeunload', () => {
+      if (ws) ws.close();
+    });
+
+    // Accessibility: Keyboard navigation for tabs
+    document.querySelectorAll('.tab-btn').forEach((btn, index) => {
+      btn.setAttribute('tabindex', '0');
+      btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          btn.click();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          const next = document.querySelectorAll('.tab-btn')[index + 1];
+          if (next) next.focus();
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          const prev = document.querySelectorAll('.tab-btn')[index - 1];
+          if (prev) prev.focus();
+        }
+      });
+    });
+
+    // Initialize page with URL tab if present
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    if (urlTab && document.querySelector(`[data-tab="${urlTab}"]`)) {
+      document.querySelector(`[data-tab="${urlTab}"]`).click();
+    }
+
   </script>
+</body>
+</html>
