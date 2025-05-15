@@ -1,6 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const session = require('express-session'); // Imported but not used unless session is needed
+const session = require('express-session');
 const bcrypt = require('bcrypt');
 const { google } = require('googleapis');
 const WebSocket = require('ws');
@@ -660,7 +660,7 @@ app.post('/api/admin/affiliate/login', loginLimiter, async (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
   const token = jwt.sign({ email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
-  // Removed: req.session.adminEmail = email; // Session not initialized, and JWT is sufficient
+  req.session.adminEmail = email;
   if (wsClients.has('admin')) {
     wsClients.get('admin').send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
     wsClients.delete('admin');
@@ -1385,49 +1385,6 @@ app.post('/api/admin/affiliate/reset-password', authenticateAdmin, async (req, r
   }
   await updateCache();
   res.json({ success: true });
-});
-
-// ADD_HERE: PATCH /api/admin/affiliates/:email/status
-app.patch('/api/admin/affiliates/:email/status', authenticateAdmin, async (req, res) => {
-  const { email } = req.params;
-  const { status } = req.body;
-  if (!['active', 'blocked', 'deleted'].includes(status)) {
-    return res.status(400).json({ success: false, message: 'Invalid status' });
-  }
-  try {
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === email);
-    if (!affiliate) {
-      return res.status(404).json({ success: false, message: 'Affiliate not found' });
-    }
-    affiliate.Statusjson = { status };
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
-    await logTransaction(email, 'update_status', { status });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-      if (status === 'blocked' || status === 'deleted') {
-        wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
-        wsClients.delete(affiliate.Email);
-      }
-    }
-    await updateCache();
-    res.json({ success: true, message: 'Affiliate status updated' });
-  } catch (err) {
-    console.error('Error updating affiliate status:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-// Admin Route to Serve virusaffiliate.html (Added)
-app.get('/admin', (req, res) => {
-  const filePath = path.join(publicPath, 'virusaffiliate.html');
-  console.log(`Serving admin route: ${filePath}`);
-  res.sendFile(filePath, (err) => {
-    if (err) {
-      console.error(`Error serving virusaffiliate.html: ${err.message}`);
-      res.status(404).json({ success: false, message: 'Admin page not found' });
-    }
-  });
 });
 
 // Default Route to Serve affiliate.html
