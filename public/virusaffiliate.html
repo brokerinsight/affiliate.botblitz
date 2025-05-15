@@ -23,7 +23,7 @@
         <span id="logo" class="text-2xl font-bold">Deriv Bot Store Affiliates Admin</span>
       </div>
       <div class="flex items-center space-x-4">
-        <button id="logout-btn" class="hidden bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Logout</button>
+        <button id="logout-btn" class="hidden bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-200">Logout</button>
         <button id="theme-toggle" aria-label="Toggle theme" class="p-2">
           <svg id="theme-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -37,7 +37,7 @@
   <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Login Page -->
     <div id="login-page" class="flex items-center justify-center min-h-[calc(100vh-8rem)]">
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow max-w-md w-full">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow max-w-xl w-full sm:w-3/4 md:w-1/2 lg:w-1/3">
         <h2 class="text-2xl font-bold mb-6 text-center">Admin Login</h2>
         <div class="space-y-4">
           <div>
@@ -51,7 +51,7 @@
               <button id="toggle-login-password" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
             </div>
           </div>
-          <button id="login-submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex justify-center items-center">
+          <button id="login-submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex justify-center items-center min-w-[120px] transition duration-200 hover:scale-105">
             Login
             <svg id="login-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -67,15 +67,15 @@
     <div id="dashboard" class="hidden">
       <!-- Tabs Navigation -->
       <nav class="flex flex-wrap gap-2 mb-6">
-        <button data-tab="home" class="tab-btn bg-blue-500 text-white px-4 py-2 rounded-md">Home</button>
-        <button data-tab="affiliates" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Affiliates</button>
-        <button data-tab="pending-withdrawals" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Pending Withdrawals</button>
-        <button data-tab="sorted-withdrawals" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Sorted Withdrawals</button>
-        <button data-tab="rewards" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Rewards</button>
-        <button data-tab="static-pages" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Static Pages</button>
-        <button data-tab="communication" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Communication</button>
-        <button data-tab="password-resets" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Password Resets</button>
-        <button data-tab="settings" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md">Settings</button>
+        <button data-tab="home" class="tab-btn bg-blue-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Home</button>
+        <button data-tab="affiliates" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Affiliates</button>
+        <button data-tab="pending-withdrawals" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Pending Withdrawals</button>
+        <button data-tab="sorted-withdrawals" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Sorted Withdrawals</button>
+        <button data-tab="rewards" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Rewards</button>
+        <button data-tab="static-pages" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Static Pages</button>
+        <button data-tab="communication" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Communication</button>
+        <button data-tab="password-resets" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Password Resets</button>
+        <button data-tab="settings" class="tab-btn bg-gray-500 text-white px-4 py-2 rounded-md transition duration-200 hover:scale-105">Settings</button>
       </nav>
 
       <!-- Tab Content -->
@@ -86,7 +86,7 @@
             <div>
               <label for="support-email" class="block text-sm font-medium">Support Email</label>
               <input id="support-email" type="email" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" value="derivbotstore@gmail.com">
-            </arbon>
+            </div>
             <div>
               <label for="copyright-text" class="block text-sm font-medium">Copyright Text</label>
               <input id="copyright-text" type="text" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" value="Deriv Bot Store Affiliates 2025">
@@ -103,7 +103,7 @@
               <label for="logo-url" class="block text-sm font-medium">Logo URL</label>
               <input id="logo-url" type="url" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
             </div>
-            <button id="save-settings" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+            <button id="save-settings" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center min-w-[120px] transition duration-200 hover:scale-105">
               Save Settings
               <svg id="save-settings-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -191,8 +191,8 @@
               <tbody id="sorted-withdrawals-table"></tbody>
             </table>
             <div class="flex justify-between mt-4">
-              <button id="prev-sorted-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 disabled:opacity-50">Previous</button>
-              <button id="next-sorted-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 disabled:opacity-50">Next</button>
+              <button id="prev-sorted-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 disabled:opacity-50 min-w-[120px] transition duration-200 hover:scale-105">Previous</button>
+              <button id="next-sorted-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 disabled:opacity-50 min-w-[120px] transition duration-200 hover:scale-105">Next</button>
             </div>
           </div>
         </div>
@@ -217,7 +217,7 @@
             <div class="mt-4">
               <label for="percentage-reward" class="block text-sm font-medium">Percentage Reward (0–1)</label>
               <input id="percentage-reward" type="number" step="0.01" min="0" max="1" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
-              <button id="apply-percentage-reward" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+              <button id="apply-percentage-reward" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center min-w-[120px] transition duration-200 hover:scale-105">
                 Apply Reward
                 <svg id="percentage-reward-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -230,7 +230,7 @@
           <div>
             <label for="spot-amount" class="block text-sm font-medium">Spot Amount (KES)</label>
             <input id="spot-amount" type="number" min="0" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
-            <button id="select-recipients" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Select Recipients</button>
+            <button id="select-recipients" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 min-w-[120px] transition duration-200 hover:scale-105">Select Recipients</button>
           </div>
         </div>
       </div>
@@ -238,7 +238,7 @@
       <div id="static-pages-tab" class="tab-content hidden">
         <h2 class="text-xl font-bold mb-4">Static Pages</h2>
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
-          <button id="create-page" class="mb-4 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Create Page</button>
+          <button id="create-page" class="mb-4 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 min-w-[120px] transition duration-200 hover:scale-105">Create Page</button>
           <table class="w-full border-collapse">
             <thead>
               <tr class="bg-gray-200 dark:bg-gray-700">
@@ -267,7 +267,7 @@
                 <span>Enabled</span>
               </label>
             </div>
-            <button id="save-urgent" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+            <button id="save-urgent" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center min-w-[120px] transition duration-200 hover:scale-105">
               Save
               <svg id="save-urgent-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -287,7 +287,7 @@
                 <option value="all">All Affiliates</option>
               </select>
             </div>
-            <button id="send-news" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+            <button id="send-news" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center min-w-[120px] transition duration-200 hover:scale-105">
               Send
               <svg id="send-news-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -350,10 +350,10 @@
               <label for="confirm-new-password" class="block text-sm font-medium">Confirm New Password</label>
               <div class="relative">
                 <input id="confirm-new-password" type="password" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
-                <button id="toggle-confirm-password" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+                <button id="toggle-confirm-new-password" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
               </div>
             </div>
-            <button id="save-credentials" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+            <button id="save-credentials" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center min-w-[120px] transition duration-200 hover:scale-105">
               Save Credentials
               <svg id="save-credentials-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -381,7 +381,7 @@
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-4xl w-full">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-bold">Select Recipients</h2>
-        <button id="close-recipients-modal" class="text-gray-500 hover:text-gray-700">&times;</button>
+        <button id="close-recipients-modal" class="text-gray-500 hover:text-gray-700">×</button>
       </div>
       <table class="w-full border-collapse">
         <thead>
@@ -396,7 +396,7 @@
         <tbody id="recipients-table"></tbody>
       </table>
       <div class="mt-4 flex justify-end">
-        <button id="apply-spot-reward" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+        <button id="apply-spot-reward" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center min-w-[120px] transition duration-200 hover:scale-105">
           Apply Spot Reward
           <svg id="spot-reward-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -411,7 +411,7 @@
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <div class="flex justify-between items-center mb-4">
         <h2 id="page-modal-title" class="text-xl font-bold">Create Page</h2>
-        <button id="close-page-modal" class="text-gray-500 hover:text-gray-700">&times;</button>
+        <button id="close-page-modal" class="text-gray-500 hover:text-gray-700">×</button>
       </div>
       <div class="space-y-4">
         <div>
@@ -423,14 +423,14 @@
           <textarea id="page-content" class="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" rows="6"></textarea>
         </div>
         <div class="flex justify-end space-x-2">
-          <button id="save-page" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center">
+          <button id="save-page" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center min-w-[120px] transition duration-200 hover:scale-105">
             Save
             <svg id="save-page-loading" class="hidden w-5 h-5 ml-2 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
             </svg>
           </button>
-          <button id="cancel-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Cancel</button>
+          <button id="cancel-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 min-w-[120px] transition duration-200 hover:scale-105">Cancel</button>
         </div>
       </div>
     </div>
@@ -441,8 +441,8 @@
       <h2 class="text-xl font-bold mb-4">Confirm Deletion</h2>
       <p>Are you sure you want to delete this page?</p>
       <div class="flex justify-end space-x-2 mt-4">
-        <button id="confirm-delete-page" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Delete</button>
-        <button id="cancel-delete-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Cancel</button>
+        <button id="confirm-delete-page" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 min-w-[120px] transition duration-200 hover:scale-105">Delete</button>
+        <button id="cancel-delete-page" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 min-w-[120px] transition duration-200 hover:scale-105">Cancel</button>
       </div>
     </div>
   </div>
@@ -473,7 +473,7 @@
     function setCookie(name, value, days) {
       const date = new Date();
       date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-      document.cookie = `${name}=${value};expires=${date.toUTCString()};path=/;secure;httpOnly`;
+      document.cookie = `${name}=${value};expires=${date.toUTCString()};path=/;secure;sameSite=strict`;
     }
 
     function deleteCookie(name) {
@@ -496,7 +496,7 @@
       container.innerHTML = notificationsQueue.map(n => `
         <div id="${n.id}" class="notification bg-white dark:bg-gray-800 p-4 rounded shadow border-l-4 border-${n.color}-500 flex justify-between items-center">
           <span>${n.message}</span>
-          <button onclick="closeNotification('${n.id}')" class="text-gray-500 hover:text-gray-700">&times;</button>
+          <button onclick="closeNotification('${n.id}')" class="text-gray-500 hover:text-gray-700">×</button>
         </div>
       `).join('');
       setTimeout(() => {
@@ -522,17 +522,40 @@
       }
     }
 
+    // Enhanced error handling for API calls
+    async function handleApiError(err, message) {
+      if (err.message.includes('401')) {
+        deleteCookie('jwt');
+        if (ws) ws.close();
+        showLogin();
+        showNotification('Session expired, please login again', 'red');
+      } else if (err.message.includes('404')) {
+        showNotification('Resource not found, please try again later', 'red');
+      } else {
+        showNotification(message || err.message, 'red');
+      }
+    }
+
+    // Override fetchWithAuth for better error handling
     async function fetchWithAuth(url, options = {}) {
       const token = getCookie('jwt');
+      if (!token) {
+        showLogin();
+        throw new Error('No authentication token');
+      }
       options.headers = {
         ...options.headers,
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
-      const res = await fetch(url, options);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Request failed');
-      return data;
+      try {
+        const res = await fetch(url, options);
+        const data = await res.json();
+        if (!res.ok) throw new Error(`${res.status} ${data.error || 'Request failed'}`);
+        return data;
+      } catch (err) {
+        throw err;
+      }
     }
 
     // Theme Toggle
@@ -690,7 +713,7 @@
           document.getElementById('logo').innerHTML = `<img src="${settings.logoUrl}" alt="Deriv Bot Store Affiliates Admin" class="h-8">`;
         }
       } catch (err) {
-        showNotification('Failed to load settings', 'red');
+        handleApiError(err, 'Failed to load settings');
       }
     }
 
@@ -715,7 +738,7 @@
         showNotification('Settings updated', 'green');
         fetchSettings();
       } catch (err) {
-        showNotification(err.message || 'Failed to save settings', 'red');
+        handleApiError(err, 'Failed to save settings');
       } finally {
         btn.disabled = false;
         loading.classList.add('hidden');
@@ -729,7 +752,7 @@
         affiliates = data.affiliates;
         renderAffiliates();
       } catch (err) {
-        showNotification('Failed to load affiliates', 'red');
+        handleApiError(err, 'Failed to load affiliates');
       }
     }
 
@@ -782,7 +805,7 @@
             showNotification('Status updated', 'green');
             fetchAffiliates();
           } catch (err) {
-            showNotification(err.message || 'Failed to update status', 'red');
+            handleApiError(err, 'Failed to update status');
           }
         });
       });
@@ -798,7 +821,7 @@
         pendingWithdrawals = data.withdrawals;
         renderPendingWithdrawals();
       } catch (err) {
-        showNotification('Failed to load pending withdrawals', 'red');
+        handleApiError(err, 'Failed to load pending withdrawals');
       }
     }
 
@@ -811,7 +834,7 @@
           <td class="p-2">${w.amount.toFixed(2)}</td>
           <td class="p-2">
             ${w.mpesaNumber}
-            <button data-mpesa="${w.mpesaNumber}" class="copy-mpesa ml-2 bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Copy</button>
+            <button data-mpesa="${w.mpesaNumber}" class="copy-mpesa ml-2 bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600 min-w-[60px] transition duration-200 hover:scale-105">Copy</button>
           </td>
           <td class="p-2">${w.mpesaName}</td>
           <td class="p-2">
@@ -861,7 +884,7 @@
             fetchPendingWithdrawals();
             fetchSortedWithdrawals();
           } catch (err) {
-            showNotification(err.message || 'Failed to process withdrawal', 'red');
+            handleApiError(err, 'Failed to process withdrawal');
             select.value = 'Pending';
           }
         });
@@ -876,7 +899,7 @@
         totalSortedPages = data.totalPages;
         renderSortedWithdrawals();
       } catch (err) {
-        showNotification('Failed to load sorted withdrawals', 'red');
+        handleApiError(err, 'Failed to load sorted withdrawals');
       }
     }
 
@@ -921,7 +944,7 @@
           .slice(0, 10);
         renderLeaderboard();
       } catch (err) {
-        showNotification('Failed to load leaderboard', 'red');
+        handleApiError(err, 'Failed to load leaderboard');
       }
     }
 
@@ -955,7 +978,7 @@
         showNotification('Rewards applied', 'green');
         fetchLeaderboard();
       } catch (err) {
-        showNotification(err.message || 'Failed to apply rewards', 'red');
+        handleApiError(err, 'Failed to apply rewards');
       } finally {
         btn.disabled = false;
         loading.classList.add('hidden');
@@ -980,7 +1003,7 @@
         `).join('');
         document.getElementById('recipients-modal').classList.remove('hidden');
       } catch (err) {
-        showNotification('Failed to load affiliates', 'red');
+        handleApiError(err, 'Failed to load affiliates');
       }
     });
 
@@ -1013,7 +1036,7 @@
         document.getElementById('recipients-modal').classList.add('hidden');
         fetchLeaderboard();
       } catch (err) {
-        showNotification(err.message || 'Failed to apply spot rewards', 'red');
+        handleApiError(err, 'Failed to apply spot rewards');
       } finally {
         btn.disabled = false;
         loading.classList.add('hidden');
@@ -1027,7 +1050,7 @@
         staticPages = data.pages;
         renderStaticPages();
       } catch (err) {
-        showNotification('Failed to load static pages', 'red');
+        handleApiError(err, 'Failed to load static pages');
       }
     }
 
@@ -1037,8 +1060,8 @@
           <td class="p-2">${p.slug}</td>
           <td class="p-2">${p.title}</td>
           <td class="p-2">
-            <button data-slug="${p.slug}" class="edit-page bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Edit</button>
-            <button data-slug="${p.slug}" class="delete-page bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600">Delete</button>
+            <button data-slug="${p.slug}" class="edit-page bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600 min-w-[60px] transition duration-200 hover:scale-105">Edit</button>
+            <button data-slug="${p.slug}" class="delete-page bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600 min-w-[60px] transition duration-200 hover:scale-105">Delete</button>
           </td>
         </tr>
       `).join('');
@@ -1097,7 +1120,7 @@
         document.getElementById('page-modal').classList.add('hidden');
         fetchStaticPages();
       } catch (err) {
-        showNotification(err.message || 'Failed to save page', 'red');
+        handleApiError(err, 'Failed to save page');
       } finally {
         btn.disabled = false;
         loading.classList.add('hidden');
@@ -1115,7 +1138,7 @@
         document.getElementById('delete-page-modal').classList.add('hidden');
         fetchStaticPages();
       } catch (err) {
-        showNotification(err.message || 'Failed to delete page', 'red');
+        handleApiError(err, 'Failed to delete page');
       }
     });
 
@@ -1131,7 +1154,7 @@
         document.getElementById('urgent-message').value = urgent.message || '';
         document.getElementById('urgent-enabled').checked = urgent.enabled || false;
       } catch (err) {
-        showNotification('Failed to load communication settings', 'red');
+        handleApiError(err, 'Failed to load communication settings');
       }
     }
 
@@ -1153,7 +1176,7 @@
         });
         showNotification('Urgent message updated', 'green');
       } catch (err) {
-        showNotification(err.message || 'Failed to save urgent message', 'red');
+        handleApiError(err, 'Failed to save urgent message');
       } finally {
         btn.disabled = false;
         loading.classList.add('hidden');
@@ -1179,7 +1202,7 @@
         showNotification('News sent', 'green');
         document.getElementById('news-message').value = '';
       } catch (err) {
-        showNotification(err.message || 'Failed to send news', 'red');
+        handleApiError(err, 'Failed to send news');
       } finally {
         btn.disabled = false;
         loading.classList.add('hidden');
@@ -1193,7 +1216,7 @@
         passwordResets = data.requests;
         renderPasswordResets();
       } catch (err) {
-        showNotification('Failed to load password resets', 'red');
+        handleApiError(err, 'Failed to load password resets');
       }
     }
 
@@ -1215,8 +1238,8 @@
             ${r.status === 'approved' ? `
               <div class="mt-2">
                 <input type="text" value="${r.password}" class="p-1 border rounded-md dark:bg-gray-700 dark:border-gray-600" readonly>
-                <button data-password="${r.password}" class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Copy</button>
-                <button data-email="${r.email}" data-password="${r.password}" class="email-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Email</button>
+                <button data-password="${r.password}" class="copy-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600 min-w-[60px] transition duration-200 hover:scale-105">Copy</button>
+                <button data-email="${r.email}" data-password="${r.password}" class="email-password bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600 min-w-[60px] transition duration-200 hover:scale-105">Email</button>
               </div>
             ` : ''}
           </td>
@@ -1241,7 +1264,7 @@
             showNotification('Reset request processed', 'green');
             fetchPasswordResets();
           } catch (err) {
-            showNotification(err.message || 'Failed to process reset', 'red');
+            handleApiError(err, 'Failed to process reset');
             select.value = 'pending';
           }
         });
@@ -1304,7 +1327,7 @@
         if (ws) ws.close();
         showLogin();
       } catch (err) {
-        showNotification(err.message || 'Failed to update credentials', 'red');
+        handleApiError(err, 'Failed to update credentials');
       } finally {
         btn.disabled = false;
         loading.classList.add('hidden');
@@ -1312,99 +1335,63 @@
     });
 
     // Toggle Password Visibility for Settings
-    ['old-password', 'new-password', 'confirm-new-password'].forEach(id => {
-      document.getElementById(`toggle-${id}`).addEventListener('click', () => {
-        const input = document.getElementById(id);
-        const btn = document.getElementById(`toggle-${id}`);
-        input.type = input.type === 'password' ? 'text' : 'password';
-        btn.textContent = input.type === 'password' ? 'Show' : 'Hide';
+    document.querySelectorAll('.relative button[id*="toggle"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const inputId = btn.id.replace('toggle-', '');
+        const input = document.getElementById(inputId);
+        if (input) {
+          input.type = input.type === 'password' ? 'text' : 'password';
+          btn.textContent = input.type === 'password' ? 'Show' : 'Hide';
+        }
       });
     });
 
     // Initialize
     checkAuth();
-  // Prevent form submissions
+
+    // Prevent form submissions
     document.querySelectorAll('form').forEach(form => {
       form.addEventListener('submit', (e) => e.preventDefault());
     });
 
     // Handle window resize for responsive adjustments
     window.addEventListener('resize', () => {
-      // Adjust table layouts if needed
       renderAffiliates();
       renderPendingWithdrawals();
       renderSortedWithdrawals();
       renderLeaderboard();
       renderStaticPages();
       renderPasswordResets();
+      // Adjust login form size
+      const loginForm = document.querySelector('#login-page > div');
+      if (loginForm) {
+        loginForm.style.maxWidth = window.innerWidth < 640 ? '90%' : '32rem';
+      }
     });
 
-    // Periodic data refresh
-    setInterval(() => {
+    // Periodic data refresh with error handling
+    setInterval(async () => {
       if (document.getElementById('dashboard').classList.contains('hidden')) return;
-      if (currentTab === 'home') fetchSettings();
-      if (currentTab === 'affiliates') fetchAffiliates();
-      if (currentTab === 'pending-withdrawals') fetchPendingWithdrawals();
-      if (currentTab === 'sorted-withdrawals') fetchSortedWithdrawals();
-      if (currentTab === 'rewards') fetchLeaderboard();
-      if (currentTab === 'static-pages') fetchStaticPages();
-      if (currentTab === 'communication') fetchCommunication();
-      if (currentTab === 'password-resets') fetchPasswordResets();
-    }, 60000); // Refresh every 60 seconds
+      try {
+        if (currentTab === 'home') await fetchSettings();
+        if (currentTab === 'affiliates') await fetchAffiliates();
+        if (currentTab === 'pending-withdrawals') await fetchPendingWithdrawals();
+        if (currentTab === 'sorted-withdrawals') await fetchSortedWithdrawals();
+        if (currentTab === 'rewards') await fetchLeaderboard();
+        if (currentTab === 'static-pages') await fetchStaticPages();
+        if (currentTab === 'communication') await fetchCommunication();
+        if (currentTab === 'password-resets') await fetchPasswordResets();
+      } catch (err) {
+        handleApiError(err, 'Failed to refresh data');
+      }
+    }, 300000); // Refresh every 5 minutes
 
-    // Handle browser back/forward navigation
-    window.addEventListener('popstate', () => {
-      const tab = new URLSearchParams(window.location.search).get('tab') || 'home';
-      document.querySelector(`[data-tab="${tab}"]`)?.click();
-    });
-
-    // Update URL without reloading
-    function updateURL(tab) {
-      history.pushState({}, '', `?tab=${tab}`);
-    }
-
-    // Sync tab changes with URL
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        updateURL(btn.dataset.tab);
+    // Prevent page reload on Enter key in inputs
+    document.querySelectorAll('input').forEach(input => {
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') e.preventDefault();
       });
     });
-
-    // Handle WebSocket errors
-    ws?.addEventListener('error', () => {
-      showNotification('WebSocket connection error, attempting to reconnect...', 'red');
-    });
-
-    // Clean up WebSocket on page unload
-    window.addEventListener('beforeunload', () => {
-      if (ws) ws.close();
-    });
-
-    // Accessibility: Keyboard navigation for tabs
-    document.querySelectorAll('.tab-btn').forEach((btn, index) => {
-      btn.setAttribute('tabindex', '0');
-      btn.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          btn.click();
-        } else if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          const next = document.querySelectorAll('.tab-btn')[index + 1];
-          if (next) next.focus();
-        } else if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          const prev = document.querySelectorAll('.tab-btn')[index - 1];
-          if (prev) prev.focus();
-        }
-      });
-    });
-
-    // Initialize page with URL tab if present
-    const urlTab = new URLSearchParams(window.location.search).get('tab');
-    if (urlTab && document.querySelector(`[data-tab="${urlTab}"]`)) {
-      document.querySelector(`[data-tab="${urlTab}"]`).click();
-    }
-
   </script>
 </body>
 </html>
