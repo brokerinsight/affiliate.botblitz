@@ -1,6 +1,5 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const session = require('express-session');
 const bcrypt = require('bcrypt');
 const { google } = require('googleapis');
 const WebSocket = require('ws');
@@ -8,8 +7,6 @@ const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
 const sanitizeHtml = require('sanitize-html');
 const cron = require('node-cron');
-const path = require('path');
-const fs = require('fs');
 const axios = require('axios');
 
 const app = express();
@@ -37,7 +34,7 @@ const validateEnv = () => {
       credentials = JSON.parse(stripped);
     }
     if (!credentials.client_email || !credentials.private_key) {
-      throw new Error('GOOGLE_CREDENTIALS missing required fields: client_email or private_key');
+      throw new Error('GOOGLE_CREDENTIALS missing required fields');
     }
     return credentials;
   } catch (err) {
@@ -49,26 +46,18 @@ const credentials = validateEnv();
 
 // Middleware
 app.use(express.json());
-const publicPath = path.join(__dirname, 'public');
-app.use(express.static(publicPath));
-
-// Debug: Log static file requests
-app.use((req, res, next) => {
-  if (req.path.endsWith('.html')) {
-    console.log(`Request for ${req.path}: Attempting to serve from ${publicPath}`);
-    const filePath = path.join(publicPath, req.path);
-    if (fs.existsSync(filePath)) {
-      console.log(`Serving ${filePath}`);
-    } else {
-      console.log(`File not found: ${filePath}`);
-    }
-  }
-  next();
-});
+app.use(express.static('public'));
 
 // Rate Limiting
+const globalPostLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests, please try again later'
+});
+app.use('/api', globalPostLimiter);
+
 const loginLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
+  windowMs: 10 * 60 * 1000,
   max: 5,
   keyGenerator: (req) => req.body.email || 'unknown',
   message: 'Too many login attempts, please try again later'
@@ -104,11 +93,7 @@ const initializeSheets = async () => {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         resource: {
-          requests: [{
-            addSheet: {
-              properties: { title: tabName }
-            }
-          }]
+          requests: [{ addSheet: { properties: { title: tabName } } }]
         }
       });
       console.log(`Created tab '${tabName}' in spreadsheet ${spreadsheetId}`);
@@ -118,7 +103,7 @@ const initializeSheets = async () => {
       'Email', 'Username', 'Name', 'JoinDate', 'RefCode', 'Password',
       'Statusjson', 'LinkClicks', 'TotalSales', 'TotalSalesMonthly',
       'CurrentBalance', 'WithdrawnTotal', 'WithdrawalsJSON', 'RewardsJSON',
-      'NotificationsJSON', 'MpesaDetails'
+      'NotificationsJSON', 'ResetJSON', 'LeaderboardJSON', 'MpesaDetails'
     ];
     let affiliateTabs = await getSheetTabs(AFFILIATES_SHEET_ID);
     if (!affiliateTabs.includes('all affiliates')) {
@@ -135,11 +120,10 @@ const initializeSheets = async () => {
     }
     await sheets.spreadsheets.values.update({
       spreadsheetId: AFFILIATES_SHEET_ID,
-      range: 'all affiliates!A1:P1',
+      range: 'all affiliates!A1:R1',
       valueInputOption: 'RAW',
       resource: { values: [affiliatesHeaders] }
     });
-    console.log('Initialized headers for all affiliates tab');
 
     const settingsData = [
       ['supportEmail', 'derivbotstore@gmail.com'],
@@ -147,7 +131,7 @@ const initializeSheets = async () => {
       ['whatsappLink', 'https://wa.link/4wppln'],
       ['commissionRate', '0.2'],
       ['logoUrl', ''],
-      ['adminEmail', 'admin@botblitz.store'],
+      ['adminEmail', 'martinke444@gmail.com'],
       ['adminPassword', 'kaylie2025'],
       ['urgentPopup', JSON.stringify({ message: '', enabled: false })]
     ];
@@ -161,13 +145,9 @@ const initializeSheets = async () => {
       valueInputOption: 'RAW',
       resource: { values: settingsData }
     });
-    console.log('Initialized settingsAffiliate tab');
 
     const adminTabsConfig = [
       { name: 'staticPagesAffiliate', headers: ['Slug', 'Title', 'Content'] },
-      { name: 'pendingWithdrawals', headers: ['Email', 'Name', 'Timestamp', 'Amount', 'MpesaNumber', 'MpesaName', 'PaymentRefcode', 'Status'] },
-      { name: 'sortedWithdrawals', headers: ['Email', 'Name', 'Timestamp', 'Amount', 'MpesaNumber', 'MpesaName', 'PaymentRefcode', 'Status'] },
-      { name: 'reset', headers: ['Email', 'Username', 'Name', 'LastWithdrawalAmount', 'Description', 'Timestamp', 'Status', 'Password'] },
       { name: 'News', headers: ['Id', 'Message', 'Timestamp'] }
     ];
     for (const tab of adminTabsConfig) {
@@ -180,17 +160,9 @@ const initializeSheets = async () => {
         valueInputOption: 'RAW',
         resource: { values: [tab.headers] }
       });
-      console.log(`Initialized headers for ${tab.name} tab`);
     }
-
-    console.log('Google Sheets fully initialized');
   } catch (err) {
     console.error('Failed to initialize sheets:', err.message);
-    if (err.code === 403) {
-      console.error('Permission denied: Ensure the Service Account has Editor access to both Sheets');
-    } else if (err.code === 404) {
-      console.error('Sheet not found: Verify AFFILIATES_SHEET_ID and ADMIN_SHEET_ID');
-    }
     process.exit(1);
   }
 };
@@ -199,9 +171,9 @@ const initializeSheets = async () => {
 let cachedDataAffiliate = {
   affiliates: [],
   settings: {},
-  staticPages: []
+  staticPages: [],
+  news: []
 };
-let leaderboardCache = {};
 
 // Transaction Logging
 async function logTransaction(email, action, details) {
@@ -210,58 +182,10 @@ async function logTransaction(email, action, details) {
       spreadsheetId: AFFILIATES_SHEET_ID,
       range: 'transactionLog!A:C',
       valueInputOption: 'RAW',
-      resource: {
-        values: [[new Date().toISOString(), email, `${action}: ${JSON.stringify(details)}`]],
-      },
+      resource: { values: [[new Date().toISOString(), email, `${action}: ${JSON.stringify(details)}`]] }
     });
-    console.log(`Logged transaction for ${email}: ${action}`);
   } catch (error) {
     console.error('Error logging transaction:', error.message);
-  }
-}
-
-// Sort Affiliates in Google Sheet by TotalSalesMonthly
-async function sortAffiliatesSheet() {
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: 'all affiliates!A2:P'
-    });
-    const rows = response.data.values || [];
-    const affiliates = rows.map(row => ({
-      Email: row[0],
-      Username: row[1],
-      Name: row[2],
-      JoinDate: row[3],
-      RefCode: row[4],
-      Password: row[5],
-      Statusjson: row[6],
-      LinkClicks: row[7],
-      TotalSales: row[8],
-      TotalSalesMonthly: parseInt(row[9] || '0'),
-      CurrentBalance: row[10],
-      WithdrawnTotal: row[11],
-      WithdrawalsJSON: row[12],
-      RewardsJSON: row[13],
-      NotificationsJSON: row[14],
-      MpesaDetails: row[15]
-    }));
-    affiliates.sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly);
-    const values = affiliates.map(a => [
-      a.Email, a.Username, a.Name, a.JoinDate, a.RefCode, a.Password,
-      a.Statusjson, a.LinkClicks, a.TotalSales, a.TotalSalesMonthly,
-      a.CurrentBalance, a.WithdrawnTotal, a.WithdrawalsJSON, a.RewardsJSON,
-      a.NotificationsJSON, a.MpesaDetails
-    ]);
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: 'all affiliates!A2:P',
-      valueInputOption: 'RAW',
-      resource: { values }
-    });
-    console.log('Affiliates sheet sorted by TotalSalesMonthly');
-  } catch (err) {
-    console.error('Error sorting affiliates sheet:', err.message);
   }
 }
 
@@ -269,30 +193,29 @@ async function sortAffiliatesSheet() {
 const fetchAffiliates = async () => {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: AFFILIATES_SHEET_ID,
-    range: 'all affiliates!A2:P'
+    range: 'all affiliates!A2:R'
   });
   const rows = response.data.values || [];
-  return rows.map(row => {
-    const affiliate = {
-      Email: row[0],
-      Username: row[1],
-      Name: row[2],
-      JoinDate: row[3],
-      RefCode: row[4],
-      Password: row[5],
-      Statusjson: JSON.parse(row[6] || '{}'),
-      LinkClicks: parseInt(row[7] || '0'),
-      TotalSales: parseInt(row[8] || '0'),
-      TotalSalesMonthly: parseInt(row[9] || '0'),
-      CurrentBalance: parseFloat(row[10] || '0'),
-      WithdrawnTotal: parseFloat(row[11] || '0'),
-      WithdrawalsJSON: JSON.parse(row[12] || '[]').sort((a, b) => new Date(b.date) - new Date(a.date)),
-      RewardsJSON: JSON.parse(row[13] || '[]').sort((a, b) => new Date(b.date) - new Date(a.date)),
-      NotificationsJSON: JSON.parse(row[14] || '[]').sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
-      MpesaDetails: JSON.parse(row[15] || '{}')
-    };
-    return affiliate;
-  });
+  return rows.map(row => ({
+    Email: row[0] || '',
+    Username: row[1] || '',
+    Name: row[2] || '',
+    JoinDate: row[3] || '',
+    RefCode: row[4] || '',
+    Password: row[5] || '',
+    Statusjson: JSON.parse(row[6] || '{"status": "active"}'),
+    LinkClicks: parseInt(row[7] || '0'),
+    TotalSales: parseInt(row[8] || '0'),
+    TotalSalesMonthly: parseInt(row[9] || '0'),
+    CurrentBalance: parseFloat(row[10] || '0'),
+    WithdrawnTotal: parseFloat(row[11] || '0'),
+    WithdrawalsJSON: JSON.parse(row[12] || '[]').sort((a, b) => new Date(b.date) - new Date(a.date)),
+    RewardsJSON: JSON.parse(row[13] || '[]').sort((a, b) => new Date(b.date) - new Date(a.date)),
+    NotificationsJSON: JSON.parse(row[14] || '[]').sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
+    ResetJSON: JSON.parse(row[15] || '[]').sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
+    LeaderboardJSON: JSON.parse(row[16] || '{"previousRank": 0, "currentRank": 0}'),
+    MpesaDetails: JSON.parse(row[17] || '{}')
+  }));
 };
 
 const fetchSettings = async () => {
@@ -317,6 +240,45 @@ const fetchStaticPages = async () => {
   return rows.map(row => ({ Slug: row[0], Title: row[1], Content: row[2] }));
 };
 
+const fetchNews = async () => {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: ADMIN_SHEET_ID,
+    range: 'News!A2:C'
+  });
+  const rows = response.data.values || [];
+  return rows.map(row => ({ Id: row[0], Message: row[1], Timestamp: row[2] }))
+    .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+};
+
+const updateAffiliateField = async (email, field, value) => {
+  const affiliates = await fetchAffiliates();
+  const affiliateIndex = affiliates.findIndex(a => a.Email === email);
+  if (affiliateIndex === -1) throw new Error('Affiliate not found');
+  const rowIndex = affiliateIndex + 2;
+  const columnMap = {
+    CurrentBalance: 'K',
+    WithdrawalsJSON: 'M',
+    RewardsJSON: 'N',
+    NotificationsJSON: 'O',
+    ResetJSON: 'P',
+    LeaderboardJSON: 'Q',
+    MpesaDetails: 'R',
+    Statusjson: 'G',
+    Password: 'F',
+    TotalSales: 'I',
+    TotalSalesMonthly: 'J',
+    WithdrawnTotal: 'L'
+  };
+  if (!columnMap[field]) throw new Error('Unsupported field');
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: AFFILIATES_SHEET_ID,
+    range: `all affiliates!${columnMap[field]}${rowIndex}`,
+    valueInputOption: 'RAW',
+    resource: { values: [[typeof value === 'object' ? JSON.stringify(value) : value]] }
+  });
+  await updateCache();
+};
+
 const updateAffiliateByEmail = async (email, updatedData) => {
   const affiliates = await fetchAffiliates();
   const affiliateIndex = affiliates.findIndex(a => a.Email === email);
@@ -324,7 +286,7 @@ const updateAffiliateByEmail = async (email, updatedData) => {
   const rowIndex = affiliateIndex + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!A${rowIndex}:P${rowIndex}`,
+    range: `all affiliates!A${rowIndex}:R${rowIndex}`,
     valueInputOption: 'RAW',
     resource: {
       values: [[
@@ -333,7 +295,8 @@ const updateAffiliateByEmail = async (email, updatedData) => {
         updatedData.LinkClicks, updatedData.TotalSales, updatedData.TotalSalesMonthly,
         updatedData.CurrentBalance, updatedData.WithdrawnTotal,
         JSON.stringify(updatedData.WithdrawalsJSON), JSON.stringify(updatedData.RewardsJSON),
-        JSON.stringify(updatedData.NotificationsJSON), JSON.stringify(updatedData.MpesaDetails)
+        JSON.stringify(updatedData.NotificationsJSON), JSON.stringify(updatedData.ResetJSON),
+        JSON.stringify(updatedData.LeaderboardJSON), JSON.stringify(updatedData.MpesaDetails)
       ]]
     }
   });
@@ -344,7 +307,7 @@ const updateCache = async () => {
   cachedDataAffiliate.affiliates = await fetchAffiliates();
   cachedDataAffiliate.settings = await fetchSettings();
   cachedDataAffiliate.staticPages = await fetchStaticPages();
-  console.log('Cache updated');
+  cachedDataAffiliate.news = await fetchNews();
 };
 
 // WebSocket Setup
@@ -353,21 +316,18 @@ const wsClients = new Map();
 
 const validateWebSocket = (token) => {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
+    return jwt.verify(token, JWT_SECRET);
   } catch {
     return null;
   }
 };
 
-// WebSocket Heartbeat
 function startHeartbeat(ws, key) {
   ws.isAlive = true;
   ws.pingInterval = setInterval(() => {
     if (!ws.isAlive) {
       ws.terminate();
       wsClients.delete(key);
-      ws.send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
       console.log(`Disconnected WebSocket client: ${key}`);
       return;
     }
@@ -380,6 +340,7 @@ wss.on('connection', (ws, request, decoded) => {
   const key = decoded.role === 'admin' ? 'admin' : decoded.email;
   wsClients.set(key, ws);
   startHeartbeat(ws, key);
+  logTransaction(key, 'websocket_connect', { role: decoded.role });
 
   ws.on('pong', () => {
     ws.isAlive = true;
@@ -388,16 +349,13 @@ wss.on('connection', (ws, request, decoded) => {
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
-      if (decoded.role === 'admin' && data.type === 'admin_broadcast') {
+      if (data.type === 'username_check' && decoded.role === 'affiliate') {
         const affiliates = await fetchAffiliates();
-        affiliates.forEach(affiliate => {
-          if (wsClients.has(affiliate.Email)) {
-            wsClients.get(affiliate.Email).send(JSON.stringify({
-              type: 'admin_message',
-              message: data.message
-            }));
-          }
-        });
+        const available = !affiliates.some(a => a.Username === data.username);
+        ws.send(JSON.stringify({
+          type: 'username_check',
+          data: { available, message: available ? 'Username available' : 'Username taken' }
+        }));
       }
     } catch (err) {
       console.error('WebSocket message error:', err.message);
@@ -407,8 +365,8 @@ wss.on('connection', (ws, request, decoded) => {
   ws.on('close', () => {
     wsClients.delete(key);
     clearInterval(ws.pingInterval);
-    ws.send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
     console.log(`WebSocket client closed: ${key}`);
+    logTransaction(key, 'websocket_disconnect', { role: decoded.role });
   });
 });
 
@@ -423,7 +381,6 @@ const transporter = nodemailer.createTransport({
 const sendEmail = async (to, subject, text) => {
   try {
     await transporter.sendMail({ from: APP_EMAIL, to, subject, text });
-    console.log(`Email sent: ${subject} to ${to}`);
   } catch (err) {
     console.error(`Failed to send email to ${to}:`, err.message);
   }
@@ -434,17 +391,44 @@ cron.schedule('0 0 1 * *', async () => {
   const affiliates = await fetchAffiliates();
   for (const affiliate of affiliates) {
     affiliate.TotalSalesMonthly = 0;
+    affiliate.LeaderboardJSON.previousRank = affiliate.LeaderboardJSON.currentRank;
+    affiliate.LeaderboardJSON.currentRank = 0;
     await updateAffiliateByEmail(affiliate.Email, affiliate);
   }
-  leaderboardCache = {};
+  const updatedAffiliates = await fetchAffiliates();
+  const rankedAffiliates = updatedAffiliates
+    .filter(a => a.Statusjson.status === 'active')
+    .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly);
+  for (let i = 0; i < Math.min(rankedAffiliates.length, 10); i++) {
+    const affiliate = rankedAffiliates[i];
+    affiliate.LeaderboardJSON.currentRank = i + 1;
+    if (affiliate.LeaderboardJSON.previousRank && affiliate.LeaderboardJSON.currentRank !== affiliate.LeaderboardJSON.previousRank) {
+      const message = affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank
+        ? 'You moved up in the leaderboard!'
+        : 'You moved down in the leaderboard.';
+      affiliate.NotificationsJSON.unshift({
+        id: `NOTIF${Date.now()}`,
+        read: false,
+        colour: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank ? 'green' : 'red',
+        message,
+        timestamp: new Date().toISOString()
+      });
+      if (wsClients.has(affiliate.Email)) {
+        wsClients.get(affiliate.Email).send(JSON.stringify({
+          type: 'notification',
+          data: affiliate.NotificationsJSON[0]
+        }));
+      }
+      await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
+    }
+    await updateAffiliateField(affiliate.Email, 'LeaderboardJSON', affiliate.LeaderboardJSON);
+  }
   await updateCache();
   wsClients.forEach((ws, key) => {
     if (key !== 'admin') {
-      ws.send(JSON.stringify({ type: 'update', data: affiliates.find(a => a.Email === key) }));
+      ws.send(JSON.stringify({ type: 'update', data: updatedAffiliates.find(a => a.Email === key) }));
     }
   });
-  await sortAffiliatesSheet();
-  console.log('Monthly sales reset and affiliates sheet sorted');
 });
 
 cron.schedule('0 0 30-31 * *', () => {
@@ -458,113 +442,55 @@ cron.schedule('0 0 30-31 * *', () => {
 cron.schedule('0 0 * * *', async () => {
   const affiliates = await fetchAffiliates();
   for (const affiliate of affiliates) {
-    const arrays = ['WithdrawalsJSON', 'RewardsJSON', 'NotificationsJSON'];
+    const arrays = ['WithdrawalsJSON', 'RewardsJSON', 'NotificationsJSON', 'ResetJSON'];
     for (const key of arrays) {
-      let array = affiliate[key];
-      if (array.length > 20) {
-        array = array.sort((a, b) => new Date(b.date || b.timestamp) - new Date(a.date || a.timestamp)).slice(-20);
-        affiliate[key] = array;
-        console.log(`Trimmed ${key} for ${affiliate.Email}`);
-      }
-      if (JSON.stringify(array).length > 45000) {
-        array = array.slice(-20);
-        affiliate[key] = array;
-        console.log(`Trimmed ${key} for ${affiliate.Email} due to size`);
-      }
+      affiliate[key] = affiliate[key]
+        .sort((a, b) => new Date(b.date || b.timestamp) - new Date(a.date || a.timestamp))
+        .slice(0, 20);
+      await updateAffiliateField(affiliate.Email, key, affiliate[key]);
     }
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
   }
-
   let response = await sheets.spreadsheets.values.get({
     spreadsheetId: ADMIN_SHEET_ID,
-    range: 'sortedWithdrawals!A2:H'
+    range: 'News!A2:C'
   });
   let rows = response.data.values || [];
   if (rows.length > 40) {
+    rows = rows.sort((a, b) => new Date(b[2]) - new Date(a[2])).slice(0, 40);
     await sheets.spreadsheets.values.clear({
       spreadsheetId: ADMIN_SHEET_ID,
-      range: `sortedWithdrawals!A2:H${rows.length + 1}`
+      range: 'News!A2:C'
     });
     await sheets.spreadsheets.values.update({
       spreadsheetId: ADMIN_SHEET_ID,
-      range: `sortedWithdrawals!A2:H`,
-      valueInputOption: 'RAW',
-      resource: { values: rows.slice(-40) }
-    });
-    console.log(`Trimmed sortedWithdrawals to 40 rows`);
-  }
-
-  response = await sheets.spreadsheets.values.get({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'reset!A2:H'
-  });
-  rows = response.data.values || [];
-  const now = new Date();
-  rows = rows.filter(row => {
-    const timestamp = new Date(row[5]);
-    return (now - timestamp) / (1000 * 60 * 60) < 24;
-  });
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'reset!A2:H'
-  });
-  if (rows.length) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'reset!A2:H',
+      range: 'News!A2:C',
       valueInputOption: 'RAW',
       resource: { values: rows }
     });
   }
-  console.log(`Cleaned reset tab`);
-
-  response = await sheets.spreadsheets.values.get({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'News!A2:C'
-  });
-  rows = response.data.values || [];
-  if (rows.length > 40) {
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: `News!A2:C${rows.length + 1}`
-    });
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: `News!A2:C`,
-      valueInputOption: 'RAW',
-      resource: { values: rows.slice(-40) }
-    });
-    console.log(`Trimmed News to 40 rows`);
-  }
-
   await updateCache();
 });
 
-// Sales Sync Cron Job
-cron.schedule('0 * * * *', async () => {
+cron.schedule('*/15 * * * *', updateCache);
+
+cron.schedule('*/10 * * * *', async () => {
   try {
     const response = await axios.get(`${BOT_STORE_API_URL}/api/sales`, {
       headers: { 'Authorization': `Bearer ${BOT_STORE_API_KEY}` }
     });
-    if (!response.data.success || !Array.isArray(response.data.sales)) {
-      console.error('Invalid sales data from bot store server');
-      return;
-    }
+    if (!response.data.success || !Array.isArray(response.data.sales)) return;
     const sales = response.data.sales;
     const affiliates = await fetchAffiliates();
     for (const sale of sales) {
-      const { refCode, amount, item, timestamp } = sale;
+      const { refCode, amount, item } = sale;
       if (!refCode || amount <= 0) continue;
       const affiliate = affiliates.find(a => a.RefCode === refCode);
-      if (!affiliate) {
-        console.log(`No affiliate found for refCode: ${refCode}`);
-        continue;
-      }
+      if (!affiliate) continue;
       const commission = amount * cachedDataAffiliate.settings.commissionRate;
       affiliate.TotalSales += 1;
       affiliate.TotalSalesMonthly += 1;
       affiliate.CurrentBalance += commission;
-      affiliate.NotificationsJSON.push({
+      affiliate.NotificationsJSON.unshift({
         id: `NOTIF${Date.now()}`,
         read: false,
         colour: 'green',
@@ -572,21 +498,39 @@ cron.schedule('0 * * * *', async () => {
         timestamp: new Date().toISOString()
       });
       if (affiliate.NotificationsJSON.length > 20) {
-        affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
+        affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
       }
-      await updateAffiliateByEmail(affiliate.Email, affiliate);
+      affiliate.LeaderboardJSON.previousRank = affiliate.LeaderboardJSON.currentRank;
+      const rankedAffiliates = affiliates
+        .filter(a => a.Statusjson.status === 'active')
+        .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly);
+      affiliate.LeaderboardJSON.currentRank = rankedAffiliates.findIndex(a => a.Email === affiliate.Email) + 1;
+      if (affiliate.LeaderboardJSON.previousRank && affiliate.LeaderboardJSON.currentRank !== affiliate.LeaderboardJSON.previousRank) {
+        affiliate.NotificationsJSON.unshift({
+          id: `NOTIF${Date.now()}`,
+          read: false,
+          colour: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank ? 'green' : 'red',
+          message: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank
+            ? 'You moved up in the leaderboard!'
+            : 'You moved down in the leaderboard.',
+          timestamp: new Date().toISOString()
+        });
+      }
+      await updateAffiliateField(affiliate.Email, 'TotalSales', affiliate.TotalSales);
+      await updateAffiliateField(affiliate.Email, 'TotalSalesMonthly', affiliate.TotalSalesMonthly);
+      await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
+      await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
+      await updateAffiliateField(affiliate.Email, 'LeaderboardJSON', affiliate.LeaderboardJSON);
       await logTransaction(affiliate.Email, 'sale_confirmed', { refCode, amount, commission, item });
       if (wsClients.has(affiliate.Email)) {
         wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
         wsClients.get(affiliate.Email).send(JSON.stringify({
           type: 'notification',
-          data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
+          data: affiliate.NotificationsJSON[0]
         }));
       }
     }
     await updateCache();
-    await sortAffiliatesSheet();
-    console.log('Sales sync completed and affiliates sheet sorted');
   } catch (err) {
     console.error('Sales sync failed:', err.message);
   }
@@ -596,35 +540,33 @@ cron.schedule('0 * * * *', async () => {
 const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const validateUsername = (username) => /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{5,}$/.test(username);
 const validateName = (name) => /^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/.test(name);
-const validatePassword = (password) => /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(password);
+const validatePassword = (password) => /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*])[a-zA-Z\d!@#$%^&*]{12,}$/.test(password);
 const validateMpesaNumber = (number) => /^0[17]\d{8}$/.test(number);
 
 // Authentication Middleware
 const authenticateAffiliate = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ success: false, message: 'Unauthorized: No token provided' });
+  if (!token) return res.status(401).json({ success: false, message: 'Unauthorized' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== 'affiliate') throw new Error('Invalid role');
     req.user = decoded;
     next();
-  } catch (err) {
-    console.error('Affiliate authentication error:', err.message);
-    res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
+  } catch {
+    res.status(401).json({ success: false, message: 'Unauthorized' });
   }
 };
 
 const authenticateAdmin = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ success: false, message: 'Unauthorized: No token provided' });
+  if (!token) return res.status(401).json({ success: false, message: 'Unauthorized' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== 'admin') throw new Error('Invalid role');
     req.user = decoded;
     next();
-  } catch (err) {
-    console.error('Admin authentication error:', err.message);
-    res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
+  } catch {
+    res.status(401).json({ success: false, message: 'Unauthorized' });
   }
 };
 
@@ -642,7 +584,15 @@ app.post('/api/affiliate/register', registerLimiter, async (req, res) => {
     if (affiliates.some(a => a.Email === email && ['blocked', 'deleted'].includes(a.Statusjson.status))) {
       return res.status(400).json({ success: false, message: 'Account blocked' });
     }
-    const refCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    let refCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    let attempts = 0;
+    while (affiliates.some(a => a.RefCode === refCode) && attempts < 3) {
+      refCode = Math.random().toString(36).substring(2, 10 + attempts * 4).toUpperCase();
+      attempts++;
+    }
+    if (affiliates.some(a => a.RefCode === refCode)) {
+      return res.status(500).json({ success: false, message: 'Failed to generate unique referral code' });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const affiliate = {
       Email: email,
@@ -660,30 +610,23 @@ app.post('/api/affiliate/register', registerLimiter, async (req, res) => {
       WithdrawalsJSON: [],
       RewardsJSON: [],
       NotificationsJSON: [],
+      ResetJSON: [],
+      LeaderboardJSON: { previousRank: 0, currentRank: 0 },
       MpesaDetails: {}
     };
     await sheets.spreadsheets.values.append({
       spreadsheetId: AFFILIATES_SHEET_ID,
-      range: 'all affiliates!A:P',
+      range: 'all affiliates!A:R',
       valueInputOption: 'RAW',
       resource: {
         values: [[
-          affiliate.Email,
-          affiliate.Username,
-          affiliate.Name,
-          affiliate.JoinDate,
-          affiliate.RefCode,
-          affiliate.Password,
-          JSON.stringify(affiliate.Statusjson),
-          affiliate.LinkClicks,
-          affiliate.TotalSales,
-          affiliate.TotalSalesMonthly,
-          affiliate.CurrentBalance,
-          affiliate.WithdrawnTotal,
-          JSON.stringify(affiliate.WithdrawalsJSON),
-          JSON.stringify(affiliate.RewardsJSON),
-          JSON.stringify(affiliate.NotificationsJSON),
-          JSON.stringify(affiliate.MpesaDetails)
+          affiliate.Email, affiliate.Username, affiliate.Name, affiliate.JoinDate,
+          affiliate.RefCode, affiliate.Password, JSON.stringify(affiliate.Statusjson),
+          affiliate.LinkClicks, affiliate.TotalSales, affiliate.TotalSalesMonthly,
+          affiliate.CurrentBalance, affiliate.WithdrawnTotal,
+          JSON.stringify(affiliate.WithdrawalsJSON), JSON.stringify(affiliate.RewardsJSON),
+          JSON.stringify(affiliate.NotificationsJSON), JSON.stringify(affiliate.ResetJSON),
+          JSON.stringify(affiliate.LeaderboardJSON), JSON.stringify(affiliate.MpesaDetails)
         ]]
       }
     });
@@ -693,405 +636,190 @@ app.post('/api/affiliate/register', registerLimiter, async (req, res) => {
     res.json({ success: true, token, data: { name, username, refCode } });
   } catch (error) {
     console.error('Error in /api/affiliate/register:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to register affiliate' });
+    res.status(500).json({ success: false, message: 'Failed to register affiliate', error: error.message });
   }
 });
 
 app.post('/api/affiliate/login', loginLimiter, async (req, res) => {
-  const { email, password } = req.body;
-  if (!validateEmail(email)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
-  const affiliates = await fetchAffiliates();
-  const affiliate = affiliates.find(a => a.Email === email);
-  if (!affiliate || !(await bcrypt.compare(password, affiliate.Password))) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  try {
+    const { email, password } = req.body;
+    if (!validateEmail(email)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    const affiliates = await fetchAffiliates();
+    const affiliate = affiliates.find(a => a.Email === email);
+    if (!affiliate || !(await bcrypt.compare(password, affiliate.Password))) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+    if (affiliate.Statusjson.status === 'blocked') {
+      return res.status(401).json({ success: false, message: 'Account suspended, please contact support' });
+    }
+    if (affiliate.Statusjson.status === 'deleted') {
+      return res.status(401).json({ success: false, message: 'This email cannot create account' });
+    }
+    const token = jwt.sign({ email, username: affiliate.Username, role: 'affiliate' }, JWT_SECRET, { expiresIn: '7d' });
+    if (wsClients.has(email)) {
+      wsClients.get(email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
+      wsClients.delete(email);
+    }
+    await logTransaction(email, 'login', {});
+    res.json({ success: true, token, data: { name: affiliate.Name, username: affiliate.Username, refCode: affiliate.RefCode } });
+  } catch (error) {
+    console.error('Error in /api/affiliate/login:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to login', error: error.message });
   }
-  if (affiliate.Statusjson.status === 'blocked') {
-    return res.status(401).json({ success: false, message: 'Account suspended, please contact support' });
-  }
-  if (affiliate.Statusjson.status === 'deleted') {
-    return res.status(401).json({ success: false, message: 'This email cannot create account' });
-  }
-  const token = jwt.sign({ email, username: affiliate.Username, role: 'affiliate' }, JWT_SECRET, { expiresIn: '7d' });
-  if (wsClients.has(email)) {
-    wsClients.get(email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
-    wsClients.delete(email);
-  }
-  await logTransaction(email, 'login', {});
-  res.json({ success: true, token, data: { name: affiliate.Name, username: affiliate.Username, refCode: affiliate.RefCode } });
 });
 
 app.post('/api/admin/affiliate/login', loginLimiter, async (req, res) => {
-  const { email, password } = req.body;
-  const settings = await fetchSettings();
-  if (email !== settings.adminEmail || password !== settings.adminPassword) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  try {
+    const { email, password } = req.body;
+    const settings = await fetchSettings();
+    if (email !== settings.adminEmail || password !== settings.adminPassword) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+    const token = jwt.sign({ email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
+    if (wsClients.has('admin')) {
+      wsClients.get('admin').send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
+      wsClients.delete('admin');
+    }
+    await logTransaction(email, 'admin_login', {});
+    res.json({ success: true, token });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/login:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to login admin', error: error.message });
   }
-  const token = jwt.sign({ email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
-  if (wsClients.has('admin')) {
-    wsClients.get('admin').send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
-    wsClients.delete('admin');
-  }
-  await logTransaction(email, 'admin_login', {});
-  res.json({ success: true, token });
 });
 
 app.post('/api/affiliate/reset-password', resetLimiter, async (req, res) => {
-  const { name, email, username, lastWithdrawalAmount, description } = req.body;
-  if (!validateName(name) || !validateEmail(email) || !validateUsername(username) || description.length > 100) {
-    return res.status(400).json({ success: false, message: 'Invalid input' });
+  try {
+    const { name, email, username, lastWithdrawalAmount, description } = req.body;
+    const sanitizedDescription = sanitizeHtml(description);
+    if (!validateName(name) || !validateEmail(email) || !validateUsername(username) || sanitizedDescription.length > 100) {
+      return res.status(400).json({ success: false, message: 'Invalid input' });
+    }
+    const affiliates = await fetchAffiliates();
+    const affiliate = affiliates.find(a => a.Email === email && a.Username === username);
+    if (!affiliate) {
+      return res.status(400).json({ success: false, message: 'Email or username does not exist' });
+    }
+    affiliate.ResetJSON.unshift({
+      status: 'pending',
+      timestamp: new Date().toISOString(),
+      description: sanitizedDescription,
+      lastWithdrawalAmount: lastWithdrawalAmount || 0,
+      oneTimePassword: ''
+    });
+    if (affiliate.ResetJSON.length > 20) {
+      affiliate.ResetJSON = affiliate.ResetJSON.slice(0, 20);
+    }
+    await updateAffiliateField(affiliate.Email, 'ResetJSON', affiliate.ResetJSON);
+    await logTransaction(email, 'reset_password_request', { username, lastWithdrawalAmount, description: sanitizedDescription });
+    await sendEmail(
+      APP_EMAIL,
+      'Password Reset Request',
+      `User: ${email}, Username: ${username}, Name: ${name}, Last Withdrawal: ${lastWithdrawalAmount || 0}, Description: ${sanitizedDescription}`
+    );
+    res.json({ success: true, message: 'Reset request submitted' });
+  } catch (error) {
+    console.error('Error in /api/affiliate/reset-password:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to submit reset request', error: error.message });
   }
-  const affiliates = await fetchAffiliates();
-  if (!affiliates.some(a => a.Email === email && a.Username === username)) {
-    return res.status(400).json({ success: false, message: 'Email or username does not exist' });
-  }
-  const resetEntry = [
-    email, username, name, lastWithdrawalAmount || 0, description,
-    new Date().toISOString(), 'Pending', ''
-  ];
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'reset!A:H',
-    valueInputOption: 'RAW',
-    resource: { values: [resetEntry] }
-  });
-  await logTransaction(email, 'reset_password_request', { username, lastWithdrawalAmount, description });
-  console.log(`Password reset requested for ${email}`);
-  res.json({ success: true, message: 'Reset request submitted' });
 });
 
 app.get('/api/affiliate/data', authenticateAffiliate, async (req, res) => {
-  const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
-  if (!affiliate) return res.status(401).json({ success: false, message: 'Unauthorized' });
-
-  const leaderboard = cachedDataAffiliate.affiliates
-    .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
-    .slice(0, 10)
-    .map((a, i) => {
-      const currentRank = i + 1;
-      const prevRank = leaderboardCache[a.Email]?.rank;
-      let momentum = 'same';
-      if (!prevRank) {
-        momentum = 'new';
-      } else if (prevRank > currentRank) {
-        momentum = 'up';
-      } else if (prevRank < currentRank) {
-        momentum = 'down';
-      }
-      return {
-        email: a.Email,
+  try {
+    const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
+    if (!affiliate) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const leaderboard = cachedDataAffiliate.affiliates
+      .filter(a => a.Statusjson.status === 'active')
+      .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
+      .slice(0, 10)
+      .map((a, i) => ({
+        rank: i + 1,
         name: a.Name,
-        totalSalesMonthly: a.TotalSalesMonthly,
-        rank: currentRank,
-        momentum
-      };
+        email: a.Email,
+        monthlySales: a.TotalSalesMonthly,
+        momentum: a.LeaderboardJSON.currentRank < a.LeaderboardJSON.previousRank ? 'up' :
+                  a.LeaderboardJSON.currentRank > a.LeaderboardJSON.previousRank ? 'down' : 'same'
+      }));
+    res.json({
+      success: true,
+      data: {
+        name: affiliate.Name,
+        refCode: affiliate.RefCode,
+        linkClicks: affiliate.LinkClicks,
+        totalSales: affiliate.TotalSales,
+        totalSalesMonthly: affiliate.TotalSalesMonthly,
+        currentBalance: affiliate.CurrentBalance,
+        withdrawnTotal: affiliate.WithdrawnTotal,
+        withdrawalsJSON: affiliate.WithdrawalsJSON,
+        rewardsJSON: affiliate.RewardsJSON,
+        notificationsJSON: affiliate.NotificationsJSON,
+        resetJSON: affiliate.ResetJSON,
+        leaderboardJSON: affiliate.LeaderboardJSON,
+        leaderboard,
+        news: cachedDataAffiliate.news,
+        commissionRate: cachedDataAffiliate.settings.commissionRate
+      }
     });
-  leaderboardCache = Object.fromEntries(leaderboard.map(l => [l.email, { rank: l.rank }]));
-
-  const newsResponse = await sheets.spreadsheets.values.get({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'News!A2:C'
-  });
-  const news = (newsResponse.data.values || []).map(row => ({ id: row[0], message: row[1], timestamp: row[2] }));
-  res.json({
-    success: true,
-    data: {
-      name: affiliate.Name,
-      username: affiliate.Username,
-      refCode: affiliate.RefCode,
-      linkClicks: affiliate.LinkClicks,
-      totalSales: affiliate.TotalSales,
-      totalSalesMonthly: affiliate.TotalSalesMonthly,
-      currentBalance: affiliate.CurrentBalance,
-      withdrawnTotal: affiliate.WithdrawnTotal,
-      withdrawalsJSON: affiliate.WithdrawalsJSON,
-      rewardsJSON: affiliate.RewardsJSON,
-      notificationsJSON: affiliate.NotificationsJSON,
-      mpesaDetails: affiliate.MpesaDetails,
-      leaderboard,
-      news,
-      commissionRate: cachedDataAffiliate.settings.commissionRate,
-      supportEmail: cachedDataAffiliate.settings.supportEmail,
-      whatsappLink: cachedDataAffiliate.settings.whatsappLink,
-      copyrightText: cachedDataAffiliate.settings.copyrightText,
-      logoUrl: cachedDataAffiliate.settings.logoUrl
-    }
-  });
-});
-
-app.post('/api/affiliate/save-mpesa', authenticateAffiliate, async (req, res) => {
-  try {
-    const { mpesaNumber, mpesaName } = req.body;
-    if (!validateMpesaNumber(mpesaNumber) || !validateName(mpesaName)) {
-      return res.status(400).json({ success: false, message: 'Invalid M-Pesa details' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === req.user.email);
-    if (!affiliate) return res.status(404).json({ success: false, message: 'Affiliate not found' });
-
-    affiliate.MpesaDetails = { mpesaNumber, mpesaName };
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
-    await logTransaction(req.user.email, 'save_mpesa', { mpesaNumber, mpesaName });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-    }
-    res.json({ success: true, message: 'M-Pesa details saved' });
   } catch (error) {
-    console.error('Error saving M-Pesa details:', error.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-app.post('/api/affiliate/mark-notification', authenticateAffiliate, async (req, res) => {
-  try {
-    const { notificationId } = req.body;
-    if (!notificationId) return res.status(400).json({ success: false, message: 'Notification ID required' });
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === req.user.email);
-    if (!affiliate) return res.status(404).json({ success: false, message: 'Affiliate not found' });
-
-    const notifications = affiliate.NotificationsJSON || [];
-    const notification = notifications.find(n => n.id === notificationId);
-    if (!notification) return res.status(404).json({ success: false, message: 'Notification not found' });
-
-    notification.read = true;
-    affiliate.NotificationsJSON = notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
-    await logTransaction(req.user.email, 'mark_notification', { notificationId });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-    }
-    res.json({ success: true, message: 'Notification marked as read' });
-  } catch (error) {
-    console.error('Error marking notification:', error.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    console.error('Error in /api/affiliate/data:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch data', error: error.message });
   }
 });
 
 app.get('/api/admin/affiliate/affiliates', authenticateAdmin, async (req, res) => {
   try {
-    res.json({
-      success: true,
-      affiliates: cachedDataAffiliate.affiliates.map(a => ({
-        email: a.Email,
-        username: a.Username,
-        name: a.Name,
-        joinDate: a.JoinDate,
-        linkClicks: a.LinkClicks,
-        totalSales: a.TotalSales,
-        totalSalesMonthly: a.TotalSalesMonthly,
-        currentBalance: a.CurrentBalance,
-        withdrawnTotal: a.WithdrawnTotal,
-        statusjson: a.Statusjson
-      }))
-    });
-  } catch (err) {
-    console.error('Error fetching affiliates:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-app.get('/api/admin/affiliate/settings', authenticateAdmin, async (req, res) => {
-  try {
-    const settings = await fetchSettings();
-    res.json({ success: true, settings });
-  } catch (err) {
-    console.error('Error fetching settings:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-app.post('/api/admin/affiliate/update-settings', authenticateAdmin, async (req, res) => {
-  try {
-    const { supportEmail, copyrightText, whatsappLink, commissionRate, logoUrl, adminEmail, adminPassword } = req.body;
-    if (!validateEmail(supportEmail) || !validateEmail(adminEmail) || commissionRate < 0 || commissionRate > 1 || !copyrightText || !whatsappLink || !adminPassword) {
-      return res.status(400).json({ success: false, message: 'Invalid input' });
-    }
-    if (logoUrl && !/^https?:\/\/[^\s/$.?#].[^\s]*$/.test(logoUrl)) {
-      return res.status(400).json({ success: false, message: 'Invalid logo URL' });
-    }
-    const settings = {
-      supportEmail, copyrightText, whatsappLink, commissionRate: JSON.stringify(commissionRate),
-      logoUrl, adminEmail, adminPassword, urgentPopup: cachedDataAffiliate.settings.urgentPopup
-    };
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'settingsAffiliate!A2:B',
-      valueInputOption: 'RAW',
-      resource: { values: Object.entries(settings) }
-    });
-    await logTransaction(req.user.email, 'update_settings', { supportEmail, commissionRate });
-    await updateCache();
-    cachedDataAffiliate.affiliates.forEach(affiliate => {
-      if (wsClients.has(affiliate.Email)) {
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'settings',
-          data: { commissionRate, supportEmail, whatsappLink, copyrightText, logoUrl }
-        }));
-      }
-    });
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'settings_updated',
-        data: { supportEmail, commissionRate, whatsappLink, copyrightText, logoUrl }
-      }));
-    }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error updating settings:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-app.post('/api/admin/affiliate/update-status', authenticateAdmin, async (req, res) => {
-  try {
-    const { email, status } = req.body;
-    if (!['active', 'blocked', 'deleted'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid status' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === email);
-    if (!affiliate) {
-      return res.status(404).json({ success: false, message: 'Affiliate not found' });
-    }
-    affiliate.Statusjson = { status };
-    affiliate.NotificationsJSON.push({
-      id: `NOTIF${Date.now()}`,
-      read: false,
-      colour: status === 'active' ? 'green' : 'red',
-      message: `Your account status has been updated to ${status}`,
-      timestamp: new Date().toISOString()
-    });
-    if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
-    }
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
-    await logTransaction(email, 'update_status', { status });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'notification',
-        data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
-      }));
-      if (status === 'blocked' || status === 'deleted') {
-        wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
-        wsClients.delete(affiliate.Email);
-      }
-    }
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'affiliate_status_updated',
-        data: { email, status }
-      }));
-    }
-    await updateCache();
-    res.json({ success: true, message: 'Affiliate status updated' });
-  } catch (err) {
-    console.error('Error updating affiliate status:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.json({ success: true, affiliates: cachedDataAffiliate.affiliates });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/affiliates:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch affiliates', error: error.message });
   }
 });
 
 app.get('/api/admin/affiliate/withdrawals', authenticateAdmin, async (req, res) => {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'pendingWithdrawals!A2:H'
-    });
-    const withdrawals = (response.data.values || []).map(row => ({
-      email: row[0],
-      name: row[1],
-      timestamp: row[2],
-      amount: parseFloat(row[3]),
-      mpesaNumber: row[4],
-      mpesaName: row[5],
-      paymentRefcode: row[6],
-      status: row[7]
-    }));
+    const withdrawals = cachedDataAffiliate.affiliates
+      .flatMap(a => a.WithdrawalsJSON
+        .filter(w => w.status === 'Pending')
+        .map(w => ({ ...w, email: a.Email, name: a.Name }))
+      );
     res.json({ success: true, withdrawals });
-  } catch (err) {
-    console.error('Error fetching withdrawals:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-app.get('/api/admin/affiliate/sorted-withdrawals', authenticateAdmin, async (req, res) => {
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'sortedWithdrawals!A2:H'
-    });
-    const withdrawals = (response.data.values || []).slice(0, 40).map(row => ({
-      email: row[0],
-      name: row[1],
-      timestamp: row[2],
-      amount: parseFloat(row[3]),
-      mpesaNumber: row[4],
-      mpesaName: row[5],
-      paymentRefcode: row[6],
-      status: row[7]
-    }));
-    res.json({ success: true, withdrawals });
-  } catch (err) {
-    console.error('Error fetching sorted withdrawals:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-app.get('/api/admin/affiliate/staticpages', authenticateAdmin, async (req, res) => {
-  try {
-    const pages = cachedDataAffiliate.staticPages;
-    res.json({ success: true, pages });
-  } catch (err) {
-    console.error('Error fetching static pages:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-app.post('/api/admin/affiliate/staticpages/delete', authenticateAdmin, async (req, res) => {
-  try {
-    const { slug } = req.body;
-    const pages = cachedDataAffiliate.staticPages;
-    const pageIndex = pages.findIndex(p => p.Slug === slug);
-    if (pageIndex < 0) return res.status(404).json({ success: false, message: 'Page not found' });
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: `staticPagesAffiliate!A${pageIndex + 2}:C${pageIndex + 2}`
-    });
-    await logTransaction(req.user.email, 'delete_static_page', { slug });
-    await updateCache();
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'static_page_deleted',
-        data: { slug }
-      }));
-    }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error deleting static page:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/withdrawals:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch withdrawals', error: error.message });
   }
 });
 
 app.get('/api/admin/affiliate/reset-passwords', authenticateAdmin, async (req, res) => {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'reset!A2:H'
-    });
-    const requests = (response.data.values || []).map(row => ({
-      email: row[0],
-      username: row[1],
-      name: row[2],
-      lastWithdrawalAmount: parseFloat(row[3] || '0'),
-      description: row[4],
-      timestamp: row[5],
-      status: row[6],
-      password: row[7]
-    }));
+    const requests = cachedDataAffiliate.affiliates
+      .flatMap(a => a.ResetJSON
+        .filter(r => r.status === 'pending')
+        .map(r => ({ ...r, email: a.Email, username: a.Username, name: a.Name }))
+      );
     res.json({ success: true, requests });
-  } catch (err) {
-    console.error('Error fetching reset passwords:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/reset-passwords:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch reset requests', error: error.message });
+  }
+});
+
+app.get('/api/admin/affiliate/staticpages', authenticateAdmin, async (req, res) => {
+  try {
+    res.json({ success: true, pages: cachedDataAffiliate.staticPages });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/staticpages:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch static pages', error: error.message });
+  }
+});
+
+app.get('/api/affiliate/static-page/:slug', async (req, res) => {
+  try {
+    const page = cachedDataAffiliate.staticPages.find(p => p.Slug === req.params.slug);
+    if (!page) return res.status(404).json({ success: false, message: 'Page not found' });
+    res.json({ success: true, page });
+  } catch (error) {
+    console.error('Error in /api/affiliate/static-page:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch page', error: error.message });
   }
 });
 
@@ -1102,23 +830,23 @@ app.post('/api/affiliate/track-click', async (req, res) => {
     const affiliate = affiliates.find(a => a.RefCode === refCode);
     if (!affiliate) return res.status(400).json({ success: false, message: 'Invalid refCode' });
     affiliate.LinkClicks += 1;
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
-    await logTransaction(affiliate.Email, 'track_click', { refCode });
+    await updateAffiliateField(affiliate.Email, 'LinkClicks', affiliate.LinkClicks);
     if (wsClients.has(affiliate.Email)) {
       wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
     }
     res.json({ success: true });
-  } catch (err) {
-    console.error('Error tracking click:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error) {
+    console.error('Error in /api/affiliate/track-click:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to track click', error: error.message });
   }
 });
 
 app.post('/api/affiliate/confirmed-sale', async (req, res) => {
   try {
     const { refCode, amount, item, apiKey } = req.body;
-    if (apiKey !== AFFILIATE_API_KEY) return res.status(401).json({ success: false, message: 'Invalid API key' });
-    if (amount <= 0) return res.status(400).json({ success: false, message: 'Invalid amount' });
+    if (apiKey !== AFFILIATE_API_KEY || !refCode || amount <= 0) {
+      return res.status(401).json({ success: false, message: 'Invalid API key or data' });
+    }
     const affiliates = await fetchAffiliates();
     const affiliate = affiliates.find(a => a.RefCode === refCode);
     if (!affiliate) return res.status(400).json({ success: false, message: 'Invalid refCode' });
@@ -1126,119 +854,65 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
     affiliate.TotalSales += 1;
     affiliate.TotalSalesMonthly += 1;
     affiliate.CurrentBalance += commission;
-    affiliate.NotificationsJSON.push({
+    affiliate.NotificationsJSON.unshift({
       id: `NOTIF${Date.now()}`,
       read: false,
       colour: 'green',
-      message: `Sale confirmed: ${amount} KES, Commission: ${commission} KES`,
+      message: `Sale confirmed: ${amount} KES for ${item}, Commission: ${commission} KES`,
       timestamp: new Date().toISOString()
     });
     if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(-20);
+      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
     }
-    const leaderboard = affiliates
-      .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
-      .slice(0, 10)
-      .map((a, i) => ({ email: a.Email, rank: i + 1 }));
-    const prevRank = leaderboardCache[affiliate.Email]?.rank;
-    const newRank = leaderboard.find(l => l.email === affiliate.Email)?.rank;
-    if (prevRank && newRank && prevRank !== newRank) {
-      affiliate.NotificationsJSON.push({
+    affiliate.LeaderboardJSON.previousRank = affiliate.LeaderboardJSON.currentRank;
+    const rankedAffiliates = affiliates
+      .filter(a => a.Statusjson.status === 'active')
+      .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly);
+    affiliate.LeaderboardJSON.currentRank = rankedAffiliates.findIndex(a => a.Email === affiliate.Email) + 1;
+    if (affiliate.LeaderboardJSON.previousRank && affiliate.LeaderboardJSON.currentRank !== affiliate.LeaderboardJSON.previousRank) {
+      affiliate.NotificationsJSON.unshift({
         id: `NOTIF${Date.now()}`,
         read: false,
-        colour: prevRank > newRank ? 'green' : 'red',
-        message: `You moved ${prevRank > newRank ? 'up' : 'down'} in the leaderboard`,
+        colour: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank ? 'green' : 'red',
+        message: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank
+          ? 'You moved up in the leaderboard!'
+          : 'You moved down in the leaderboard.',
         timestamp: new Date().toISOString()
       });
-      if (affiliate.NotificationsJSON.length > 20) {
-        affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
-      }
     }
-    leaderboardCache = Object.fromEntries(leaderboard.map(l => [l.email, { rank: l.rank }]));
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
-    await logTransaction(affiliate.Email, 'confirmed_sale', { refCode, amount, commission, item });
+    await updateAffiliateField(affiliate.Email, 'TotalSales', affiliate.TotalSales);
+    await updateAffiliateField(affiliate.Email, 'TotalSalesMonthly', affiliate.TotalSalesMonthly);
+    await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
+    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
+    await updateAffiliateField(affiliate.Email, 'LeaderboardJSON', affiliate.LeaderboardJSON);
+    await logTransaction(affiliate.Email, 'sale_confirmed', { refCode, amount, commission, item });
     if (wsClients.has(affiliate.Email)) {
       wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
       wsClients.get(affiliate.Email).send(JSON.stringify({
         type: 'notification',
-        data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
+        data: affiliate.NotificationsJSON[0]
       }));
     }
     res.json({ success: true });
-  } catch (err) {
-    console.error('Error confirming sale:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-});
-
-app.post('/api/affiliate/sync-sales', authenticateAdmin, async (req, res) => {
-  try {
-    const response = await axios.get(`${BOT_STORE_API_URL}/api/sales`, {
-      headers: { 'Authorization': `Bearer ${BOT_STORE_API_KEY}` }
-    });
-    if (!response.data.success || !Array.isArray(response.data.sales)) {
-      return res.status(400).json({ success: false, message: 'Invalid sales data from bot store server' });
-    }
-    const sales = response.data.sales;
-    const affiliates = await fetchAffiliates();
-    let updatedAffiliates = [];
-    for (const sale of sales) {
-      const { refCode, amount, item, timestamp } = sale;
-      if (!refCode || amount <= 0) {
-        console.log(`Skipping invalid sale: refCode=${refCode}, amount=${amount}`);
-        continue;
-      }
-      const affiliate = affiliates.find(a => a.RefCode === refCode);
-      if (!affiliate) {
-        console.log(`No affiliate found for refCode: ${refCode}`);
-        continue;
-      }
-      const commission = amount * cachedDataAffiliate.settings.commissionRate;
-      affiliate.TotalSales += 1;
-      affiliate.TotalSalesMonthly += 1;
-      affiliate.CurrentBalance += commission;
-      affiliate.NotificationsJSON.push({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: 'green',
-        message: `Sale confirmed: ${amount} KES for ${item}, Commission: ${commission} KES`,
-        timestamp: new Date().toISOString()
-      });
-      if (affiliate.NotificationsJSON.length > 20) {
-        affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
-      }
-      await updateAffiliateByEmail(affiliate.Email, affiliate);
-      await logTransaction(affiliate.Email, 'sync_sale', { refCode, amount, commission, item });
-      updatedAffiliates.push(affiliate.Email);
-      if (wsClients.has(affiliate.Email)) {
-        wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'notification',
-          data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
-        }));
-      }
-    }
-    await updateCache();
-    await sortAffiliatesSheet();
-    res.json({ success: true, updatedAffiliates });
-  } catch (err) {
-    console.error('Manual sales sync failed:', err.message);
-    res.status(500).json({ success: false, message: 'Failed to sync sales: ' + err.message });
+  } catch (error) {
+    console.error('Error in /api/affiliate/confirmed-sale:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to process sale', error: error.message });
   }
 });
 
 app.post('/api/affiliate/request-withdrawal', authenticateAffiliate, async (req, res) => {
   try {
     const { amount, mpesaNumber, mpesaName, reuseDetails, password } = req.body;
+    if (!validateMpesaNumber(mpesaNumber) || !validateName(mpesaName) || amount < 100 || amount > cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email).CurrentBalance) {
+      return res.status(400).json({ success: false, message: 'Invalid withdrawal details or insufficient balance' });
+    }
     const affiliates = await fetchAffiliates();
     const affiliate = affiliates.find(a => a.Email === req.user.email);
-    if (amount <= 0 || amount > affiliate.CurrentBalance || !validateMpesaNumber(mpesaNumber) || !validateName(mpesaName)) {
-      return res.status(400).json({ success: false, message: 'Invalid input' });
-    }
-    if (!(await bcrypt.compare(password, affiliate.Password))) {
+    if (!affiliate || !(await bcrypt.compare(password, affiliate.Password))) {
       return res.status(401).json({ success: false, message: 'Incorrect password' });
     }
     affiliate.CurrentBalance -= amount;
+    affiliate.WithdrawnTotal += amount;
     const withdrawal = {
       date: new Date().toISOString(),
       amount,
@@ -1247,203 +921,182 @@ app.post('/api/affiliate/request-withdrawal', authenticateAffiliate, async (req,
       status: 'Pending',
       mpesaRef: ''
     };
-    affiliate.WithdrawalsJSON.push(withdrawal);
+    affiliate.WithdrawalsJSON.unshift(withdrawal);
     if (affiliate.WithdrawalsJSON.length > 20) {
-      affiliate.WithdrawalsJSON = affiliate.WithdrawalsJSON.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(-20);
-    }
-    affiliate.NotificationsJSON.push({
-      id: `NOTIF${Date.now()}`,
-      read: false,
-      colour: 'green',
-      message: `Withdrawal of ${amount} KES submitted. You'll receive it soon as processed.`,
-      timestamp: new Date().toISOString()
-    });
-    if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
+      affiliate.WithdrawalsJSON = affiliate.WithdrawalsJSON.slice(0, 20);
     }
     if (reuseDetails) {
       affiliate.MpesaDetails = { mpesaNumber, mpesaName };
     }
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'pendingWithdrawals!A:H',
-      valueInputOption: 'RAW',
-      resource: { values: [[
-        affiliate.Email, affiliate.Name, withdrawal.date, amount,
-        mpesaNumber, mpesaName, '', 'Pending'
-      ]] }
+    affiliate.NotificationsJSON.unshift({
+      id: `NOTIF${Date.now()}`,
+      read: false,
+      colour: 'green',
+      message: 'Withdrawal submitted. You’ll receive it soon as processed.',
+      timestamp: new Date().toISOString()
     });
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
+    if (affiliate.NotificationsJSON.length > 20) {
+      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
+    }
+    await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
+    await updateAffiliateField(affiliate.Email, 'WithdrawnTotal', affiliate.WithdrawnTotal);
+    await updateAffiliateField(affiliate.Email, 'WithdrawalsJSON', affiliate.WithdrawalsJSON);
+    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
+    if (reuseDetails) {
+      await updateAffiliateField(affiliate.Email, 'MpesaDetails', affiliate.MpesaDetails);
+    }
+    await logTransaction(affiliate.Email, 'request_withdrawal', { amount, mpesaNumber });
     await sendEmail(
       APP_EMAIL,
-      'New Withdrawal Request',
-      `Affiliate: ${affiliate.Email}, Amount: ${amount} KES, MPESA: ${mpesaNumber}, Name: ${mpesaName}`
+      'Withdrawal Request',
+      `User: ${affiliate.Email}, Amount: ${amount} KES, MPESA Number: ${mpesaNumber}, MPESA Name: ${mpesaName}`
     );
-    await logTransaction(affiliate.Email, 'request_withdrawal', { amount, mpesaNumber, mpesaName });
     if (wsClients.has(affiliate.Email)) {
       wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
       wsClients.get(affiliate.Email).send(JSON.stringify({
         type: 'notification',
-        data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
-      }));
-    }
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'new_withdrawal',
-        data: {
-          email: affiliate.Email,
-          name: affiliate.Name,
-          timestamp: withdrawal.date,
-          amount,
-          mpesaNumber,
-          mpesaName,
-          status: 'Pending'
-        }
+        data: affiliate.NotificationsJSON[0]
       }));
     }
     res.json({ success: true, withdrawal });
-  } catch (err) {
-    console.error('Error requesting withdrawal:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error) {
+    console.error('Error in /api/affiliate/request-withdrawal:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to request withdrawal', error: error.message });
   }
 });
 
 app.post('/api/admin/affiliate/withdrawals/:action', authenticateAdmin, async (req, res) => {
   try {
+    const { action } = req.params;
     const { email, withdrawalId, status, refCode } = req.body;
-    if (!['Done', 'Dispute'].includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
-    if (status === 'Done' && !refCode) return res.status(400).json({ success: false, message: 'Enter the ref code' });
+    if (!['done', 'dispute'].includes(action) || !['Done', 'Failed'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid action or status' });
+    }
     const affiliates = await fetchAffiliates();
     const affiliate = affiliates.find(a => a.Email === email);
     if (!affiliate) return res.status(400).json({ success: false, message: 'Affiliate not found' });
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'pendingWithdrawals!A2:H'
-    });
-    const withdrawals = (response.data.values || []).map((row, i) => ({ index: i + 2, row }));
-    const withdrawal = withdrawals.find(w => w.row[0] === email && w.row[2] === withdrawalId);
+    const withdrawal = affiliate.WithdrawalsJSON.find(w => w.date === withdrawalId);
     if (!withdrawal) return res.status(400).json({ success: false, message: 'Withdrawal not found' });
-    const withdrawalData = {
-      email: withdrawal.row[0],
-      name: withdrawal.row[1],
-      timestamp: withdrawal.row[2],
-      amount: parseFloat(withdrawal.row[3]),
-      mpesaNumber: withdrawal.row[4],
-      mpesaName: withdrawal.row[5],
-      paymentRefcode: status === 'Done' ? refCode : '',
-      status
-    };
-    affiliate.WithdrawalsJSON = affiliate.WithdrawalsJSON.map(w =>
-      w.date === withdrawalData.timestamp ? { ...w, status, mpesaRef: status === 'Done' ? refCode : '' } : w
-    );
-    if (status === 'Dispute') {
-      affiliate.CurrentBalance += withdrawalData.amount;
-    } else if (status === 'Done') {
-      affiliate.WithdrawnTotal += withdrawalData.amount;
+    if (action === 'done' && !refCode) {
+      return res.status(400).json({ success: false, message: 'Reference code required for Done status' });
     }
-    affiliate.NotificationsJSON.push({
-      id: `NOTIF${Date.now()}`,
-      read: false,
-      colour: status === 'Done' ? 'green' : 'red',
-      message: status === 'Done' ? `Payment sent. M-PESA Ref: ${refCode}` : 'Payment failed. Contact support',
-      timestamp: new Date().toISOString()
-    });
+    withdrawal.status = status;
+    if (action === 'done') {
+      withdrawal.mpesaRef = refCode;
+      affiliate.NotificationsJSON.unshift({
+        id: `NOTIF${Date.now()}`,
+        read: false,
+        colour: 'green',
+        message: `Payment sent. M-PESA Ref: ${refCode}`,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      affiliate.CurrentBalance += withdrawal.amount;
+      affiliate.NotificationsJSON.unshift({
+        id: `NOTIF${Date.now()}`,
+        read: false,
+        colour: 'red',
+        message: 'Payment failed. Contact support',
+        timestamp: new Date().toISOString()
+      });
+      await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
+    }
     if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
+      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
     }
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'sortedWithdrawals!A:H',
-      valueInputOption: 'RAW',
-      resource: { values: [Object.values(withdrawalData)] }
-    });
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: `pendingWithdrawals!A${withdrawal.index}:H${withdrawal.index}`
-    });
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
-    await logTransaction(affiliate.Email, 'withdrawal_action', { status, refCode, amount: withdrawalData.amount });
+    await updateAffiliateField(affiliate.Email, 'WithdrawalsJSON', affiliate.WithdrawalsJSON);
+    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
+    await logTransaction(email, `withdrawal_${action}`, { withdrawalId, status, refCode });
     if (wsClients.has(affiliate.Email)) {
       wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
       wsClients.get(affiliate.Email).send(JSON.stringify({
         type: 'notification',
-        data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
+        data: affiliate.NotificationsJSON[0]
       }));
     }
     if (wsClients.has('admin')) {
       wsClients.get('admin').send(JSON.stringify({
         type: 'withdrawal_updated',
-        data: withdrawalData
+        data: { email, withdrawalId, status }
       }));
     }
     res.json({ success: true });
-  } catch (err) {
-    console.error('Error processing withdrawal action:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/withdrawals:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to process withdrawal', error: error.message });
   }
 });
 
 app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => {
   try {
     const { type, percentage, amount, recipients } = req.body;
-    if (type === 'percentage' && (percentage <= 0 || percentage > 1)) {
-      return res.status(400).json({ success: false, message: 'Invalid percentage' });
-    }
-    if (type === 'spot' && (!amount || amount <= 0 || !recipients?.length)) {
-      return res.status(400).json({ success: false, message: 'Invalid amount or recipients' });
-    }
     const affiliates = await fetchAffiliates();
+    let rewardedAffiliates = [];
     if (type === 'percentage') {
-      const topAffiliates = affiliates
+      if (percentage < 0 || percentage > 1) {
+        return res.status(400).json({ success: false, message: 'Invalid percentage' });
+      }
+      rewardedAffiliates = affiliates
+        .filter(a => a.Statusjson.status === 'active')
         .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
         .slice(0, 10);
-      for (const affiliate of topAffiliates) {
+      for (const affiliate of rewardedAffiliates) {
         const reward = affiliate.TotalSalesMonthly * percentage;
-        affiliate.CurrentBalance += reward;
-        affiliate.RewardsJSON.push({
-          date: new Date().toISOString(),
-          type: 'leaderboard',
-          amount: reward,
-          description: `You were credited ${percentage * 100}% reward of your current sales this month`
-        });
-        if (affiliate.RewardsJSON.length > 20) {
-          affiliate.RewardsJSON = affiliate.RewardsJSON.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(-20);
-        }
-        affiliate.NotificationsJSON.push({
-          id: `NOTIF${Date.now()}`,
-          read: false,
-          colour: 'blue',
-          message: `Congratulations, you have been awarded ${reward} KES. Leaderboard awards`,
-          timestamp: new Date().toISOString()
-        });
-        if (affiliate.NotificationsJSON.length > 20) {
-          affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
-        }
-        await updateAffiliateByEmail(affiliate.Email, affiliate);
-        await logTransaction(affiliate.Email, 'reward_percentage', { reward, percentage });
-        if (wsClients.has(affiliate.Email)) {
-          wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-          wsClients.get(affiliate.Email).send(JSON.stringify({
-            type: 'notification',
-            data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
-          }));
+        if (reward >= 100) {
+          affiliate.CurrentBalance += reward;
+          affiliate.RewardsJSON.unshift({
+            date: new Date().toISOString(),
+            type: 'leaderboard',
+            amount: reward,
+            description: `You were credited ${percentage * 100}% reward of your current sales this month`
+          });
+          affiliate.NotificationsJSON.unshift({
+            id: `NOTIF${Date.now()}`,
+            read: false,
+            colour: 'blue',
+            message: `Congratulations, you have been awarded ${reward} KES. Leaderboard awards`,
+            timestamp: new Date().toISOString()
+          });
+          if (affiliate.NotificationsJSON.length > 20) {
+            affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
+          }
+          if (affiliate.RewardsJSON.length > 20) {
+            affiliate.RewardsJSON = affiliate.RewardsJSON.slice(0, 20);
+          }
+          await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
+          await updateAffiliateField(affiliate.Email, 'RewardsJSON', affiliate.RewardsJSON);
+          await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
+          if (wsClients.has(affiliate.Email)) {
+            wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
+            wsClients.get(affiliate.Email).send(JSON.stringify({
+              type: 'notification',
+              data: affiliate.NotificationsJSON[0]
+            }));
+          }
         }
       }
-    } else {
-      for (const email of recipients) {
-        const affiliate = affiliates.find(a => a.Email === email);
-        if (!affiliate) continue;
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: ADMIN_SHEET_ID,
+        range: 'News!A:C',
+        valueInputOption: 'RAW',
+        resource: {
+          values: [[`NEWS${Date.now()}`, 'Rewards have been issued for the leaderboard', new Date().toISOString()]]
+        }
+      });
+    } else if (type === 'spot') {
+      if (amount < 100 || !Array.isArray(recipients)) {
+        return res.status(400).json({ success: false, message: 'Invalid amount or recipients' });
+      }
+      rewardedAffiliates = affiliates.filter(a => recipients.includes(a.Email) && a.Statusjson.status === 'active');
+      for (const affiliate of rewardedAffiliates) {
         affiliate.CurrentBalance += amount;
-        affiliate.RewardsJSON.push({
+        affiliate.RewardsJSON.unshift({
           date: new Date().toISOString(),
           type: 'spot',
           amount,
           description: `Spot reward of ${amount} KES`
         });
-        if (affiliate.RewardsJSON.length > 20) {
-          affiliate.RewardsJSON = affiliate.RewardsJSON.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(-20);
-        }
-        affiliate.NotificationsJSON.push({
+        affiliate.NotificationsJSON.unshift({
           id: `NOTIF${Date.now()}`,
           read: false,
           colour: 'blue',
@@ -1451,15 +1104,19 @@ app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => 
           timestamp: new Date().toISOString()
         });
         if (affiliate.NotificationsJSON.length > 20) {
-          affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
+          affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
         }
-        await updateAffiliateByEmail(affiliate.Email, affiliate);
-        await logTransaction(affiliate.Email, 'reward_spot', { amount });
+        if (affiliate.RewardsJSON.length > 20) {
+          affiliate.RewardsJSON = affiliate.RewardsJSON.slice(0, 20);
+        }
+        await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
+        await updateAffiliateField(affiliate.Email, 'RewardsJSON', affiliate.RewardsJSON);
+        await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
         if (wsClients.has(affiliate.Email)) {
           wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
           wsClients.get(affiliate.Email).send(JSON.stringify({
             type: 'notification',
-            data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
+            data: affiliate.NotificationsJSON[0]
           }));
         }
       }
@@ -1467,40 +1124,42 @@ app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => 
         spreadsheetId: ADMIN_SHEET_ID,
         range: 'News!A:C',
         valueInputOption: 'RAW',
-        resource: { values: [[
-          `NEWS${Date.now()}`,
-          'Rewards have been issued for the leaderboard and some spot clients',
-          new Date().toISOString()
-        ]] }
+        resource: {
+          values: [[`NEWS${Date.now()}`, 'Rewards have been issued for selected affiliates', new Date().toISOString()]]
+        }
       });
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid reward type' });
     }
+    await logTransaction('admin', `rewards_${type}`, { percentage, amount, recipients: rewardedAffiliates.map(a => a.Email) });
     await updateCache();
     if (wsClients.has('admin')) {
       wsClients.get('admin').send(JSON.stringify({
         type: 'rewards_issued',
-        data: { type, recipients: type === 'percentage' ? 'top 10' : recipients }
+        data: { type, recipients: rewardedAffiliates.map(a => a.Email) }
       }));
     }
     res.json({ success: true });
-  } catch (err) {
-    console.error('Error issuing rewards:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/rewards:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to apply rewards', error: error.message });
   }
 });
 
 app.post('/api/admin/affiliate/staticpages', authenticateAdmin, async (req, res) => {
   try {
     const { slug, title, content } = req.body;
-    if (!slug.match(/^\/affiliate-[a-z-]+$/)) return res.status(400).json({ success: false, message: 'Invalid slug' });
-    if (!title || !content) return res.status(400).json({ success: false, message: 'Invalid input' });
     const sanitizedContent = sanitizeHtml(content);
-    const pages = cachedDataAffiliate.staticPages;
-    const pageIndex = pages.findIndex(p => p.Slug === slug);
-    if (pageIndex >= 0) {
-      pages[pageIndex] = { Slug: slug, Title: title, Content: sanitizedContent };
+    if (!slug || !title || !sanitizedContent) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+    const staticPages = await fetchStaticPages();
+    const existingPage = staticPages.find(p => p.Slug === slug);
+    if (existingPage) {
+      const pageIndex = staticPages.findIndex(p => p.Slug === slug) + 2;
       await sheets.spreadsheets.values.update({
         spreadsheetId: ADMIN_SHEET_ID,
-        range: `staticPagesAffiliate!A${pageIndex + 2}:C`,
+        range: `staticPagesAffiliate!A${pageIndex}:C${pageIndex}`,
         valueInputOption: 'RAW',
         resource: { values: [[slug, title, sanitizedContent]] }
       });
@@ -1512,125 +1171,374 @@ app.post('/api/admin/affiliate/staticpages', authenticateAdmin, async (req, res)
         resource: { values: [[slug, title, sanitizedContent]] }
       });
     }
-    await logTransaction(req.user.email, 'update_static_page', { slug, title });
+    await logTransaction('admin', 'update_static_page', { slug, title });
     await updateCache();
+    cachedDataAffiliate.affiliates.forEach(affiliate => {
+      if (wsClients.has(affiliate.Email)) {
+        wsClients.get(affiliate.Email).send(JSON.stringify({
+          type: 'static_page_updated',
+          data: { slug, title }
+        }));
+      }
+    });
     if (wsClients.has('admin')) {
       wsClients.get('admin').send(JSON.stringify({
         type: 'static_page_updated',
         data: { slug, title }
       }));
     }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error updating static page:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.json({ success: true, page: { slug, title, content: sanitizedContent } });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/staticpages:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to update static page', error: error.message });
   }
 });
 
-app.get('/api/affiliate/static-page/:slug', async (req, res) => {
+app.post('/api/admin/affiliate/staticpages/delete', authenticateAdmin, async (req, res) => {
   try {
-    const { slug } = req.params;
-    const page = cachedDataAffiliate.staticPages.find(p => p.Slug === `/affiliate-${slug}`);
-    if (!page) return res.status(404).json({ success: false, message: 'Page not found' });
-    res.json({ success: true, page });
-  } catch (err) {
-    console.error('Error fetching static page:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const { slug } = req.body;
+    const staticPages = await fetchStaticPages();
+    const pageIndex = staticPages.findIndex(p => p.Slug === slug);
+    if (pageIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+    const rowIndex = pageIndex + 2;
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: ADMIN_SHEET_ID,
+      range: `staticPagesAffiliate!A${rowIndex}:C${rowIndex}`
+    });
+    await logTransaction('admin', 'delete_static_page', { slug });
+    await updateCache();
+    cachedDataAffiliate.affiliates.forEach(affiliate => {
+      if (wsClients.has(affiliate.Email)) {
+        wsClients.get(affiliate.Email).send(JSON.stringify({
+          type: 'static_page_deleted',
+          data: { slug }
+        }));
+      }
+    });
+    if (wsClients.has('admin')) {
+      wsClients.get('admin').send(JSON.stringify({
+        type: 'static_page_deleted',
+        data: { slug }
+      }));
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/staticpages/delete:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to delete static page', error: error.message });
   }
 });
 
 app.post('/api/admin/affiliate/communication', authenticateAdmin, async (req, res) => {
   try {
     const { type, message, enabled, filter } = req.body;
-    if (!message || !['urgent', 'news'].includes(type)) return res.status(400).json({ success: false, message: 'Invalid input' });
     if (type === 'urgent') {
-      cachedDataAffiliate.settings.urgentPopup = { message, enabled };
+      const settings = await fetchSettings();
+      settings.urgentPopup = { message, enabled };
       await sheets.spreadsheets.values.update({
         spreadsheetId: ADMIN_SHEET_ID,
-        range: 'settingsAffiliate!A8:B8',
+        range: 'settingsAffiliate!A2:B',
         valueInputOption: 'RAW',
-        resource: { values: [['urgentPopup', JSON.stringify({ message, enabled })]] }
-      });
-      if (enabled) {
-        const notification = {
-          id: `NOTIF${Date.now()}`,
-          read: false,
-          colour: 'red',
-          message,
-          timestamp: new Date().toISOString()
-        };
-        const affiliates = await fetchAffiliates();
-        for (const affiliate of affiliates) {
-          affiliate.NotificationsJSON.push(notification);
-          if (affiliate.NotificationsJSON.length > 20) {
-            affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(-20);
-          }
-          await updateAffiliateByEmail(affiliate.Email, affiliate);
-          await logTransaction(affiliate.Email, 'urgent_notification', { message });
-          if (wsClients.has(affiliate.Email)) {
-            wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'notification', data: notification }));
-          }
+        resource: {
+          values: [
+            ['supportEmail', settings.supportEmail],
+            ['copyrightText', settings.copyrightText],
+            ['whatsappLink', settings.whatsappLink],
+            ['commissionRate', JSON.stringify(settings.commissionRate)],
+            ['logoUrl', settings.logoUrl],
+            ['adminEmail', settings.adminEmail],
+            ['adminPassword', settings.adminPassword],
+            ['urgentPopup', JSON.stringify(settings.urgentPopup)]
+          ]
         }
-      }
-    } else {
-      const news = {
-        id: `NEWS${Date.now()}`,
-        message,
-        timestamp: new Date().toISOString()
-      };
+      });
+      await logTransaction('admin', 'update_urgent_message', { message, enabled });
+      await updateCache();
+      cachedDataAffiliate.affiliates.forEach(affiliate => {
+        if (wsClients.has(affiliate.Email)) {
+          wsClients.get(affiliate.Email).send(JSON.stringify({
+            type: 'settings_updated',
+            data: { urgentPopup: settings.urgentPopup }
+          }));
+        }
+      });
+      res.json({ success: true, message: 'Urgent message updated' });
+    } else if (type === 'news') {
+      const newsId = `NEWS${Date.now()}`;
       await sheets.spreadsheets.values.append({
         spreadsheetId: ADMIN_SHEET_ID,
         range: 'News!A:C',
         valueInputOption: 'RAW',
-        resource: { values: [[news.id, news.message, news.timestamp]] }
-      });
-      let targetAffiliates = cachedDataAffiliate.affiliates;
-      if (filter === 'active') {
-        targetAffiliates = targetAffiliates.filter(a => a.Statusjson.status === 'active');
-      } else if (filter === 'top') {
-        targetAffiliates = targetAffiliates.sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly).slice(0, 10);
-      }
-      targetAffiliates.forEach(affiliate => {
-        if (wsClients.has(affiliate.Email)) {
-          wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'news', data: news }));
+        resource: {
+          values: [[newsId, message, new Date().toISOString()]]
         }
       });
-      await logTransaction(req.user.email, 'news_communication', { message, filter });
+      await logTransaction('admin', 'send_news', { message, filter });
+      await updateCache();
+      cachedDataAffiliate.affiliates
+        .filter(a => filter === 'all' || a.Statusjson.status === 'active')
+        .forEach(affiliate => {
+          if (wsClients.has(affiliate.Email)) {
+            wsClients.get(affiliate.Email).send(JSON.stringify({
+              type: 'news',
+              data: { Id: newsId, Message: message, Timestamp: new Date().toISOString() }
+            }));
+          }
+        });
+      res.json({ success: true, message: 'News sent' });
+    } else {
+      res.status(400).json({ success: false, message: 'Invalid communication type' });
     }
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/communication:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to process communication', error: error.message });
+  }
+});
+
+app.post('/api/admin/affiliate/settings', authenticateAdmin, async (req, res) => {
+  try {
+    const { supportEmail, copyrightText, whatsappLink, commissionRate, logoUrl, adminEmail, adminPassword } = req.body;
+    if (!validateEmail(supportEmail) || !validateEmail(adminEmail) || (commissionRate && (commissionRate < 0 || commissionRate > 1))) {
+      return res.status(400).json({ success: false, message: 'Invalid input' });
+    }
+    const settings = await fetchSettings();
+    const updatedSettings = {
+      supportEmail: supportEmail || settings.supportEmail,
+      copyrightText: copyrightText || settings.copyrightText,
+      whatsappLink: whatsappLink || settings.whatsappLink,
+      commissionRate: commissionRate || settings.commissionRate,
+      logoUrl: logoUrl || settings.logoUrl,
+      adminEmail: adminEmail || settings.adminEmail,
+      adminPassword: adminPassword || settings.adminPassword,
+      urgentPopup: settings.urgentPopup
+    };
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: ADMIN_SHEET_ID,
+      range: 'settingsAffiliate!A2:B',
+      valueInputOption: 'RAW',
+      resource: {
+        values: [
+          ['supportEmail', updatedSettings.supportEmail],
+          ['copyrightText', updatedSettings.copyrightText],
+          ['whatsappLink', updatedSettings.whatsappLink],
+          ['commissionRate', JSON.stringify(updatedSettings.commissionRate)],
+          ['logoUrl', updatedSettings.logoUrl],
+          ['adminEmail', updatedSettings.adminEmail],
+          ['adminPassword', updatedSettings.adminPassword],
+          ['urgentPopup', JSON.stringify(updatedSettings.urgentPopup)]
+        ]
+      }
+    });
+    await logTransaction('admin', 'update_settings', updatedSettings);
     await updateCache();
+    cachedDataAffiliate.affiliates.forEach(affiliate => {
+      if (wsClients.has(affiliate.Email)) {
+        wsClients.get(affiliate.Email).send(JSON.stringify({
+          type: 'settings_updated',
+          data: updatedSettings
+        }));
+      }
+    });
     if (wsClients.has('admin')) {
       wsClients.get('admin').send(JSON.stringify({
-        type: 'communication_sent',
-        data: { type, message, filter }
+        type: 'settings_updated',
+        data: updatedSettings
       }));
     }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error sending communication:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.json({ success: true, settings: updatedSettings });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/settings:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to update settings', error: error.message });
   }
 });
 
 app.post('/api/affiliate/update-password', authenticateAffiliate, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    if (!validatePassword(newPassword)) return res.status(400).json({ success: false, message: 'Invalid new password' });
+    if (!validatePassword(newPassword)) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 12 characters with letters, numbers, and special characters' });
+    }
     const affiliates = await fetchAffiliates();
     const affiliate = affiliates.find(a => a.Email === req.user.email);
-    if (!(await bcrypt.compare(currentPassword, affiliate.Password))) {
+    if (!affiliate || !(await bcrypt.compare(currentPassword, affiliate.Password))) {
       return res.status(401).json({ success: false, message: 'Incorrect current password' });
     }
-    affiliate.Password = await bcrypt.hash(newPassword, 10);
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    affiliate.Password = hashedPassword;
+    await updateAffiliateField(affiliate.Email, 'Password', hashedPassword);
     await logTransaction(affiliate.Email, 'update_password', {});
+    await sendEmail(
+      affiliate.Email,
+      'Password Updated',
+      'Your affiliate account password has been successfully updated.'
+    );
     if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
+      wsClients.get(affiliate.Email).send(JSON.stringify({
+        type: 'notification',
+        data: {
+          id: `NOTIF${Date.now()}`,
+          read: false,
+          colour: 'blue',
+          message: 'Your password has been updated successfully',
+          timestamp: new Date().toISOString()
+        }
+      }));
+      wsClients.get(affiliate.Email).send(JSON.stringify({
+        type: 'logout',
+        message: 'Password changed, please re-login'
+      }));
       wsClients.delete(affiliate.Email);
     }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error updating password:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error in /api/affiliate/update-password:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to update password', error: error.message });
+  }
+});
+
+app.post('/api/admin/affiliate/reset-password', authenticateAdmin, async (req, res) => {
+  try {
+    const { email, status, password } = req.body;
+    if (status === 'approved' && !validatePassword(password)) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 12 characters with letters, numbers, and special characters' });
+    }
+    const affiliates = await fetchAffiliates();
+    const affiliate = affiliates.find(a => a.Email === email);
+    if (!affiliate) return res.status(400).json({ success: false, message: 'Affiliate not found' });
+    const resetEntry = affiliate.ResetJSON.find(r => r.status === 'pending');
+    if (!resetEntry) return res.status(400).json({ success: false, message: 'No pending reset request found' });
+    resetEntry.status = status;
+    if (status === 'approved') {
+      resetEntry.oneTimePassword = password;
+      const hashedPassword = await bcrypt.hash(password, 10);
+      affiliate.Password = hashedPassword;
+      await updateAffiliateField(affiliate.Email, 'Password', hashedPassword);
+      await sendEmail(
+        affiliate.Email,
+        'Password Reset',
+        `Your password has been reset. Your new password is: ${password}. Please log in and change it immediately.`
+      );
+      affiliate.NotificationsJSON.unshift({
+        id: `NOTIF${Date.now()}`,
+        read: false,
+        colour: 'blue',
+        message: 'Your password has been reset by admin. Please check your email.',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      affiliate.NotificationsJSON.unshift({
+        id: `NOTIF${Date.now()}`,
+        read: false,
+        colour: 'red',
+        message: 'Your password reset request was declined. Contact support.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    if (affiliate.NotificationsJSON.length > 20) {
+      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
+    }
+    affiliate.ResetJSON = affiliate.ResetJSON.filter(r => (new Date() - new Date(r.timestamp)) / (1000 * 60 * 60) < 24);
+    await updateAffiliateField(affiliate.Email, 'ResetJSON', affiliate.ResetJSON);
+    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
+    await logTransaction(email, 'reset_password_action', { status });
+    if (wsClients.has(affiliate.Email)) {
+      wsClients.get(affiliate.Email).send(JSON.stringify({
+        type: 'notification',
+        data: affiliate.NotificationsJSON[0]
+      }));
+      if (status === 'approved') {
+        wsClients.get(affiliate.Email).send(JSON.stringify({
+          type: 'logout',
+          message: 'Password reset, please re-login'
+        }));
+        wsClients.delete(affiliate.Email);
+      }
+    }
+    res.json({ success: true, message: 'Reset request processed' });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/reset-password:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to process reset request', error: error.message });
+  }
+});
+
+app.post('/api/admin/affiliate/update-status', authenticateAdmin, async (req, res) => {
+  try {
+    const { email, status } = req.body;
+    if (!['active', 'blocked', 'deleted'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    const affiliates = await fetchAffiliates();
+    const affiliate = affiliates.find(a => a.Email === email);
+    if (!affiliate) return res.status(400).json({ success: false, message: 'Affiliate not found' });
+    affiliate.Statusjson = { status };
+    await updateAffiliateField(affiliate.Email, 'Statusjson', affiliate.Statusjson);
+    await logTransaction(affiliate.Email, 'update_status', { status });
+    await sendEmail(
+      affiliate.Email,
+      `Account Status Updated: ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+      `Your affiliate account status has been updated to ${status}. Please contact ${cachedDataAffiliate.settings.supportEmail} for any questions.`
+    );
+    if (wsClients.has(affiliate.Email)) {
+      wsClients.get(affiliate.Email).send(JSON.stringify({
+        type: 'notification',
+        data: {
+          id: `NOTIF${Date.now()}`,
+          read: false,
+          colour: status === 'active' ? 'green' : 'red',
+          message: `Your account status has been updated to ${status}`,
+          timestamp: new Date().toISOString()
+        }
+      }));
+      if (status !== 'active') {
+        wsClients.get(affiliate.Email).send(JSON.stringify({
+          type: 'logout',
+          message: 'Your account status has changed. Please re-login.'
+        }));
+        wsClients.delete(affiliate.Email);
+      }
+    }
+    if (wsClients.has('admin')) {
+      wsClients.get('admin').send(JSON.stringify({
+        type: 'affiliate_status_updated',
+        data: { email, status }
+      }));
+    }
+    res.json({ success: true, message: `Affiliate status updated to ${status}` });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/update-status:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
+  }
+});
+
+app.post('/api/affiliate/mark-notification', authenticateAffiliate, async (req, res) => {
+  try {
+    const { notificationId } = req.body;
+    if (!notificationId) {
+      return res.status(400).json({ success: false, message: 'Notification ID required' });
+    }
+    const affiliates = await fetchAffiliates();
+    const affiliate = affiliates.find(a => a.Email === req.user.email);
+    if (!affiliate) {
+      return res.status(401).json({ success: false, message: 'Affiliate not found' });
+    }
+    const notification = affiliate.NotificationsJSON.find(n => n.id === notificationId);
+    if (!notification) {
+      return res.status(400).json({ success: false, message: 'Notification not found' });
+    }
+    notification.read = true;
+    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
+    await logTransaction(affiliate.Email, 'mark_notification', { notificationId });
+    if (wsClients.has(affiliate.Email)) {
+      wsClients.get(affiliate.Email).send(JSON.stringify({
+        type: 'update',
+        data: affiliate
+      }));
+    }
+    res.json({ success: true, message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('Error in /api/affiliate/mark-notification:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to mark notification', error: error.message });
   }
 });
 
@@ -1638,128 +1546,67 @@ app.post('/api/affiliate/delete-account', authenticateAffiliate, async (req, res
   try {
     const affiliates = await fetchAffiliates();
     const affiliate = affiliates.find(a => a.Email === req.user.email);
+    if (!affiliate) {
+      return res.status(401).json({ success: false, message: 'Affiliate not found' });
+    }
     if (affiliate.CurrentBalance >= 1 || affiliate.WithdrawalsJSON.some(w => w.status === 'Pending')) {
       return res.status(400).json({ success: false, message: 'Withdraw all money before deleting account' });
     }
     affiliate.Statusjson = { status: 'deleted' };
-    affiliate.NotificationsJSON.push({
-      id: `NOTIF${Date.now()}`,
-      read: false,
-      colour: 'red',
-      message: 'Account deleted',timestamp: new Date().toISOString()
-    });
-    if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(-20);
-    }
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
+    await updateAffiliateField(affiliate.Email, 'Statusjson', affiliate.Statusjson);
     await logTransaction(affiliate.Email, 'delete_account', {});
+    await sendEmail(
+      affiliate.Email,
+      'Account Deleted',
+      `Your affiliate account has been deleted. Contact ${cachedDataAffiliate.settings.supportEmail} for any questions.`
+    );
     if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'logout', message: 'Account deleted, session terminated' }));
+      wsClients.get(affiliate.Email).send(JSON.stringify({
+        type: 'logout',
+        message: 'Account deleted, please re-login'
+      }));
       wsClients.delete(affiliate.Email);
     }
     res.json({ success: true, message: 'Account deleted successfully' });
-  } catch (err) {
-    console.error('Error deleting account:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error) {
+    console.error('Error in /api/affiliate/delete-account:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to delete account', error: error.message });
   }
 });
 
-app.post('/api/admin/affiliate/reset-passwords', authenticateAdmin, async (req, res) => {
+app.get('/api/affiliate/validate', authenticateAffiliate, async (req, res) => {
   try {
-    const { email, status, newPassword } = req.body;
-    if (!['Approved', 'Rejected'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid status' });
+    const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
+    if (!affiliate || affiliate.Statusjson.status !== 'active') {
+      return res.status(401).json({ success: false, message: 'Invalid or inactive session' });
     }
-    if (status === 'Approved' && !validatePassword(newPassword)) {
-      return res.status(400).json({ success: false, message: 'Invalid new password' });
+    res.json({ success: true, data: { email: affiliate.Email, username: affiliate.Username, name: affiliate.Name } });
+  } catch (error) {
+    console.error('Error in /api/affiliate/validate:', error.message);
+    res.status(401).json({ success: false, message: 'Session validation failed', error: error.message });
+  }
+});
+
+app.get('/api/admin/affiliate/validate', authenticateAdmin, async (req, res) => {
+  try {
+    const settings = await fetchSettings();
+    if (req.user.email !== settings.adminEmail) {
+      return res.status(401).json({ success: false, message: 'Invalid admin session' });
     }
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'reset!A2:H'
-    });
-    const resets = (response.data.values || []).map((row, i) => ({ index: i + 2, row }));
-    const resetRequest = resets.find(r => r.row[0] === email && r.row[6] === 'Pending');
-    if (!resetRequest) {
-      return res.status(400).json({ success: false, message: 'Reset request not found or already processed' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === email);
-    if (!affiliate) {
-      return res.status(400).json({ success: false, message: 'Affiliate not found' });
-    }
-    resetRequest.row[6] = status;
-    if (status === 'Approved') {
-      resetRequest.row[7] = await bcrypt.hash(newPassword, 10);
-      affiliate.Password = resetRequest.row[7];
-      affiliate.NotificationsJSON.push({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: 'green',
-        message: 'Your password reset request has been approved. Use your new password to log in.',
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      affiliate.NotificationsJSON.push({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: 'red',
-        message: 'Your password reset request was rejected. Contact support for assistance.',
-        timestamp: new Date().toISOString()
-      });
-    }
-    if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(-20);
-    }
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: `reset!A${resetRequest.index}:H${resetRequest.index}`,
-      valueInputOption: 'RAW',
-      resource: { values: [resetRequest.row] }
-    });
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
-    await logTransaction(email, 'reset_password_action', { status });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'notification',
-        data: affiliate.NotificationsJSON[affiliate.NotificationsJSON.length - 1]
-      }));
-    }
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'reset_password_updated',
-        data: { email, status }
-      }));
-    }
-    res.json({ success: true, message: `Reset request ${status.toLowerCase()}` });
-  } catch (err) {
-    console.error('Error processing reset password:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.json({ success: true, data: { email: settings.adminEmail } });
+  } catch (error) {
+    console.error('Error in /api/admin/affiliate/validate:', error.message);
+    res.status(401).json({ success: false, message: 'Admin session validation failed', error: error.message });
   }
 });
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  res.status(500).json({ success: false, message: 'Internal server error' });
+  console.error('Unhandled error:', err.stack);
+  res.status(500).json({ success: false, message: 'Server error, please try again later' });
 });
 
-// Serve Static Pages
-app.get('/affiliate-:slug', async (req, res) => {
-  try {
-    const { slug } = req.params;
-    const page = cachedDataAffiliate.staticPages.find(p => p.Slug === `/affiliate-${slug}`);
-    if (!page) {
-      return res.status(404).sendFile(path.join(publicPath, '404.html'));
-    }
-    res.sendFile(path.join(publicPath, 'affiliate.html'));
-  } catch (err) {
-    console.error('Error serving static page:', err.message);
-    res.status(500).sendFile(path.join(publicPath, 'error.html'));
-  }
-});
-
-// Initialize Server
+// Start Server
 const server = app.listen(port, async () => {
   try {
     await initializeSheets();
@@ -1771,13 +1618,14 @@ const server = app.listen(port, async () => {
   }
 });
 
-// WebSocket Server Upgrade
+// WebSocket Upgrade
 server.on('upgrade', (request, socket, head) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const token = url.searchParams.get('token');
   const decoded = validateWebSocket(token);
   if (!decoded) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.write('Invalid token');
+    socket.destroy();
     return;
   }
   wss.handleUpgrade(request, socket, head, (ws) => {
@@ -1787,11 +1635,8 @@ server.on('upgrade', (request, socket, head) => {
 
 // Graceful Shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Closing server...');
-  wsClients.forEach(ws => {
-    ws.send(JSON.stringify({ type: 'logout', message: 'Server is shutting down' }));
-    ws.terminate();
-  });
+  console.log('SIGTERM received, shutting down');
+  wsClients.forEach(ws => ws.terminate());
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
