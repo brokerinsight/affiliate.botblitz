@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deriv Bot Store Affiliates</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>
   <style>
     /* Custom animations */
     .notification-enter {
@@ -28,11 +27,6 @@
       transform: translateY(-2px);
       transition: transform 0.2s ease-in-out;
     }
-    /* Focus states for accessibility */
-    input:focus, button:focus {
-      outline: 2px solid #3b82f6;
-      outline-offset: 2px;
-    }
   </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
@@ -50,15 +44,16 @@
             <div id="settings-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10">
               <button id="change-password" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Change Password">Change Password</button>
               <button id="delete-account" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Delete Account">Delete Account</button>
+              <button id="theme-toggle-dropdown" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Toggle Theme">Toggle Theme</button>
               <button id="logout" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Logout">Logout</button>
             </div>
           </div>
         </div>
         <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700" aria-label="Toggle Theme">
-          <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="#f3f4f6" viewBox="0 0 24 24">
+          <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
-          <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="#1f2937" viewBox="0 0 24 24">
+          <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
           </svg>
         </button>
@@ -72,9 +67,9 @@
     <div id="auth-section" class="hidden">
       <div class="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
         <div class="flex justify-center mb-4">
-          <button id="login-tab" class="px-4 py-2 bg-blue-500 text-white rounded-md" aria-selected="true">Login</button>
-          <button id="signup-tab" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-selected="false">Sign Up</button>
-          <button id="forgot-tab" class="px-4 py-2 bg-gray-500 text-white rounded-md hidden" aria-selected="false">Forgot Password</button>
+          <button id="login-tab" class="px-4 py-2 bg-blue-500 text-white rounded-md" aria-label="Login Tab">Login</button>
+          <button id="signup-tab" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-label="Sign Up Tab">Sign Up</button>
+          <button id="forgot-tab" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-label="Forgot Password Tab">Forgot Password</button>
         </div>
         <!-- Login Form -->
         <form id="login-form" class="space-y-4">
@@ -86,17 +81,17 @@
             <label for="login-password" class="block text-sm font-medium">Password</label>
             <div class="relative">
               <input id="login-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
-              <button type="button" id="login-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+              <button type="button" id="login-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500" aria-label="Toggle Password Visibility">Show</button>
             </div>
           </div>
-          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Login">
+          <button type="submit" id="login-submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Login">
             <span>Login</span>
-            <svg id="login-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+            <svg id="login-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24" aria-hidden="true">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
           </button>
-          <a href="#" id="forgot-link" class="text-blue-500 hover:underline text-sm">Forgot Password?</a>
+          <a href="#" id="forgot-link" class="text-blue-500 hover:underline text-sm" aria-label="Forgot Password Link">Forgot Password?</a>
         </form>
         <!-- Signup Form -->
         <form id="signup-form" class="space-y-4 hidden">
@@ -107,7 +102,7 @@
           <div>
             <label for="signup-username" class="block text-sm font-medium">Username</label>
             <input id="signup-username" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
-            <p id="username-status" class="text-sm mt-1" aria-live="polite"></p>
+            <p id="username-status" class="text-sm mt-1"></p>
           </div>
           <div>
             <label for="signup-email" class="block text-sm font-medium">Email</label>
@@ -117,24 +112,24 @@
             <label for="signup-password" class="block text-sm font-medium">Password</label>
             <div class="relative">
               <input id="signup-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
-              <button type="button" id="signup-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
-              <p id="password-status" class="text-sm mt-1" aria-live="polite"></p>
+              <button type="button" id="signup-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500" aria-label="Toggle Password Visibility">Show</button>
+              <p id="password-status" class="text-sm mt-1"></p>
             </div>
           </div>
           <div>
             <label class="flex items-center">
               <input id="signup-terms" type="checkbox" class="mr-2" required aria-required="true">
-              <span class="text-sm">I agree to the <a href="/affiliate-terms" class="text-blue-500 hover:underline">Terms & Conditions</a></span>
+              <span class="text-sm">I agree to the <a href="/affiliate-terms" class="text-blue-500 hover:underline" aria-label="Terms and Conditions">Terms & Conditions</a></span>
             </label>
           </div>
-          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Create Account">
+          <button type="submit" id="signup-submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Sign Up">
             <span>Create Account</span>
-            <svg id="signup-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+            <svg id="signup-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24" aria-hidden="true">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
           </button>
-          <a href="#" id="login-link" class="text-blue-500 hover:underline text-sm">Already have an account?</a>
+          <a href="#" id="login-link" class="text-blue-500 hover:underline text-sm" aria-label="Login Link">Already have an account?</a>
         </form>
         <!-- Forgot Password Form -->
         <form id="forgot-form" class="space-y-4 hidden">
@@ -152,18 +147,16 @@
           </div>
           <div>
             <label for="forgot-amount" class="block text-sm font-medium">Last Withdrawal Amount (KES)</label>
-            <input id="forgot-amount" type="number" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="0" min="0" aria-describedby="forgot-amount-desc">
-            <p id="forgot-amount-desc" class="text-sm text-gray-500">Enter 0 if no withdrawals made.</p>
+            <input id="forgot-amount" type="number" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="0" aria-required="true">
           </div>
           <div>
             <label for="forgot-description" class="block text-sm font-medium">Account Description</label>
             <textarea id="forgot-description" maxlength="100" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true"></textarea>
-            <p class="text-sm text-gray-500">Max 100 characters.</p>
           </div>
           <p class="text-sm text-gray-500">Your account will be reviewed within 24 hours. If approved, a one-time password will be sent to your email.</p>
-          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Request Password Reset">
+          <button type="submit" id="forgot-submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Password Reset">
             <span>Request Password Reset</span>
-            <svg id="forgot-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+            <svg id="forgot-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24" aria-hidden="true">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -175,7 +168,7 @@
     <!-- Dashboard Section -->
     <div id="dashboard-section" class="hidden">
       <!-- Dashboard Header -->
-      <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6 card-hover">
+      <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
         <div class="flex justify-between items-center">
           <div id="dashboard-logo" class="flex items-center">
             <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>
@@ -184,17 +177,17 @@
       </div>
 
       <!-- Tabs -->
-      <nav class="flex flex-wrap gap-2 mb-6" role="tablist">
-        <button id="tab-home" class="px-4 py-2 bg-blue-500 text-white rounded-md" role="tab" aria-selected="true">Home</button>
-        <button id="tab-withdrawals" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">Withdrawal History</button>
-        <button id="tab-rewards" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">Rewards History</button>
-        <button id="tab-leaderboard" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">Leaderboard</button>
-        <button id="tab-notifications" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">Notifications History</button>
-        <button id="tab-news" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">News</button>
+      <nav class="flex flex-wrap gap-2 mb-6">
+        <button id="tab-home" class="px-4 py-2 bg-blue-500 text-white rounded-md" aria-label="Home Tab">Home</button>
+        <button id="tab-withdrawals" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-label="Withdrawal History Tab">Withdrawal History</button>
+        <button id="tab-rewards" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-label="Rewards History Tab">Rewards History</button>
+        <button id="tab-leaderboard" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-label="Leaderboard Tab">Leaderboard</button>
+        <button id="tab-notifications" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-label="Notifications History Tab">Notifications History</button>
+        <button id="tab-news" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-label="News Tab">News</button>
       </nav>
 
       <!-- Tab Content -->
-      <div id="home-content" class="space-y-6" role="tabpanel">
+      <div id="home-content" class="space-y-6">
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
           <h2 class="text-lg font-bold">Your Affiliate Link</h2>
           <div class="flex mt-2">
@@ -205,32 +198,32 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
             <h3 class="text-sm font-medium text-gray-500">Link Clicks</h3>
-            <p id="link-clicks" class="text-2xl font-bold">0</p>
+            <p id="link-clicks" class="text-2xl font-bold" aria-live="polite">0</p>
           </div>
           <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
             <h3 class="text-sm font-medium text-gray-500">Total Sales</h3>
-            <p id="total-sales" class="text-2xl font-bold">0</p>
+            <p id="total-sales" class="text-2xl font-bold" aria-live="polite">0</p>
           </div>
           <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
             <h3 class="text-sm font-medium text-gray-500">Monthly Sales</h3>
-            <p id="monthly-sales" class="text-2xl font-bold">0</p>
-            <p id="reset-countdown" class="text-sm text-gray-500"></p>
+            <p id="monthly-sales" class="text-2xl font-bold" aria-live="polite">0</p>
+            <p id="reset-countdown" class="text-sm text-gray-500" aria-live="polite"></p>
           </div>
           <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
             <h3 class="text-sm font-medium text-gray-500">Current Balance (KES)</h3>
-            <p id="current-balance" class="text-2xl font-bold">0.00</p>
+            <p id="current-balance" class="text-2xl font-bold" aria-live="polite">0.00</p>
           </div>
           <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
             <h3 class="text-sm font-medium text-gray-500">Total Withdrawn (KES)</h3>
-            <p id="withdrawn-total" class="text-2xl font-bold">0.00</p>
+            <p id="withdrawn-total" class="text-2xl font-bold" aria-live="polite">0.00</p>
           </div>
         </div>
         <div class="flex space-x-4">
-          <button id="commission-info" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" aria-label="View Commission Info">Commission Info</button>
+          <button id="commission-info" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" aria-label="Commission Info">Commission Info</button>
           <button id="request-withdrawal" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" disabled aria-label="Request Withdrawal">Request Withdrawal</button>
         </div>
       </div>
-      <div id="withdrawals-content" class="hidden" role="tabpanel">
+      <div id="withdrawals-content" class="hidden">
         <p class="text-sm text-gray-500 mb-4">Only the last 20 withdrawals are shown to enhance speed.</p>
         <table class="w-full border-collapse">
           <thead>
@@ -243,14 +236,14 @@
               <th class="p-2 text-left">MPESA Ref</th>
             </tr>
           </thead>
-          <tbody id="withdrawals-table"></tbody>
+          <tbody id="withdrawals-table" aria-live="polite"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="withdrawals-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Withdrawals Page">Previous</button>
-          <button id="withdrawals-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Withdrawals Page">Next</button>
+          <button id="withdrawals-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Withdrawals">Previous</button>
+          <button id="withdrawals-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Withdrawals">Next</button>
         </div>
       </div>
-      <div id="rewards-content" class="hidden" role="tabpanel">
+      <div id="rewards-content" class="hidden">
         <p class="text-sm text-gray-500 mb-4">Only the last 20 rewards are shown to enhance speed.</p>
         <table class="w-full border-collapse">
           <thead>
@@ -261,14 +254,14 @@
               <th class="p-2 text-left">Description</th>
             </tr>
           </thead>
-          <tbody id="rewards-table"></tbody>
+          <tbody id="rewards-table" aria-live="polite"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="rewards-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Rewards Page">Previous</button>
-          <button id="rewards-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Rewards Page">Next</button>
+          <button id="rewards-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Rewards">Previous</button>
+          <button id="rewards-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Rewards">Next</button>
         </div>
       </div>
-      <div id="leaderboard-content" class="hidden" role="tabpanel">
+      <div id="leaderboard-content" class="hidden">
         <p class="text-sm text-gray-500 mb-4">Only the first 10 affiliates appear here.</p>
         <table class="w-full border-collapse">
           <thead>
@@ -279,10 +272,10 @@
               <th class="p-2 text-left">Momentum</th>
             </tr>
           </thead>
-          <tbody id="leaderboard-table"></tbody>
+          <tbody id="leaderboard-table" aria-live="polite"></tbody>
         </table>
       </div>
-      <div id="notifications-content" class="hidden" role="tabpanel">
+      <div id="notifications-content" class="hidden">
         <p class="text-sm text-gray-500 mb-4">Only the last 20 notifications appear here for speed.</p>
         <table class="w-full border-collapse">
           <thead>
@@ -292,19 +285,19 @@
               <th class="p-2 text-left">Status</th>
             </tr>
           </thead>
-          <tbody id="notifications-table"></tbody>
+          <tbody id="notifications-table" aria-live="polite"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="notifications-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Notifications Page">Previous</button>
-          <button id="notifications-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Notifications Page">Next</button>
+          <button id="notifications-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Notifications">Previous</button>
+          <button id="notifications-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Notifications">Next</button>
         </div>
       </div>
-      <div id="news-content" class="hidden" role="tabpanel">
+      <div id="news-content" class="hidden">
         <p class="text-sm text-gray-500 mb-4">Latest news from the affiliate program.</p>
-        <div id="news-list" class="space-y-4"></div>
+        <div id="news-list" class="space-y-4" aria-live="polite"></div>
         <div class="flex justify-between mt-4">
-          <button id="news-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous News Page">Previous</button>
-          <button id="news-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next News Page">Next</button>
+          <button id="news-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous News">Previous</button>
+          <button id="news-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next News">Next</button>
         </div>
       </div>
     </div>
@@ -313,7 +306,7 @@
   <!-- Footer -->
   <footer class="bg-white dark:bg-gray-800 py-6">
     <div class="max-w-7xl mx-auto px-4 text-center">
-      <div id="static-links" class="flex justify-center space-x-4 mb-4 flex-wrap"></div>
+      <div id="static-links" class="flex justify-center space-x-4 mb-4"></div>
       <p id="copyright" class="text-sm text-gray-500">Deriv Bot Store Affiliates 2025</p>
     </div>
   </footer>
@@ -323,8 +316,8 @@
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 class="text-xl font-bold mb-4">Contact Us</h2>
       <div class="space-y-4">
-        <a id="whatsapp-link" href="https://wa.link/4wppln" class="block bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 text-center" target="_blank" aria-label="Contact via WhatsApp">WhatsApp</a>
-        <a id="email-link" href="mailto:derivbotstore@gmail.com" class="block bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-center" target="_blank" aria-label="Contact via Email">Email</a>
+        <a id="whatsapp-link" href="https://wa.link/4wppln" class="block bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 text-center" aria-label="Contact via WhatsApp">WhatsApp</a>
+        <a id="email-link" href="mailto:derivbotstore@gmail.com" class="block bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-center" aria-label="Contact via Email">Email</a>
       </div>
       <button id="close-contact" class="mt-4 text-gray-500 hover:text-gray-700" aria-label="Close Contact Modal">Close</button>
     </div>
@@ -332,7 +325,7 @@
   <div id="commission-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden" role="dialog" aria-modal="true">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 class="text-xl font-bold mb-4">Commission Info</h2>
-      <p id="commission-text" class="mb-4 whitespace-pre-line"></p>
+      <p id="commission-text" class="mb-4"></p>
       <button id="close-commission" class="text-gray-500 hover:text-gray-700" aria-label="Close Commission Modal">Close</button>
     </div>
   </div>
@@ -344,24 +337,24 @@
           <label for="current-password" class="block text-sm font-medium">Current Password</label>
           <div class="relative">
             <input id="current-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
-            <button type="button" id="current-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+            <button type="button" id="current-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500" aria-label="Toggle Current Password Visibility">Show</button>
           </div>
         </div>
         <div>
           <label for="new-password" class="block text-sm font-medium">New Password</label>
           <div class="relative">
             <input id="new-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
-            <button type="button" id="new-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
-            <p id="new-password-status" class="text-sm mt-1" aria-live="polite"></p>
+            <button type="button" id="new-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500" aria-label="Toggle New Password Visibility">Show</button>
+            <p id="new-password-status" class="text-sm mt-1"></p>
           </div>
         </div>
         <div>
           <label for="confirm-password" class="block text-sm font-medium">Confirm New Password</label>
           <input id="confirm-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
         </div>
-        <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Change Password">
+        <button type="submit" id="change-password-submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Change Password">
           <span>Change Password</span>
-          <svg id="change-password-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+          <svg id="change-password-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24" aria-hidden="true">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
@@ -376,7 +369,7 @@
       <p class="mb-4">Are you sure you want to delete your account? This action cannot be undone.</p>
       <button id="confirm-delete" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 flex justify-center items-center" aria-label="Confirm Delete Account">
         <span>Delete Account</span>
-        <svg id="delete-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+        <svg id="delete-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24" aria-hidden="true">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -390,8 +383,7 @@
       <form id="withdrawal-form" class="space-y-4">
         <div>
           <label for="withdrawal-amount" class="block text-sm font-medium">Amount (KES)</label>
-          <input id="withdrawal-amount" type="number" min="1" step="0.01" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true" aria-describedby="withdrawal-amount-desc">
-          <p id="withdrawal-amount-desc" class="text-sm text-gray-500"></p>
+          <input id="withdrawal-amount" type="number" min="1" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
         </div>
         <div>
           <label for="mpesa-number" class="block text-sm font-medium">MPESA Number</label>
@@ -411,13 +403,13 @@
           <label for="withdrawal-password" class="block text-sm font-medium">Account Password</label>
           <div class="relative">
             <input id="withdrawal-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
-            <button type="button" id="withdrawal-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
+            <button type="button" id="withdrawal-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500" aria-label="Toggle Withdrawal Password Visibility">Show</button>
           </div>
         </div>
         <button id="edit-mpesa" class="text-blue-500 hover:underline text-sm" aria-label="Edit MPESA Details">Edit MPESA Details</button>
-        <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Withdrawal Request">
+        <button type="submit" id="withdrawal-submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Withdrawal Request">
           <span>Request Withdrawal</span>
-          <svg id="withdrawal-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+          <svg id="withdrawal-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24" aria-hidden="true">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
@@ -430,12 +422,18 @@
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 id="static-title" class="text-xl font-bold mb-4"></h2>
       <div id="static-content" class="prose dark:prose-invert"></div>
+      <div id="static-loading" class="flex justify-center items-center hidden">
+        <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
       <button id="close-static" class="mt-4 text-gray-500 hover:text-gray-700" aria-label="Close Static Page Modal">Close</button>
     </div>
   </div>
 
   <!-- Notifications -->
-  <div id="notifications" class="fixed top-4 right-4 space-y-2 z-50" aria-live="polite"></div>
+  <div id="notifications" class="fixed top-4 right-4 space-y-2" aria-live="assertive"></div>
 
   <script>
     // Constants
@@ -443,12 +441,15 @@
     const WS_BASE = 'wss://affiliate-botblitz.onrender.com/ws/affiliate';
     const NOTIFICATION_TIMEOUT = 30000; // 30s
     const ITEMS_PER_PAGE = 10;
+    const RATE_LIMIT_ATTEMPTS = 5;
+    const RATE_LIMIT_WINDOW = 10 * 60 * 1000; // 10 minutes
 
     // State
     let ws = null;
     let notificationsQueue = [];
     let activeNotifications = 0;
     let dashboardData = {};
+    let settingsData = {};
     let pagination = {
       withdrawals: { page: 1, total: 0 },
       rewards: { page: 1, total: 0 },
@@ -456,7 +457,11 @@
       news: { page: 1, total: 0 }
     };
     let mpesaDetails = {};
-    let rateLimitErrors = {};
+    let rateLimits = {
+      login: { attempts: 0, lastAttempt: 0 },
+      signup: { attempts: 0, lastAttempt: 0 },
+      forgot: { attempts: 0, lastAttempt: 0 }
+    };
 
     // Utility Functions
     function getCookie(name) {
@@ -467,17 +472,15 @@
     }
 
     function setCookie(name, value, maxAge) {
-      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; httpOnly; sameSite=strict`;
+      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; sameSite=strict`;
     }
 
     function clearCookie(name) {
-      document.cookie = `${name}=; max-age=0; path=/; secure; httpOnly; sameSite=strict`;
+      document.cookie = `${name}=; max-age=0; path=/; secure; sameSite=strict`;
     }
 
     function formatCurrency(amount) {
-      return new Intl.NumberFormat('en-KE', {
-        style: 'currency',
-        currency: 'KES',
+      return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }).format(amount);
@@ -490,19 +493,16 @@
       }
       activeNotifications++;
       const notification = document.createElement('div');
-      notification.className = `bg-white dark:bg-gray-800 p-4 rounded shadow border-l-4 ${isUrgent ? 'border-2 border-red-500 bg-red-100 dark:bg-red-900' : `border-${color}-500`} notification-enter`;
-      notification.setAttribute('role', 'alert');
+      notification.className = `bg-white dark:bg-gray-800 p-4 rounded shadow border-l-4 ${isUrgent ? 'border-l-4 border-red-500 font-bold bg-red-100 dark:bg-red-900' : `border-${color}-500`} notification-enter`;
       notification.innerHTML = `
         <div class="flex justify-between items-center">
           <p>${message}</p>
-          <button class="text-gray-500 hover:text-gray-700" aria-label="Close Notification">X</button>
+          <button class="text-gray-500 hover:text-gray-700" onclick="closeNotification(this, '${id}')" aria-label="Close Notification">X</button>
         </div>
       `;
       document.getElementById('notifications').appendChild(notification);
       setTimeout(() => notification.classList.add('notification-enter-active'), 10);
-      const closeButton = notification.querySelector('button');
-      closeButton.addEventListener('click', () => closeNotification(closeButton, id));
-      setTimeout(() => closeNotification(closeButton, id), NOTIFICATION_TIMEOUT);
+      setTimeout(() => closeNotification(notification.querySelector('button'), id), NOTIFICATION_TIMEOUT);
     }
 
     function closeNotification(button, id) {
@@ -540,7 +540,7 @@
     }
 
     function validateName(name) {
-      return /^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/.test(name.trim());
+      return /^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/.test(name);
     }
 
     function validatePassword(password) {
@@ -552,7 +552,7 @@
     }
 
     function validateMpesaNumber(number) {
-      return /^0[17]\d{8}$/.test(number.trim());
+      return /^0[17]\d{8}$/.test(number);
     }
 
     function getDaysToReset() {
@@ -562,59 +562,55 @@
       return days;
     }
 
-    function handleRateLimit(response, endpoint) {
-      if (response.status === 429) {
-        const retryAfter = response.headers.get('Retry-After') || 600;
-        const key = `${endpoint}:${Date.now()}`;
-        rateLimitErrors[key] = Date.now() + parseInt(retryAfter) * 1000;
-        const remainingMinutes = Math.ceil(retryAfter / 60);
-        showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
-        return true;
+    function checkRateLimit(type) {
+      const now = Date.now();
+      const limit = rateLimits[type];
+      if (now - limit.lastAttempt > RATE_LIMIT_WINDOW) {
+        limit.attempts = 0;
+        limit.lastAttempt = now;
       }
-      return false;
+      if (limit.attempts >= RATE_LIMIT_ATTEMPTS) {
+        const remainingMinutes = Math.ceil((RATE_LIMIT_WINDOW - (now - limit.lastAttempt)) / (60 * 1000));
+        showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
+        return false;
+      }
+      limit.attempts++;
+      limit.lastAttempt = now;
+      return true;
     }
 
     // WebSocket Setup
     function initWebSocket(token) {
-      if (ws && ws.readyState === WebSocket.OPEN) return;
       ws = new WebSocket(`${WS_BASE}?token=${token}`);
       ws.onopen = () => console.log('WebSocket connected');
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        switch (data.type) {
-          case 'update':
-            dashboardData = { ...dashboardData, ...data.data };
-            updateDashboard();
-            break;
-          case 'notification':
-            showNotification(data.message, data.colour, data.isUrgent, data.id);
-            break;
-          case 'logout':
-            clearCookie('jwt');
-            ws.close();
-            showNotification('Session expired, please login', 'red');
-            showAuth();
-            break;
-          case 'username_check':
-            const status = document.getElementById('username-status');
-            status.textContent = data.message;
-            status.className = `text-sm mt-1 text-${data.available ? 'green' : 'red'}-500`;
-            break;
-          case 'settings':
-            dashboardData = { ...dashboardData, ...data.data };
-            updateDashboard();
-            break;
-          case 'news':
-            dashboardData.news = data.data.news;
-            updateDashboard();
-            break;
+        if (data.type === 'update') {
+          dashboardData = { ...dashboardData, ...data.data };
+          updateDashboard();
+        } else if (data.type === 'notification') {
+          showNotification(data.message, data.colour, data.isUrgent, data.id);
+          if (data.message.includes('rank')) {
+            showNotification(data.message, data.colour, false, data.id);
+          }
+        } else if (data.type === 'logout') {
+          clearCookie('jwt');
+          ws.close();
+          showNotification('Session expired, please login', 'red');
+          showAuth();
+        } else if (data.type === 'username_check') {
+          const status = document.getElementById('username-status');
+          status.textContent = data.message;
+          status.className = `text-sm mt-1 text-${data.available ? 'green' : 'red'}-500`;
         }
       };
       ws.onclose = () => {
         console.log('WebSocket disconnected');
-        if (getCookie('jwt')) {
-          setTimeout(() => initWebSocket(getCookie('jwt')), 5000); // Reconnect after 5s
-        }
+        showNotification('WebSocket disconnected, attempting to reconnect...', 'red');
+        setTimeout(() => {
+          const token = getCookie('jwt');
+          if (token) initWebSocket(token);
+        }, 5000);
       };
       ws.onerror = (err) => console.error('WebSocket error:', err);
     }
@@ -624,24 +620,21 @@
       const {
         name, username, refCode, linkClicks, totalSales, totalSalesMonthly,
         currentBalance, withdrawnTotal, withdrawalsJSON, rewardsJSON,
-        notificationsJSON, leaderboard, news, commissionRate, supportEmail,
-        whatsappLink, copyrightText, logoUrl, staticPages, urgentPopup, mpesaDetails: savedMpesa
+        notificationsJSON, leaderboard, leaderboardJSON, news, commissionRate
       } = dashboardData;
 
-      // Update Header
-      document.getElementById('logo').innerHTML = logoUrl
-        ? `<img src="${logoUrl}" alt="Deriv Bot Store Affiliates" class="h-8">`
+      document.getElementById('logo').innerHTML = settingsData.logoUrl
+        ? `<img src="${settingsData.logoUrl}" alt="Deriv Bot Store Affiliates" class="h-8">`
         : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>';
-      document.getElementById('dashboard-logo').innerHTML = document.getElementById('logo').innerHTML;
+      document.getElementById('dashboard-logo').innerHTML = settingsData.logoUrl
+        ? `<img src="${settingsData.logoUrl}" alt="Deriv Bot Store Affiliates" class="h-8">`
+        : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>';
       document.getElementById('welcome-message').textContent = `Welcome ${name}, Your username is ${username}`;
       document.getElementById('welcome-message').classList.remove('hidden');
-      document.getElementById('whatsapp-link').href = whatsappLink || 'https://wa.link/4wppln';
-      document.getElementById('email-link').href = `mailto:${supportEmail || 'derivbotstore@gmail.com'}`;
-      document.getElementById('copyright').textContent = copyrightText || 'Deriv Bot Store Affiliates 2025';
+      document.getElementById('whatsapp-link').href = settingsData.whatsappLink || 'https://wa.link/4wppln';
+      document.getElementById('email-link').href = `mailto:${settingsData.supportEmail || 'derivbotstore@gmail.com'}`;
+      document.getElementById('copyright').textContent = settingsData.copyrightText || 'Deriv Bot Store Affiliates 2025';
       document.getElementById('auth-buttons').classList.remove('hidden');
-
-      // Update Mpesa Details
-      mpesaDetails = savedMpesa || {};
 
       // Home Tab
       document.getElementById('affiliate-link').value = `https://botblitz.store?ref=${refCode}`;
@@ -652,7 +645,6 @@
       document.getElementById('current-balance').textContent = formatCurrency(currentBalance || 0);
       document.getElementById('withdrawn-total').textContent = formatCurrency(withdrawnTotal || 0);
       document.getElementById('request-withdrawal').disabled = (currentBalance || 0) < 1;
-      document.getElementById('withdrawal-amount-desc').textContent = `Available: ${formatCurrency(currentBalance || 0)}`;
       document.getElementById('commission-text').textContent = `Commission = Sale Amount × ${((commissionRate || 0.2) * 100).toFixed(0)}%\nExample: Sale = ${formatCurrency(1000)}, Rate = ${((commissionRate || 0.2) * 100).toFixed(0)}%, Commission = ${formatCurrency(1000 * (commissionRate || 0.2))} KES`;
 
       // Withdrawals Tab
@@ -703,14 +695,17 @@
       const leaderboardTable = document.getElementById('leaderboard-table');
       leaderboardTable.innerHTML = '';
       leaderboard?.forEach(l => {
+        const user = leaderboardJSON?.find(j => j.name === l.name) || {};
+        const momentum = user.currentRank < user.previousRank ? 'up' : user.currentRank > user.previousRank ? 'down' : 'same';
+        const momentumText = momentum === 'up' ? 'You moved up' : momentum === 'down' ? 'You moved down' : 'You maintained the same position';
         const row = document.createElement('tr');
         row.innerHTML = `
           <td class="p-2">${l.rank}</td>
           <td class="p-2">${l.name}</td>
           <td class="p-2">${l.totalSalesMonthly}</td>
           <td class="p-2">
-            <span class="px-2 py-1 rounded text-white bg-${l.momentum === 'up' ? 'green' : l.momentum === 'down' ? 'red' : 'gray'}-500">
-              ${l.momentum === 'up' ? 'Up' : l.momentum === 'down' ? 'Down' : 'Same'}
+            <span class="px-2 py-1 rounded text-white bg-${momentum === 'up' ? 'green' : momentum === 'down' ? 'red' : 'gray'}-500" aria-label="${momentumText}">
+              ${momentum === 'up' ? 'Up' : momentum === 'down' ? 'Down' : 'Same'}
             </span>
           </td>
         `;
@@ -733,6 +728,9 @@
           <td class="p-2">${n.read ? 'Read' : 'Unread'}</td>
         `;
         notificationsTable.appendChild(row);
+        if (!n.read) {
+          showNotification(n.message, n.colour, false, n.id);
+        }
       });
       document.getElementById('notifications-prev').disabled = pagination.notifications.page === 1;
       document.getElementById('notifications-next').disabled = pagination.notifications.page * ITEMS_PER_PAGE >= pagination.notifications.total;
@@ -749,7 +747,7 @@
         const div = document.createElement('div');
         const isRead = localStorage.getItem(`news-${n.id}`);
         div.innerHTML = `
-          <div class="bg-white dark:bg-gray-800 p-4 rounded shadow card-hover">
+          <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
             <div class="flex justify-between items-center">
               <p class="text-sm text-gray-500">${new Date(n.timestamp).toLocaleString()}</p>
               ${!isRead ? '<span class="bg-blue-500 text-white px-2 rounded">New</span>' : ''}
@@ -759,6 +757,14 @@
         `;
         div.addEventListener('click', () => {
           localStorage.setItem(`news-${n.id}`, 'read');
+          fetch(`${API_BASE}/api/affiliate/mark-notification`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${getCookie('jwt')}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notificationId: `NEWS${n.id}` })
+          }).catch(err => console.error('Failed to mark news:', err));
           updateDashboard();
         });
         newsList.appendChild(div);
@@ -769,12 +775,12 @@
       // Static Links
       const staticLinks = document.getElementById('static-links');
       staticLinks.innerHTML = '';
-      staticPages?.forEach(page => {
+      settingsData.staticPagesAffiliate?.forEach(page => {
         const link = document.createElement('a');
         link.href = `/affiliate-${page.slug}`;
         link.className = 'text-blue-500 hover:underline';
         link.textContent = page.title;
-        link.setAttribute('aria-label', `View ${page.title}`);
+        link.setAttribute('aria-label', page.title);
         link.addEventListener('click', (e) => {
           e.preventDefault();
           showStaticPage(page.slug);
@@ -782,12 +788,6 @@
         staticLinks.appendChild(link);
         staticLinks.appendChild(document.createTextNode(' '));
       });
-
-      // Show urgent popup if enabled
-      if (urgentPopup?.enabled && !localStorage.getItem(`urgent-${urgentPopup.message}`)) {
-        showNotification(urgentPopup.message, 'red', true);
-        localStorage.setItem(`urgent-${urgentPopup.message}`, 'shown');
-      }
     }
 
     // Authentication
@@ -806,7 +806,30 @@
       document.getElementById('contact-us').classList.remove('hidden');
       document.getElementById('settings').classList.remove('hidden');
       document.getElementById('tab-home').click();
+      fetchSettings();
       fetchDashboard();
+    }
+
+    async function fetchSettings() {
+      try {
+        const response = await fetch(`${API_BASE}/api/affiliate/settings`, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+          const errorMessage = await parseErrorMessage(response);
+          throw new Error(errorMessage);
+        }
+        const data = await response.json();
+        if (data.success) {
+          settingsData = data.data;
+          updateDashboard();
+        } else {
+          throw new Error(data.error || 'Failed to load settings');
+        }
+      } catch (err) {
+        console.error('Settings fetch error:', err);
+        showNotification(`Failed to load settings: ${err.message}`, 'red');
+      }
     }
 
     async function fetchDashboard() {
@@ -814,14 +837,19 @@
         const token = getCookie('jwt');
         if (!token) throw new Error('No authentication token found');
         const response = await fetch(`${API_BASE}/api/affiliate/validate`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         });
         if (!response.ok) {
           const errorMessage = await parseErrorMessage(response);
           throw new Error(errorMessage);
         }
-        const validation = await response.json();
-        if (!validation.success) throw new Error(validation.error || 'Invalid session');
+        const validateData = await response.json();
+        if (!validateData.success) {
+          throw new Error(validateData.error || 'Invalid token');
+        }
 
         const dashboardResponse = await fetch(`${API_BASE}/api/affiliate/data`, {
           headers: {
@@ -830,7 +858,6 @@
           }
         });
         if (!dashboardResponse.ok) {
-          if (handleRateLimit(dashboardResponse, 'data')) return;
           const errorMessage = await parseErrorMessage(dashboardResponse);
           throw new Error(errorMessage);
         }
@@ -842,6 +869,9 @@
           data.data.notificationsJSON?.forEach(n => {
             if (!n.read) showNotification(n.message, n.colour, false, n.id);
           });
+          if (data.data.urgentPopup?.enabled) {
+            showNotification(data.data.urgentPopup.message, 'red', true);
+          }
         } else {
           throw new Error(data.error || 'Failed to load dashboard');
         }
@@ -856,9 +886,11 @@
 
     async function showStaticPage(slug) {
       try {
+        document.getElementById('static-content').innerHTML = '';
+        document.getElementById('static-loading').classList.remove('hidden');
+        document.getElementById('static-page-modal').classList.remove('hidden');
         const response = await fetch(`${API_BASE}/api/affiliate/static-page/${slug}`);
         if (!response.ok) {
-          if (handleRateLimit(response, `static-page/${slug}`)) return;
           const errorMessage = await parseErrorMessage(response);
           throw new Error(errorMessage);
         }
@@ -867,11 +899,12 @@
         if (data.success) {
           document.getElementById('static-title').textContent = data.page.title;
           document.getElementById('static-content').innerHTML = data.page.content;
-          document.getElementById('static-page-modal').classList.remove('hidden');
+          document.getElementById('static-loading').classList.add('hidden');
         } else {
-          throw new Error(data.error || 'Page not found');
+          throw new Error(data.error || 'Failed to load page');
         }
       } catch (err) {
+        document.getElementById('static-loading').classList.add('hidden');
         showNotification(`Failed to load page: ${err.message}`, 'red');
       }
     }
@@ -881,6 +914,10 @@
         const contentType = response.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
           const json = await response.json();
+          if (json.error && json.error.includes('Too many attempts')) {
+            const remainingMinutes = json.remainingMinutes || Math.ceil(RATE_LIMIT_WINDOW / (60 * 1000));
+            return `Too many attempts, try again in ${remainingMinutes} minutes`;
+          }
           return json.error || json.message || JSON.stringify(json) || `HTTP ${response.status}`;
         } else {
           const text = await response.text();
@@ -904,6 +941,10 @@
         document.getElementById('sun-icon').classList.toggle('hidden', isDark);
         document.getElementById('moon-icon').classList.toggle('hidden', !isDark);
       });
+      document.getElementById('theme-toggle-dropdown').addEventListener('click', () => {
+        document.getElementById('settings-dropdown').classList.add('hidden');
+        document.getElementById('theme-toggle').click();
+      });
 
       // Auth Tabs
       document.getElementById('login-tab').addEventListener('click', () => {
@@ -913,9 +954,6 @@
         document.getElementById('login-form').classList.remove('hidden');
         document.getElementById('signup-form').classList.add('hidden');
         document.getElementById('forgot-form').classList.add('hidden');
-        document.getElementById('login-tab').setAttribute('aria-selected', 'true');
-        document.getElementById('signup-tab').setAttribute('aria-selected', 'false');
-        document.getElementById('forgot-tab').setAttribute('aria-selected', 'false');
       });
       document.getElementById('signup-tab').addEventListener('click', () => {
         document.getElementById('signup-tab').classList.replace('bg-gray-500', 'bg-blue-500');
@@ -924,22 +962,18 @@
         document.getElementById('signup-form').classList.remove('hidden');
         document.getElementById('login-form').classList.add('hidden');
         document.getElementById('forgot-form').classList.add('hidden');
-        document.getElementById('signup-tab').setAttribute('aria-selected', 'true');
-        document.getElementById('login-tab').setAttribute('aria-selected', 'false');
-        document.getElementById('forgot-tab').setAttribute('aria-selected', 'false');
       });
-      document.getElementById('forgot-link').addEventListener('click', (e) => {
-        e.preventDefault();
-        document.getElementById('forgot-tab').classList.remove('hidden');
+      document.getElementById('forgot-tab').addEventListener('click', () => {
         document.getElementById('forgot-tab').classList.replace('bg-gray-500', 'bg-blue-500');
         document.getElementById('login-tab').classList.replace('bg-blue-500', 'bg-gray-500');
         document.getElementById('signup-tab').classList.replace('bg-blue-500', 'bg-gray-500');
         document.getElementById('forgot-form').classList.remove('hidden');
         document.getElementById('login-form').classList.add('hidden');
         document.getElementById('signup-form').classList.add('hidden');
-        document.getElementById('forgot-tab').setAttribute('aria-selected', 'true');
-        document.getElementById('login-tab').setAttribute('aria-selected', 'false');
-        document.getElementById('signup-tab').setAttribute('aria-selected', 'false');
+      });
+      document.getElementById('forgot-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('forgot-tab').click();
       });
       document.getElementById('login-link').addEventListener('click', (e) => {
         e.preventDefault();
@@ -961,463 +995,602 @@
       });
 
       // Signup Form
-      document.getElementById('signup-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = document.getElementById('signup-name').value.trim();
-        const username = document.getElementById('signup-username').value.trim();
-        const email = document.getElementById('signup-email').value.trim();
-        const password = document.getElementById('signup-password').value;
-        const terms = document.getElementById('signup-terms').checked;
+  document.getElementById('signup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!checkRateLimit('signup')) return;
 
-        if (!validateName(name)) return showNotification('Full name must have at least two words', 'red');
-        if (hasInvalidCharacters(username)) return showNotification('Only numbers and letters are allowed in username', 'red');
-        if (!validateUsername(username)) return showNotification('Username must be 5+ characters with at least one letter and one number', 'red');
-        if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
-        if (hasInvalidCharacters(password)) return showNotification('Only numbers and letters are allowed in password', 'red');
-        if (!validatePassword(password)) return showNotification('Password must be 8+ characters with at least one letter and one number', 'red');
-        if (!terms) return showNotification('You must agree to the Terms & Conditions', 'red');
+    const submitButton = document.getElementById('signup-submit');
+    const loadingIcon = document.getElementById('signup-loading');
+    const name = document.getElementById('signup-name').value.trim();
+    const username = document.getElementById('signup-username').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
+    const password = document.getElementById('signup-password').value;
+    const terms = document.getElementById('signup-terms').checked;
 
-        const now = Date.now();
-        if (rateLimitErrors['register'] && now < rateLimitErrors['register']) {
-          const remainingMinutes = Math.ceil((rateLimitErrors['register'] - now) / 1000 / 60);
-          return showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
-        }
+    submitButton.disabled = true;
+    loadingIcon.classList.remove('hidden');
 
-        document.getElementById('signup-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, username, email, password, termsAccepted: true })
-          });
-          if (!response.ok) {
-            if (handleRateLimit(response, 'register')) return;
-            const errorMessage = await parseErrorMessage(response);
-            throw new Error(errorMessage);
-          }
+    try {
+      if (!validateName(name)) {
+        throw new Error('Full name must include first and last name');
+      }
+      if (!validateUsername(username)) {
+        throw new Error('Username must be at least 5 characters with letters and numbers');
+      }
+      if (hasInvalidCharacters(username)) {
+        throw new Error('Username cannot contain special characters');
+      }
+      if (!validateEmail(email)) {
+        throw new Error('Invalid email format');
+      }
+      if (!validatePassword(password)) {
+        throw new Error('Password must be at least 8 characters with letters and numbers');
+      }
+      if (hasInvalidCharacters(password)) {
+        throw new Error('Password cannot contain special characters');
+      }
+      if (!terms) {
+        throw new Error('You must agree to the Terms & Conditions');
+      }
 
-          const data = await response.json();
-          document.getElementById('signup-loading').classList.add('hidden');
-          if (data.success) {
-            setCookie('jwt', data.token, 604800);
-            initWebSocket(data.token);
-            showNotification('Account created successfully', 'green');
-            document.getElementById('auth-section').innerHTML = '<p class="text-center text-lg">Initializing account, loading data…</p>';
-            setTimeout(showDashboard, 2000);
-          } else {
-            showNotification(data.error || 'Failed to create account', 'red');
-          }
-        } catch (err) {
-          document.getElementById('signup-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
+      const response = await fetch(`${API_BASE}/api/affiliate/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, username, email, password })
       });
 
-      // Username Real-Time Validation
-      let usernameTimeout;
-      document.getElementById('signup-username').addEventListener('input', () => {
-        const username = document.getElementById('signup-username').value.trim();
-        const status = document.getElementById('username-status');
-        if (hasInvalidCharacters(username)) {
-          status.textContent = 'Only numbers and letters are allowed';
-          status.className = 'text-sm mt-1 text-red-500';
-        } else if (!validateUsername(username)) {
-          status.textContent = 'Username must be 5+ characters with at least one letter and one number';
-          status.className = 'text-sm mt-1 text-red-500';
-        } else {
-          status.textContent = 'Checking availability...';
-          status.className = 'text-sm mt-1 text-blue-500';
-          clearTimeout(usernameTimeout);
-          usernameTimeout = setTimeout(() => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'username_check', username }));
-            }
-          }, 500);
-        }
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = await parseErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      if (data.success) {
+        showNotification('Account created successfully! Please login.', 'green');
+        document.getElementById('login-tab').click();
+        document.getElementById('signup-form').reset();
+        document.getElementById('username-status').textContent = '';
+        document.getElementById('password-status').textContent = '';
+      } else {
+        throw new Error(data.error || 'Registration failed');
+      }
+    } catch (err) {
+      showNotification(`Registration failed: ${err.message}`, 'red');
+    } finally {
+      submitButton.disabled = false;
+      loadingIcon.classList.add('hidden');
+    }
+  });
+
+  // Username Validation
+  document.getElementById('signup-username').addEventListener('input', async () => {
+    const username = document.getElementById('signup-username').value.trim();
+    const status = document.getElementById('username-status');
+    if (username.length < 5) {
+      status.textContent = 'Username must be at least 5 characters';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    if (!validateUsername(username)) {
+      status.textContent = 'Username must contain letters and numbers';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    if (hasInvalidCharacters(username)) {
+      status.textContent = 'Username cannot contain special characters';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/affiliate/check-username`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+      const data = await response.json();
+      status.textContent = data.message;
+      status.className = `text-sm mt-1 text-${data.available ? 'green' : 'red'}-500`;
+    } catch (err) {
+      status.textContent = 'Error checking username';
+      status.className = 'text-sm mt-1 text-red-500';
+    }
+  });
+
+  // Password Validation
+  document.getElementById('signup-password').addEventListener('input', () => {
+    const password = document.getElementById('signup-password').value;
+    const status = document.getElementById('password-status');
+    if (password.length < 8) {
+      status.textContent = 'Password must be at least 8 characters';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    if (!validatePassword(password)) {
+      status.textContent = 'Password must contain letters and numbers';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    if (hasInvalidCharacters(password)) {
+      status.textContent = 'Password cannot contain special characters';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    status.textContent = 'Password is valid';
+    status.className = 'text-sm mt-1 text-green-500';
+  });
+
+  // Login Form
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!checkRateLimit('login')) return;
+
+    const submitButton = document.getElementById('login-submit');
+    const loadingIcon = document.getElementById('login-loading');
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    submitButton.disabled = true;
+    loadingIcon.classList.remove('hidden');
+
+    try {
+      if (!validateEmail(email)) {
+        throw new Error('Invalid email format');
+      }
+      if (!password) {
+        throw new Error('Password is required');
+      }
+
+      const response = await fetch(`${API_BASE}/api/affiliate/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
 
-      // Password Real-Time Validation
-      document.getElementById('signup-password').addEventListener('input', () => {
-        const password = document.getElementById('signup-password').value;
-        const status = document.getElementById('password-status');
-        if (hasInvalidCharacters(password)) {
-          status.textContent = 'Only numbers and letters are allowed';
-          status.className = 'text-sm mt-1 text-red-500';
-        } else if (!validatePassword(password)) {
-          status.textContent = 'Password must be 8+ characters with at least one letter and one number';
-          status.className = 'text-sm mt-1 text-red-500';
-        } else {
-          status.textContent = '';
-          status.className = 'text-sm mt-1';
-        }
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = await parseErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      if (data.success) {
+        setCookie('jwt', data.token, 86400);
+        initWebSocket(data.token);
+        showDashboard();
+        document.getElementById('login-form').reset();
+      } else {
+        throw new Error(data.error || 'Login failed');
+      }
+    } catch (err) {
+      showNotification(`Login failed: ${err.message}`, 'red');
+    } finally {
+      submitButton.disabled = false;
+      loadingIcon.classList.add('hidden');
+    }
+  });
+
+  // Forgot Password Form
+  document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!checkRateLimit('forgot')) return;
+
+    const submitButton = document.getElementById('forgot-submit');
+    const loadingIcon = document.getElementById('forgot-loading');
+    const name = document.getElementById('forgot-name').value.trim();
+    const email = document.getElementById('forgot-email').value.trim();
+    const username = document.getElementById('forgot-username').value.trim();
+    const amount = parseFloat(document.getElementById('forgot-amount').value);
+    const description = document.getElementById('forgot-description').value.trim();
+
+    submitButton.disabled = true;
+    loadingIcon.classList.remove('hidden');
+
+    try {
+      if (!validateName(name)) {
+        throw new Error('Full name must include first and last name');
+      }
+      if (!validateEmail(email)) {
+        throw new Error('Invalid email format');
+      }
+      if (!validateUsername(username)) {
+        throw new Error('Username must be at least 5 characters with letters and numbers');
+      }
+      if (hasInvalidCharacters(username)) {
+        throw new Error('Username cannot contain special characters');
+      }
+      if (isNaN(amount) || amount < 0) {
+        throw new Error('Invalid withdrawal amount');
+      }
+      if (!description) {
+        throw new Error('Account description is required');
+      }
+
+      const response = await fetch(`${API_BASE}/api/affiliate/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, username, amount, description })
       });
 
-      // Login Form
-      document.getElementById('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('login-email').value.trim();
-        const password = document.getElementById('login-password').value;
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = await parseErrorMessage(response);
+        throw new Error(errorMessage);
+      }
 
-        if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
+      if (data.success) {
+        showNotification('Password reset request submitted. Check your email within 24 hours.', 'green');
+        document.getElementById('forgot-form').reset();
+        document.getElementById('login-tab').click();
+      } else {
+        throw new Error(data.error || 'Password reset request failed');
+      }
+    } catch (err) {
+      showNotification(`Password reset failed: ${err.message}`, 'red');
+    } finally {
+      submitButton.disabled = false;
+      loadingIcon.classList.add('hidden');
+    }
+  });
 
-        const now = Date.now();
-        if (rateLimitErrors['login'] && now < rateLimitErrors['login']) {
-          const remainingMinutes = Math.ceil((rateLimitErrors['login'] - now) / 1000 / 60);
-          return showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
-        }
+  // Dashboard Tabs
+  ['home', 'withdrawals', 'rewards', 'leaderboard', 'notifications', 'news'].forEach(tab => {
+    document.getElementById(`tab-${tab}`).addEventListener('click', () => {
+      document.querySelectorAll('nav button').forEach(btn => {
+        btn.classList.replace('bg-blue-500', 'bg-gray-500');
+      });
+      document.getElementById(`tab-${tab}`).classList.replace('bg-gray-500', 'bg-blue-500');
+      document.querySelectorAll('main > div[id$="-content"]').forEach(content => {
+        content.classList.add('hidden');
+      });
+      document.getElementById(`${tab}-content`).classList.remove('hidden');
+    });
+  });
 
-        document.getElementById('login-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-          });
-          if (!response.ok) {
-            if (handleRateLimit(response, 'login')) return;
-            const errorMessage = await parseErrorMessage(response);
-            throw new Error(errorMessage);
-          }
+  // Copy Affiliate Link
+  document.getElementById('copy-link').addEventListener('click', () => {
+    const link = document.getElementById('affiliate-link');
+    link.select();
+    navigator.clipboard.writeText(link.value);
+    showNotification('Affiliate link copied to clipboard', 'green');
+  });
 
-          const data = await response.json();
-          document.getElementById('login-loading').classList.add('hidden');
-          if (data.success) {
-            setCookie('jwt', data.token, 604800);
-            initWebSocket(data.token);
-            document.getElementById('auth-section').innerHTML = '<p class="text-center text-lg">Initializing account, loading data…</p>';
-            setTimeout(showDashboard, 2000);
-          } else {
-            showNotification(data.error || 'Invalid credentials', 'red');
-            if (data.error.includes('suspended')) {
-              showNotification('Contact support: <a href="mailto:derivbotstore@gmail.com" class="underline">derivbotstore@gmail.com</a>', 'red');
-            }
-          }
-        } catch (err) {
-          document.getElementById('login-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
+  // Modals
+  document.getElementById('contact-us').addEventListener('click', () => {
+    document.getElementById('contact-modal').classList.remove('hidden');
+  });
+  document.getElementById('close-contact').addEventListener('click', () => {
+    document.getElementById('contact-modal').classList.add('hidden');
+  });
+
+  document.getElementById('commission-info').addEventListener('click', () => {
+    document.getElementById('commission-modal').classList.remove('hidden');
+  });
+  document.getElementById('close-commission').addEventListener('click', () => {
+    document.getElementById('commission-modal').classList.add('hidden');
+  });
+
+  document.getElementById('request-withdrawal').addEventListener('click', () => {
+    document.getElementById('withdrawal-modal').classList.remove('hidden');
+    if (mpesaDetails.number && mpesaDetails.name) {
+      document.getElementById('mpesa-number').value = mpesaDetails.number;
+      document.getElementById('mpesa-name').value = mpesaDetails.name;
+      document.getElementById('mpesa-number').disabled = true;
+      document.getElementById('mpesa-name').disabled = true;
+      document.getElementById('edit-mpesa').classList.remove('hidden');
+    } else {
+      document.getElementById('mpesa-number').value = '';
+      document.getElementById('mpesa-name').value = '';
+      document.getElementById('mpesa-number').disabled = false;
+      document.getElementById('mpesa-name').disabled = false;
+      document.getElementById('edit-mpesa').classList.add('hidden');
+    }
+  });
+  document.getElementById('close-withdrawal').addEventListener('click', () => {
+    document.getElementById('withdrawal-modal').classList.add('hidden');
+  });
+
+  document.getElementById('edit-mpesa').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('mpesa-number').disabled = false;
+    document.getElementById('mpesa-name').disabled = false;
+    document.getElementById('edit-mpesa').classList.add('hidden');
+  });
+
+  document.getElementById('withdrawal-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitButton = document.getElementById('withdrawal-submit');
+    const loadingIcon = document.getElementById('withdrawal-loading');
+    const amount = parseFloat(document.getElementById('withdrawal-amount').value);
+    const mpesaNumber = document.getElementById('mpesa-number').value.trim();
+    const mpesaName = document.getElementById('mpesa-name').value.trim();
+    const password = document.getElementById('withdrawal-password').value;
+    const reuse = document.getElementById('reuse-details').checked;
+
+    submitButton.disabled = true;
+    loadingIcon.classList.remove('hidden');
+
+    try {
+      if (isNaN(amount) || amount < 1) {
+        throw new Error('Amount must be at least 1 KES');
+      }
+      if (amount > (dashboardData.currentBalance || 0)) {
+        throw new Error('Insufficient balance');
+      }
+      if (!validateMpesaNumber(mpesaNumber)) {
+        throw new Error('Invalid MPESA number');
+      }
+      if (!mpesaName) {
+        throw new Error('MPESA name is required');
+      }
+      if (!password) {
+        throw new Error('Password is required');
+      }
+
+      const response = await fetch(`${API_BASE}/api/affiliate/request-withdrawal`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getCookie('jwt')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount, mpesaNumber, mpesaName, password, reuse })
       });
 
-      // Forgot Password Form
-      document.getElementById('forgot-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = document.getElementById('forgot-name').value.trim();
-        const email = document.getElementById('forgot-email').value.trim();
-        const username = document.getElementById('forgot-username').value.trim();
-        const lastWithdrawalAmount = parseFloat(document.getElementById('forgot-amount').value) || 0;
-        const description = document.getElementById('forgot-description').value.trim();
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = await parseErrorMessage(response);
+        throw new Error(errorMessage);
+      }
 
-        if (!validateName(name)) return showNotification('Full name must have at least two words', 'red');
-        if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
-        if (hasInvalidCharacters(username)) return showNotification('Only numbers and letters are allowed in username', 'red');
-        if (!validateUsername(username)) return showNotification('Username must be 5+ characters with at least one letter and one number', 'red');
-        if (description.length > 100) return showNotification('Description must be 100 characters or less', 'red');
-
-        const now = Date.now();
-        if (rateLimitErrors['reset-password'] && now < rateLimitErrors['reset-password']) {
-          const remainingMinutes = Math.ceil((rateLimitErrors['reset-password'] - now) / 1000 / 60);
-          return showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
-        }
-
-        document.getElementById('forgot-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/reset-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, username, lastWithdrawalAmount, description })
-          });
-          if (!response.ok) {
-            if (handleRateLimit(response, 'reset-password')) return;
-            const errorMessage = await parseErrorMessage(response);
-            throw new Error(errorMessage);
-          }
-
-          const data = await response.json();
-          document.getElementById('forgot-loading').classList.add('hidden');
-          if (data.success) {
-            showNotification('Reset request submitted, you’ll be notified within 24 hours', 'green');
-            document.getElementById('login-tab').click();
-          } else {
-            showNotification(data.error || 'Failed to submit reset request', 'red');
-          }
-        } catch (err) {
-          document.getElementById('forgot-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
-      });
-
-      // Change Password Form
-      document.getElementById('change-password-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const currentPassword = document.getElementById('current-password').value;
-        const newPassword = document.getElementById('new-password').value;
-        const confirmPassword = document.getElementById('confirm-password').value;
-
-        if (hasInvalidCharacters(newPassword)) return showNotification('Only numbers and letters are allowed in new password', 'red');
-        if (!validatePassword(newPassword)) return showNotification('New password must be 8+ characters with at least one letter and one number', 'red');
-        if (newPassword !== confirmPassword) return showNotification('Passwords do not match', 'red');
-
-        document.getElementById('change-password-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/update-password`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ currentPassword, newPassword })
-          });
-          if (!response.ok) {
-            if (handleRateLimit(response, 'update-password')) return;
-            const errorMessage = await parseErrorMessage(response);
-            throw new Error(errorMessage);
-          }
-
-          const data = await response.json();
-          document.getElementById('change-password-loading').classList.add('hidden');
-          if (data.success) {
-            clearCookie('jwt');
-            ws?.close();
-            document.getElementById('change-password-modal').classList.add('hidden');
-            showNotification('Password changed, please login again', 'green');
-            showAuth();
-          } else {
-            showNotification(data.error || 'Failed to change password', 'red');
-          }
-        } catch (err) {
-          document.getElementById('change-password-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
-      });
-
-      // New Password Real-Time Validation
-      document.getElementById('new-password').addEventListener('input', () => {
-        const password = document.getElementById('new-password').value;
-        const status = document.getElementById('new-password-status');
-        if (hasInvalidCharacters(password)) {
-          status.textContent = 'Only numbers and letters are allowed';
-          status.className = 'text-sm mt-1 text-red-500';
-        } else if (!validatePassword(password)) {
-          status.textContent = 'Password must be 8+ characters with at least one letter and one number';
-          status.className = 'text-sm mt-1 text-red-500';
-        } else {
-          status.textContent =status.textContent = 'Password is valid';
-          status.className = 'text-sm mt-1 text-green-500';
-        }
-      });
-
-      // Withdrawal Form
-      document.getElementById('withdrawal-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const amount = parseFloat(document.getElementById('withdrawal-amount').value);
-        let mpesaNumber = document.getElementById('mpesa-number').value.trim();
-        let mpesaName = document.getElementById('mpesa-name').value.trim();
-        const password = document.getElementById('withdrawal-password').value;
-        const reuseDetails = document.getElementById('reuse-details').checked;
-
-        if (amount < 1 || amount > (dashboardData.currentBalance || 0)) {
-          return showNotification('Invalid withdrawal amount', 'red');
-        }
-        if (!mpesaNumber && mpesaDetails.number) mpesaNumber = mpesaDetails.number;
-        if (!mpesaName && mpesaDetails.name) mpesaName = mpesaDetails.name;
-        if (!validateMpesaNumber(mpesaNumber)) {
-          return showNotification('Invalid MPESA number (e.g., 0712345678)', 'red');
-        }
-        if (!validateName(mpesaName)) {
-          return showNotification('MPESA name must have at least two words', 'red');
-        }
-
-        document.getElementById('withdrawal-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/request-withdrawal`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ amount, mpesaNumber, mpesaName, password, reuseDetails })
-          });
-          if (!response.ok) {
-            if (handleRateLimit(response, 'request-withdrawal')) return;
-            const errorMessage = await parseErrorMessage(response);
-            throw new Error(errorMessage);
-          }
-
-          const data = await response.json();
-          document.getElementById('withdrawal-loading').classList.add('hidden');
-          if (data.success) {
-            document.getElementById('withdrawal-modal').classList.add('hidden');
-            showNotification('Withdrawal request submitted', 'green');
-            fetchDashboard();
-          } else {
-            showNotification(data.error || 'Failed to submit withdrawal request', 'red');
-          }
-        } catch (err) {
-          document.getElementById('withdrawal-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
-      });
-
-      // Edit MPESA Details
-      document.getElementById('edit-mpesa').addEventListener('click', (e) => {
-        e.preventDefault();
-        document.getElementById('mpesa-number').value = '';
-        document.getElementById('mpesa-name').value = '';
-        document.getElementById('reuse-details').checked = false;
-        showNotification('Enter new MPESA details', 'blue');
-      });
-
-      // Delete Account
-      document.getElementById('confirm-delete').addEventListener('click', async () => {
-        document.getElementById('delete-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/delete-account`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          if (!response.ok) {
-            if (handleRateLimit(response, 'delete-account')) return;
-            const errorMessage = await parseErrorMessage(response);
-            throw new Error(errorMessage);
-          }
-
-          const data = await response.json();
-          document.getElementById('delete-loading').classList.add('hidden');
-          if (data.success) {
-            clearCookie('jwt');
-            ws?.close();
-            document.getElementById('delete-account-modal').classList.add('hidden');
-            showNotification('Account deleted successfully', 'green');
-            showAuth();
-          } else {
-            showNotification(data.error || 'Failed to delete account', 'red');
-          }
-        } catch (err) {
-          document.getElementById('delete-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
-      });
-
-      // Dashboard Tabs
-      ['home', 'withdrawals', 'rewards', 'leaderboard', 'notifications', 'news'].forEach(tab => {
-        document.getElementById(`tab-${tab}`).addEventListener('click', () => {
-          document.querySelectorAll('[role="tab"]').forEach(t => {
-            t.classList.replace('bg-blue-500', 'bg-gray-500');
-            t.setAttribute('aria-selected', 'false');
-          });
-          document.getElementById(`tab-${tab}`).classList.replace('bg-gray-500', 'bg-blue-500');
-          document.getElementById(`tab-${tab}`).setAttribute('aria-selected', 'true');
-          document.querySelectorAll('[role="tabpanel"]').forEach(p => p.classList.add('hidden'));
-          document.getElementById(`${tab}-content`).classList.remove('hidden');
-        });
-      });
-
-      // Pagination
-      ['withdrawals', 'rewards', 'notifications', 'news'].forEach(type => {
-        document.getElementById(`${type}-prev`).addEventListener('click', () => {
-          if (pagination[type].page > 1) {
-            pagination[type].page--;
-            updateDashboard();
-          }
-        });
-        document.getElementById(`${type}-next`).addEventListener('click', () => {
-          if (pagination[type].page * ITEMS_PER_PAGE < pagination[type].total) {
-            pagination[type].page++;
-            updateDashboard();
-          }
-        });
-      });
-
-      // Modals
-      document.getElementById('contact-us').addEventListener('click', () => {
-        document.getElementById('contact-modal').classList.remove('hidden');
-      });
-      document.getElementById('close-contact').addEventListener('click', () => {
-        document.getElementById('contact-modal').classList.add('hidden');
-      });
-      document.getElementById('commission-info').addEventListener('click', () => {
-        document.getElementById('commission-modal').classList.remove('hidden');
-      });
-      document.getElementById('close-commission').addEventListener('click', () => {
-        document.getElementById('commission-modal').classList.add('hidden');
-      });
-      document.getElementById('request-withdrawal').addEventListener('click', () => {
-        document.getElementById('withdrawal-modal').classList.remove('hidden');
-        document.getElementById('mpesa-number').value = mpesaDetails.number || '';
-        document.getElementById('mpesa-name').value = mpesaDetails.name || '';
-        document.getElementById('withdrawal-amount').value = '';
-        document.getElementById('withdrawal-password').value = '';
-      });
-      document.getElementById('close-withdrawal').addEventListener('click', () => {
+      if (data.success) {
+        showNotification('Withdrawal request submitted successfully', 'green');
+        document.getElementById('withdrawal-form').reset();
         document.getElementById('withdrawal-modal').classList.add('hidden');
-      });
-      document.getElementById('change-password').addEventListener('click', () => {
-        document.getElementById('change-password-modal').classList.remove('hidden');
-        document.getElementById('current-password').value = '';
-        document.getElementById('new-password').value = '';
-        document.getElementById('confirm-password').value = '';
-      });
-      document.getElementById('close-change-password').addEventListener('click', () => {
-        document.getElementById('change-password-modal').classList.add('hidden');
-      });
-      document.getElementById('delete-account').addEventListener('click', () => {
-        document.getElementById('delete-account-modal').classList.remove('hidden');
-      });
-      document.getElementById('close-delete').addEventListener('click', () => {
-        document.getElementById('delete-account-modal').classList.add('hidden');
-      });
-      document.getElementById('close-static').addEventListener('click', () => {
-        document.getElementById('static-page-modal').classList.add('hidden');
+        if (reuse) {
+          mpesaDetails = { number: mpesaNumber, name: mpesaName };
+        }
+        fetchDashboard();
+      } else {
+        throw new Error(data.error || 'Withdrawal request failed');
+      }
+    } catch (err) {
+      showNotification(`Withdrawal failed: ${err.message}`, 'red');
+    } finally {
+      submitButton.disabled = false;
+      loadingIcon.classList.add('hidden');
+    }
+  });
+
+  document.getElementById('settings-toggle').addEventListener('click', () => {
+    document.getElementById('settings-dropdown').classList.toggle('hidden');
+  });
+
+  document.getElementById('change-password').addEventListener('click', () => {
+    document.getElementById('settings-dropdown').classList.add('hidden');
+    document.getElementById('change-password-modal').classList.remove('hidden');
+  });
+  document.getElementById('close-change-password').addEventListener('click', () => {
+    document.getElementById('change-password-modal').classList.add('hidden');
+    document.getElementById('change-password-form').reset();
+    document.getElementById('new-password-status').textContent = '';
+  });
+
+  document.getElementById('change-password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitButton = document.getElementById('change-password-submit');
+    const loadingIcon = document.getElementById('change-password-loading');
+    const currentPassword = document.getElementById('current-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+
+    submitButton.disabled = true;
+    loadingIcon.classList.remove('hidden');
+
+    try {
+      if (!currentPassword) {
+        throw new Error('Current password is required');
+      }
+      if (!validatePassword(newPassword)) {
+        throw new Error('New password must be at least 8 characters with letters and numbers');
+      }
+      if (hasInvalidCharacters(newPassword)) {
+        throw new Error('New password cannot contain special characters');
+      }
+      if (newPassword !== confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+
+      const response = await fetch(`${API_BASE}/api/affiliate/change-password`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getCookie('jwt')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ currentPassword, newPassword })
       });
 
-      // Settings Dropdown
-      document.getElementById('settings-toggle').addEventListener('click', () => {
-        document.getElementById('settings-dropdown').classList.toggle('hidden');
-      });
-      document.addEventListener('click', (e) => {
-        if (!document.getElementById('settings').contains(e.target)) {
-          document.getElementById('settings-dropdown').classList.add('hidden');
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = await parseErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      if (data.success) {
+        showNotification('Password changed successfully', 'green');
+        document.getElementById('change-password-form').reset();
+        document.getElementById('change-password-modal').classList.add('hidden');
+        document.getElementById('new-password-status').textContent = '';
+      } else {
+        throw new Error(data.error || 'Password change failed');
+      }
+    } catch (err) {
+      showNotification(`Password change failed: ${err.message}`, 'red');
+    } finally {
+      submitButton.disabled = false;
+      loadingIcon.classList.add('hidden');
+    }
+  });
+
+  document.getElementById('new-password').addEventListener('input', () => {
+    const password = document.getElementById('new-password').value;
+    const status = document.getElementById('new-password-status');
+    if (password.length < 8) {
+      status.textContent = 'Password must be at least 8 characters';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    if (!validatePassword(password)) {
+      status.textContent = 'Password must contain letters and numbers';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    if (hasInvalidCharacters(password)) {
+      status.textContent = 'Password cannot contain special characters';
+      status.className = 'text-sm mt-1 text-red-500';
+      return;
+    }
+    status.textContent = 'Password is valid';
+    status.className = 'text-sm mt-1 text-green-500';
+  });
+
+  document.getElementById('delete-account').addEventListener('click', () => {
+    document.getElementById('settings-dropdown').classList.add('hidden');
+    document.getElementById('delete-account-modal').classList.remove('hidden');
+  });
+  document.getElementById('close-delete').addEventListener('click', () => {
+    document.getElementById('delete-account-modal').classList.add('hidden');
+  });
+
+  document.getElementById('confirm-delete').addEventListener('click', async () => {
+    const submitButton = document.getElementById('confirm-delete');
+    const loadingIcon = document.getElementById('delete-loading');
+
+    submitButton.disabled = true;
+    loadingIcon.classList.remove('hidden');
+
+    try {
+      const response = await fetch(`${API_BASE}/api/affiliate/delete-account`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getCookie('jwt')}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      // Copy Affiliate Link
-      document.getElementById('copy-link').addEventListener('click', () => {
-        const link = document.getElementById('affiliate-link');
-        link.select();
-        document.execCommand('copy');
-        showNotification('Affiliate link copied to clipboard', 'green');
-      });
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = await parseErrorMessage(response);
+        throw new Error(errorMessage);
+      }
 
-      // Logout
-      document.getElementById('logout').addEventListener('click', () => {
+      if (data.success) {
+        showNotification('Account deleted successfully', 'green');
         clearCookie('jwt');
         ws?.close();
-        showNotification('Logged out successfully', 'green');
+        document.getElementById('delete-account-modal').classList.add('hidden');
         showAuth();
-      });
-
-      // Initialize
-      if (getCookie('jwt')) {
-        try {
-          const decoded = jwt_decode(getCookie('jwt'));
-          if (decoded.exp * 1000 > Date.now()) {
-            initWebSocket(getCookie('jwt'));
-            showDashboard();
-          } else {
-            clearCookie('jwt');
-            showAuth();
-          }
-        } catch (err) {
-          clearCookie('jwt');
-          showAuth();
-        }
       } else {
-        showAuth();
+        throw new Error(data.error || 'Account deletion failed');
+      }
+    } catch (err) {
+      showNotification(`Account deletion failed: ${err.message}`, 'red');
+    } finally {
+      submitButton.disabled = false;
+      loadingIcon.classList.add('hidden');
+    }
+  });
+
+  document.getElementById('logout').addEventListener('click', () => {
+    clearCookie('jwt');
+    ws?.close();
+    document.getElementById('settings-dropdown').classList.add('hidden');
+    showNotification('Logged out successfully', 'green');
+    showAuth();
+  });
+
+  document.getElementById('close-static').addEventListener('click', () => {
+    document.getElementById('static-page-modal').classList.add('hidden');
+  });
+
+  // Pagination
+  document.getElementById('withdrawals-prev').addEventListener('click', () => {
+    if (pagination.withdrawals.page > 1) {
+      pagination.withdrawals.page--;
+      updateDashboard();
+    }
+  });
+  document.getElementById('withdrawals-next').addEventListener('click', () => {
+    if (pagination.withdrawals.page * ITEMS_PER_PAGE < pagination.withdrawals.total) {
+      pagination.withdrawals.page++;
+      updateDashboard();
+    }
+  });
+
+  document.getElementById('rewards-prev').addEventListener('click', () => {
+    if (pagination.rewards.page > 1) {
+      pagination.rewards.page--;
+      updateDashboard();
+    }
+  });
+  document.getElementById('rewards-next').addEventListener('click', () => {
+    if (pagination.rewards.page * ITEMS_PER_PAGE < pagination.rewards.total) {
+      pagination.rewards.page++;
+      updateDashboard();
+    }
+  });
+
+  document.getElementById('notifications-prev').addEventListener('click', () => {
+    if (pagination.notifications.page > 1) {
+      pagination.notifications.page--;
+      updateDashboard();
+    }
+  });
+  document.getElementById('notifications-next').addEventListener('click', () => {
+    if (pagination.notifications.page * ITEMS_PER_PAGE < pagination.notifications.total) {
+      pagination.notifications.page++;
+      updateDashboard();
+    }
+  });
+
+  document.getElementById('news-prev').addEventListener('click', () => {
+    if (pagination.news.page > 1) {
+      pagination.news.page--;
+      updateDashboard();
+    }
+  });
+  document.getElementById('news-next').addEventListener('click', () => {
+    if (pagination.news.page * ITEMS_PER_PAGE < pagination.news.total) {
+      pagination.news.page++;
+      updateDashboard();
+    }
+  });
+
+  // Close modals on outside click
+  ['contact', 'commission', 'change-password', 'delete-account', 'withdrawal', 'static-page'].forEach(id => {
+    document.getElementById(`${id}-modal`).addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) {
+        document.getElementById(`${id}-modal`).classList.add('hidden');
+        if (id === 'change-password') {
+          document.getElementById('change-password-form').reset();
+          document.getElementById('new-password-status').textContent = '';
+        }
       }
     });
-  </script>
-</body>
-</html>
+  });
+
+  // Close settings dropdown on outside click
+  document.addEventListener('click', (e) => {
+    const settings = document.getElementById('settings');
+    if (!settings.contains(e.target)) {
+      document.getElementById('settings-dropdown').classList.add('hidden');
+    }
+  });
+
+  // Initialize
+  const token = getCookie('jwt');
+  if (token) {
+    initWebSocket(token);
+    showDashboard();
+  } else {
+    showAuth();
+  }
+}); // Closes document.addEventListener('DOMContentLoaded', ...)
+</script>
