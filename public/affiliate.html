@@ -1204,7 +1204,7 @@
         throw new Error('Account description is required');
       }
 
-      const response = await fetch(`${API_BASE}/api/affiliate/forgot-password`, {
+      const response = await fetch(`${API_BASE}/api/affiliate/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, username, amount, description })
