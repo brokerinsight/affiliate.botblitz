@@ -28,6 +28,11 @@
       transform: translateY(-2px);
       transition: transform 0.2s ease-in-out;
     }
+    /* Focus states for accessibility */
+    input:focus, button:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+    }
   </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
@@ -39,27 +44,27 @@
       </div>
       <div class="flex items-center space-x-4">
         <div id="auth-buttons" class="flex items-center space-x-4">
-          <button id="contact-us" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 hidden">Contact Us</button>
+          <button id="contact-us" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 hidden" aria-label="Contact Us">Contact Us</button>
           <div id="settings" class="relative hidden">
-            <button id="settings-toggle" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Settings</button>
+            <button id="settings-toggle" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600" aria-label="Settings">Settings</button>
             <div id="settings-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10">
-              <button id="change-password" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Change Password</button>
-              <button id="delete-account" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Delete Account</button>
-              <button id="logout" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Logout</button>
+              <button id="change-password" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Change Password">Change Password</button>
+              <button id="delete-account" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Delete Account">Delete Account</button>
+              <button id="logout" class="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Logout">Logout</button>
             </div>
           </div>
         </div>
-        <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
-          <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="theme-toggle" class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700" aria-label="Toggle Theme">
+          <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="#f3f4f6" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
-          <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="#1f2937" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
           </svg>
         </button>
       </div>
     </div>
-    <div id="welcome-message" class="max-w-7xl mx-auto px-4 py-2 text-sm text-gray-500 hidden"></div>
+    <div id="welcome-message" class="max-w-7xl mx-auto px-4 py-2 text-sm text-gray-500 hidden" aria-live="polite"></div>
   </header>
   <!-- Main Content -->
   <main class="max-w-7xl mx-auto px-4 py-6">
@@ -67,24 +72,24 @@
     <div id="auth-section" class="hidden">
       <div class="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
         <div class="flex justify-center mb-4">
-          <button id="login-tab" class="px-4 py-2 bg-blue-500 text-white rounded-md">Login</button>
-          <button id="signup-tab" class="px-4 py-2 bg-gray-500 text-white rounded-md">Sign Up</button>
-          <button id="forgot-tab" class="px-4 py-2 bg-gray-500 text-white rounded-md hidden">Forgot Password</button>
+          <button id="login-tab" class="px-4 py-2 bg-blue-500 text-white rounded-md" aria-selected="true">Login</button>
+          <button id="signup-tab" class="px-4 py-2 bg-gray-500 text-white rounded-md" aria-selected="false">Sign Up</button>
+          <button id="forgot-tab" class="px-4 py-2 bg-gray-500 text-white rounded-md hidden" aria-selected="false">Forgot Password</button>
         </div>
         <!-- Login Form -->
         <form id="login-form" class="space-y-4">
           <div>
             <label for="login-email" class="block text-sm font-medium">Email</label>
-            <input id="login-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="login-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
           </div>
           <div>
             <label for="login-password" class="block text-sm font-medium">Password</label>
             <div class="relative">
-              <input id="login-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+              <input id="login-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
               <button type="button" id="login-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
             </div>
           </div>
-          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
+          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Login">
             <span>Login</span>
             <svg id="login-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -97,32 +102,32 @@
         <form id="signup-form" class="space-y-4 hidden">
           <div>
             <label for="signup-name" class="block text-sm font-medium">Full Name</label>
-            <input id="signup-name" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="signup-name" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
           </div>
           <div>
             <label for="signup-username" class="block text-sm font-medium">Username</label>
-            <input id="signup-username" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
-            <p id="username-status" class="text-sm mt-1"></p>
+            <input id="signup-username" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
+            <p id="username-status" class="text-sm mt-1" aria-live="polite"></p>
           </div>
           <div>
             <label for="signup-email" class="block text-sm font-medium">Email</label>
-            <input id="signup-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="signup-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
           </div>
           <div>
             <label for="signup-password" class="block text-sm font-medium">Password</label>
             <div class="relative">
-              <input id="signup-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+              <input id="signup-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
               <button type="button" id="signup-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
-              <p id="password-status" class="text-sm mt-1"></p>
+              <p id="password-status" class="text-sm mt-1" aria-live="polite"></p>
             </div>
           </div>
           <div>
             <label class="flex items-center">
-              <input id="signup-terms" type="checkbox" class="mr-2">
+              <input id="signup-terms" type="checkbox" class="mr-2" required aria-required="true">
               <span class="text-sm">I agree to the <a href="/affiliate-terms" class="text-blue-500 hover:underline">Terms & Conditions</a></span>
             </label>
           </div>
-          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
+          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Create Account">
             <span>Create Account</span>
             <svg id="signup-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -135,26 +140,28 @@
         <form id="forgot-form" class="space-y-4 hidden">
           <div>
             <label for="forgot-name" class="block text-sm font-medium">Full Name</label>
-            <input id="forgot-name" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="forgot-name" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
           </div>
           <div>
             <label for="forgot-email" class="block text-sm font-medium">Email</label>
-            <input id="forgot-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="forgot-email" type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
           </div>
           <div>
             <label for="forgot-username" class="block text-sm font-medium">Username</label>
-            <input id="forgot-username" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="forgot-username" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
           </div>
           <div>
             <label for="forgot-amount" class="block text-sm font-medium">Last Withdrawal Amount (KES)</label>
-            <input id="forgot-amount" type="number" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="0">
+            <input id="forgot-amount" type="number" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" value="0" min="0" aria-describedby="forgot-amount-desc">
+            <p id="forgot-amount-desc" class="text-sm text-gray-500">Enter 0 if no withdrawals made.</p>
           </div>
           <div>
             <label for="forgot-description" class="block text-sm font-medium">Account Description</label>
-            <textarea id="forgot-description" maxlength="100" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required></textarea>
+            <textarea id="forgot-description" maxlength="100" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true"></textarea>
+            <p class="text-sm text-gray-500">Max 100 characters.</p>
           </div>
           <p class="text-sm text-gray-500">Your account will be reviewed within 24 hours. If approved, a one-time password will be sent to your email.</p>
-          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
+          <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Request Password Reset">
             <span>Request Password Reset</span>
             <svg id="forgot-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -168,7 +175,7 @@
     <!-- Dashboard Section -->
     <div id="dashboard-section" class="hidden">
       <!-- Dashboard Header -->
-      <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
+      <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6 card-hover">
         <div class="flex justify-between items-center">
           <div id="dashboard-logo" class="flex items-center">
             <h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>
@@ -177,22 +184,22 @@
       </div>
 
       <!-- Tabs -->
-      <nav class="flex flex-wrap gap-2 mb-6">
-        <button id="tab-home" class="px-4 py-2 bg-blue-500 text-white rounded-md">Home</button>
-        <button id="tab-withdrawals" class="px-4 py-2 bg-gray-500 text-white rounded-md">Withdrawal History</button>
-        <button id="tab-rewards" class="px-4 py-2 bg-gray-500 text-white rounded-md">Rewards History</button>
-        <button id="tab-leaderboard" class="px-4 py-2 bg-gray-500 text-white rounded-md">Leaderboard</button>
-        <button id="tab-notifications" class="px-4 py-2 bg-gray-500 text-white rounded-md">Notifications History</button>
-        <button id="tab-news" class="px-4 py-2 bg-gray-500 text-white rounded-md">News</button>
+      <nav class="flex flex-wrap gap-2 mb-6" role="tablist">
+        <button id="tab-home" class="px-4 py-2 bg-blue-500 text-white rounded-md" role="tab" aria-selected="true">Home</button>
+        <button id="tab-withdrawals" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">Withdrawal History</button>
+        <button id="tab-rewards" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">Rewards History</button>
+        <button id="tab-leaderboard" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">Leaderboard</button>
+        <button id="tab-notifications" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">Notifications History</button>
+        <button id="tab-news" class="px-4 py-2 bg-gray-500 text-white rounded-md" role="tab" aria-selected="false">News</button>
       </nav>
 
       <!-- Tab Content -->
-      <div id="home-content" class="space-y-6">
+      <div id="home-content" class="space-y-6" role="tabpanel">
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow card-hover">
           <h2 class="text-lg font-bold">Your Affiliate Link</h2>
           <div class="flex mt-2">
-            <input id="affiliate-link" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" readonly>
-            <button id="copy-link" class="ml-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Copy</button>
+            <input id="affiliate-link" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" readonly aria-label="Affiliate Link">
+            <button id="copy-link" class="ml-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" aria-label="Copy Affiliate Link">Copy</button>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -219,11 +226,11 @@
           </div>
         </div>
         <div class="flex space-x-4">
-          <button id="commission-info" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Commission Info</button>
-          <button id="request-withdrawal" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" disabled>Request Withdrawal</button>
+          <button id="commission-info" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" aria-label="View Commission Info">Commission Info</button>
+          <button id="request-withdrawal" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" disabled aria-label="Request Withdrawal">Request Withdrawal</button>
         </div>
       </div>
-      <div id="withdrawals-content" class="hidden">
+      <div id="withdrawals-content" class="hidden" role="tabpanel">
         <p class="text-sm text-gray-500 mb-4">Only the last 20 withdrawals are shown to enhance speed.</p>
         <table class="w-full border-collapse">
           <thead>
@@ -239,11 +246,11 @@
           <tbody id="withdrawals-table"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="withdrawals-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Previous</button>
-          <button id="withdrawals-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Next</button>
+          <button id="withdrawals-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Withdrawals Page">Previous</button>
+          <button id="withdrawals-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Withdrawals Page">Next</button>
         </div>
       </div>
-      <div id="rewards-content" class="hidden">
+      <div id="rewards-content" class="hidden" role="tabpanel">
         <p class="text-sm text-gray-500 mb-4">Only the last 20 rewards are shown to enhance speed.</p>
         <table class="w-full border-collapse">
           <thead>
@@ -257,11 +264,11 @@
           <tbody id="rewards-table"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="rewards-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Previous</button>
-          <button id="rewards-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Next</button>
+          <button id="rewards-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Rewards Page">Previous</button>
+          <button id="rewards-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Rewards Page">Next</button>
         </div>
       </div>
-      <div id="leaderboard-content" class="hidden">
+      <div id="leaderboard-content" class="hidden" role="tabpanel">
         <p class="text-sm text-gray-500 mb-4">Only the first 10 affiliates appear here.</p>
         <table class="w-full border-collapse">
           <thead>
@@ -275,7 +282,7 @@
           <tbody id="leaderboard-table"></tbody>
         </table>
       </div>
-      <div id="notifications-content" class="hidden">
+      <div id="notifications-content" class="hidden" role="tabpanel">
         <p class="text-sm text-gray-500 mb-4">Only the last 20 notifications appear here for speed.</p>
         <table class="w-full border-collapse">
           <thead>
@@ -288,16 +295,16 @@
           <tbody id="notifications-table"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="notifications-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Previous</button>
-          <button id="notifications-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Next</button>
+          <button id="notifications-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous Notifications Page">Previous</button>
+          <button id="notifications-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next Notifications Page">Next</button>
         </div>
       </div>
-      <div id="news-content" class="hidden">
+      <div id="news-content" class="hidden" role="tabpanel">
         <p class="text-sm text-gray-500 mb-4">Latest news from the affiliate program.</p>
         <div id="news-list" class="space-y-4"></div>
         <div class="flex justify-between mt-4">
-          <button id="news-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Previous</button>
-          <button id="news-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled>Next</button>
+          <button id="news-prev" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Previous News Page">Previous</button>
+          <button id="news-next" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50" disabled aria-label="Next News Page">Next</button>
         </div>
       </div>
     </div>
@@ -306,53 +313,53 @@
   <!-- Footer -->
   <footer class="bg-white dark:bg-gray-800 py-6">
     <div class="max-w-7xl mx-auto px-4 text-center">
-      <div id="static-links" class="flex justify-center space-x-4 mb-4"></div>
+      <div id="static-links" class="flex justify-center space-x-4 mb-4 flex-wrap"></div>
       <p id="copyright" class="text-sm text-gray-500">Deriv Bot Store Affiliates 2025</p>
     </div>
   </footer>
 
   <!-- Modals -->
-  <div id="contact-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div id="contact-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden" role="dialog" aria-modal="true">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 class="text-xl font-bold mb-4">Contact Us</h2>
       <div class="space-y-4">
-        <a id="whatsapp-link" href="https://wa.link/4wppln" class="block bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 text-center">WhatsApp</a>
-        <a id="email-link" href="mailto:derivbotstore@gmail.com" class="block bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-center">Email</a>
+        <a id="whatsapp-link" href="https://wa.link/4wppln" class="block bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 text-center" target="_blank" aria-label="Contact via WhatsApp">WhatsApp</a>
+        <a id="email-link" href="mailto:derivbotstore@gmail.com" class="block bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-center" target="_blank" aria-label="Contact via Email">Email</a>
       </div>
-      <button id="close-contact" class="mt-4 text-gray-500 hover:text-gray-700">Close</button>
+      <button id="close-contact" class="mt-4 text-gray-500 hover:text-gray-700" aria-label="Close Contact Modal">Close</button>
     </div>
   </div>
-  <div id="commission-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div id="commission-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden" role="dialog" aria-modal="true">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 class="text-xl font-bold mb-4">Commission Info</h2>
-      <p id="commission-text" class="mb-4"></p>
-      <button id="close-commission" class="text-gray-500 hover:text-gray-700">Close</button>
+      <p id="commission-text" class="mb-4 whitespace-pre-line"></p>
+      <button id="close-commission" class="text-gray-500 hover:text-gray-700" aria-label="Close Commission Modal">Close</button>
     </div>
   </div>
-  <div id="change-password-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div id="change-password-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden" role="dialog" aria-modal="true">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 class="text-xl font-bold mb-4">Change Password</h2>
       <form id="change-password-form" class="space-y-4">
         <div>
           <label for="current-password" class="block text-sm font-medium">Current Password</label>
           <div class="relative">
-            <input id="current-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="current-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
             <button type="button" id="current-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
           </div>
         </div>
         <div>
           <label for="new-password" class="block text-sm font-medium">New Password</label>
           <div class="relative">
-            <input id="new-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="new-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
             <button type="button" id="new-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
-            <p id="new-password-status" class="text-sm mt-1"></p>
+            <p id="new-password-status" class="text-sm mt-1" aria-live="polite"></p>
           </div>
         </div>
         <div>
           <label for="confirm-password" class="block text-sm font-medium">Confirm New Password</label>
-          <input id="confirm-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+          <input id="confirm-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
         </div>
-        <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
+        <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Change Password">
           <span>Change Password</span>
           <svg id="change-password-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -360,54 +367,55 @@
           </svg>
         </button>
       </form>
-      <button id="close-change-password" class="mt-4 text-gray-500 hover:text-gray-700">Close</button>
+      <button id="close-change-password" class="mt-4 text-gray-500 hover:text-gray-700" aria-label="Close Change Password Modal">Close</button>
     </div>
   </div>
-  <div id="delete-account-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div id="delete-account-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden" role="dialog" aria-modal="true">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 class="text-xl font-bold mb-4">Delete Account</h2>
       <p class="mb-4">Are you sure you want to delete your account? This action cannot be undone.</p>
-      <button id="confirm-delete" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 flex justify-center items-center">
+      <button id="confirm-delete" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 flex justify-center items-center" aria-label="Confirm Delete Account">
         <span>Delete Account</span>
         <svg id="delete-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
       </button>
-      <button id="close-delete" class="mt-4 text-gray-500 hover:text-gray-700">Cancel</button>
+      <button id="close-delete" class="mt-4 text-gray-500 hover:text-gray-700" aria-label="Cancel Delete Account">Cancel</button>
     </div>
   </div>
-  <div id="withdrawal-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div id="withdrawal-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden" role="dialog" aria-modal="true">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 class="text-xl font-bold mb-4">Request Withdrawal</h2>
       <form id="withdrawal-form" class="space-y-4">
         <div>
           <label for="withdrawal-amount" class="block text-sm font-medium">Amount (KES)</label>
-          <input id="withdrawal-amount" type="number" min="1" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+          <input id="withdrawal-amount" type="number" min="1" step="0.01" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true" aria-describedby="withdrawal-amount-desc">
+          <p id="withdrawal-amount-desc" class="text-sm text-gray-500"></p>
         </div>
         <div>
           <label for="mpesa-number" class="block text-sm font-medium">MPESA Number</label>
-          <input id="mpesa-number" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+          <input id="mpesa-number" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
         </div>
         <div>
           <label for="mpesa-name" class="block text-sm font-medium">MPESA Name</label>
-          <input id="mpesa-name" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+          <input id="mpesa-name" type="text" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
         </div>
         <div>
           <label class="flex items-center">
-            <input id="reuse-details" type="checkbox" class="mr-2">
+            <input id="reuse-details" type="checkbox" class="mr-2" aria-label="Save MPESA Details">
             <span class="text-sm">Save MPESA details for future withdrawals</span>
           </label>
         </div>
         <div>
           <label for="withdrawal-password" class="block text-sm font-medium">Account Password</label>
           <div class="relative">
-            <input id="withdrawal-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required>
+            <input id="withdrawal-password" type="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" required aria-required="true">
             <button type="button" id="withdrawal-password-toggle" class="absolute right-2 top-2 text-sm text-blue-500">Show</button>
           </div>
         </div>
-        <button id="edit-mpesa" class="text-blue-500 hover:underline text-sm">Edit MPESA Details</button>
-        <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center">
+        <button id="edit-mpesa" class="text-blue-500 hover:underline text-sm" aria-label="Edit MPESA Details">Edit MPESA Details</button>
+        <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex justify-center items-center" aria-label="Submit Withdrawal Request">
           <span>Request Withdrawal</span>
           <svg id="withdrawal-loading" class="w-5 h-5 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -415,19 +423,19 @@
           </svg>
         </button>
       </form>
-      <button id="close-withdrawal" class="mt-4 text-gray-500 hover:text-gray-700">Close</button>
+      <button id="close-withdrawal" class="mt-4 text-gray-500 hover:text-gray-700" aria-label="Close Withdrawal Modal">Close</button>
     </div>
   </div>
-  <div id="static-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div id="static-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden" role="dialog" aria-modal="true">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
       <h2 id="static-title" class="text-xl font-bold mb-4"></h2>
       <div id="static-content" class="prose dark:prose-invert"></div>
-      <button id="close-static" class="mt-4 text-gray-500 hover:text-gray-700">Close</button>
+      <button id="close-static" class="mt-4 text-gray-500 hover:text-gray-700" aria-label="Close Static Page Modal">Close</button>
     </div>
   </div>
 
   <!-- Notifications -->
-  <div id="notifications" class="fixed top-4 right-4 space-y-2"></div>
+  <div id="notifications" class="fixed top-4 right-4 space-y-2 z-50" aria-live="polite"></div>
 
   <script>
     // Constants
@@ -448,6 +456,7 @@
       news: { page: 1, total: 0 }
     };
     let mpesaDetails = {};
+    let rateLimitErrors = {};
 
     // Utility Functions
     function getCookie(name) {
@@ -458,15 +467,17 @@
     }
 
     function setCookie(name, value, maxAge) {
-      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; sameSite=strict`;
+      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; httpOnly; sameSite=strict`;
     }
 
     function clearCookie(name) {
-      document.cookie = `${name}=; max-age=0; path=/; secure; sameSite=strict`;
+      document.cookie = `${name}=; max-age=0; path=/; secure; httpOnly; sameSite=strict`;
     }
 
     function formatCurrency(amount) {
-      return new Intl.NumberFormat('en-US', {
+      return new Intl.NumberFormat('en-KE', {
+        style: 'currency',
+        currency: 'KES',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }).format(amount);
@@ -480,15 +491,18 @@
       activeNotifications++;
       const notification = document.createElement('div');
       notification.className = `bg-white dark:bg-gray-800 p-4 rounded shadow border-l-4 ${isUrgent ? 'border-2 border-red-500 bg-red-100 dark:bg-red-900' : `border-${color}-500`} notification-enter`;
+      notification.setAttribute('role', 'alert');
       notification.innerHTML = `
         <div class="flex justify-between items-center">
           <p>${message}</p>
-          <button class="text-gray-500 hover:text-gray-700" onclick="closeNotification(this, '${id}')">X</button>
+          <button class="text-gray-500 hover:text-gray-700" aria-label="Close Notification">X</button>
         </div>
       `;
       document.getElementById('notifications').appendChild(notification);
       setTimeout(() => notification.classList.add('notification-enter-active'), 10);
-      setTimeout(() => closeNotification(notification.querySelector('button'), id), NOTIFICATION_TIMEOUT);
+      const closeButton = notification.querySelector('button');
+      closeButton.addEventListener('click', () => closeNotification(closeButton, id));
+      setTimeout(() => closeNotification(closeButton, id), NOTIFICATION_TIMEOUT);
     }
 
     function closeNotification(button, id) {
@@ -526,7 +540,7 @@
     }
 
     function validateName(name) {
-      return /^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/.test(name);
+      return /^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/.test(name.trim());
     }
 
     function validatePassword(password) {
@@ -538,7 +552,7 @@
     }
 
     function validateMpesaNumber(number) {
-      return /^0[17]\d{8}$/.test(number);
+      return /^0[17]\d{8}$/.test(number.trim());
     }
 
     function getDaysToReset() {
@@ -548,29 +562,60 @@
       return days;
     }
 
+    function handleRateLimit(response, endpoint) {
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After') || 600;
+        const key = `${endpoint}:${Date.now()}`;
+        rateLimitErrors[key] = Date.now() + parseInt(retryAfter) * 1000;
+        const remainingMinutes = Math.ceil(retryAfter / 60);
+        showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
+        return true;
+      }
+      return false;
+    }
+
     // WebSocket Setup
     function initWebSocket(token) {
+      if (ws && ws.readyState === WebSocket.OPEN) return;
       ws = new WebSocket(`${WS_BASE}?token=${token}`);
       ws.onopen = () => console.log('WebSocket connected');
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === 'update') {
-          dashboardData = { ...dashboardData, ...data.data };
-          updateDashboard();
-        } else if (data.type === 'notification') {
-          showNotification(data.message, data.colour, data.isUrgent, data.id);
-        } else if (data.type === 'logout') {
-          clearCookie('jwt');
-          ws.close();
-          showNotification('Session expired, please login', 'red');
-          showAuth();
-        } else if (data.type === 'username_check') {
-          const status = document.getElementById('username-status');
-          status.textContent = data.message;
-          status.className = `text-sm mt-1 text-${data.available ? 'green' : 'red'}-500`;
+        switch (data.type) {
+          case 'update':
+            dashboardData = { ...dashboardData, ...data.data };
+            updateDashboard();
+            break;
+          case 'notification':
+            showNotification(data.message, data.colour, data.isUrgent, data.id);
+            break;
+          case 'logout':
+            clearCookie('jwt');
+            ws.close();
+            showNotification('Session expired, please login', 'red');
+            showAuth();
+            break;
+          case 'username_check':
+            const status = document.getElementById('username-status');
+            status.textContent = data.message;
+            status.className = `text-sm mt-1 text-${data.available ? 'green' : 'red'}-500`;
+            break;
+          case 'settings':
+            dashboardData = { ...dashboardData, ...data.data };
+            updateDashboard();
+            break;
+          case 'news':
+            dashboardData.news = data.data.news;
+            updateDashboard();
+            break;
         }
       };
-      ws.onclose = () => console.log('WebSocket disconnected');
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        if (getCookie('jwt')) {
+          setTimeout(() => initWebSocket(getCookie('jwt')), 5000); // Reconnect after 5s
+        }
+      };
       ws.onerror = (err) => console.error('WebSocket error:', err);
     }
 
@@ -580,18 +625,23 @@
         name, username, refCode, linkClicks, totalSales, totalSalesMonthly,
         currentBalance, withdrawnTotal, withdrawalsJSON, rewardsJSON,
         notificationsJSON, leaderboard, news, commissionRate, supportEmail,
-        whatsappLink, copyrightText, logoUrl
+        whatsappLink, copyrightText, logoUrl, staticPages, urgentPopup, mpesaDetails: savedMpesa
       } = dashboardData;
 
-      document.getElementById('dashboard-logo').innerHTML = logoUrl
+      // Update Header
+      document.getElementById('logo').innerHTML = logoUrl
         ? `<img src="${logoUrl}" alt="Deriv Bot Store Affiliates" class="h-8">`
         : '<h1 class="text-2xl font-bold">Deriv Bot Store Affiliates</h1>';
+      document.getElementById('dashboard-logo').innerHTML = document.getElementById('logo').innerHTML;
       document.getElementById('welcome-message').textContent = `Welcome ${name}, Your username is ${username}`;
       document.getElementById('welcome-message').classList.remove('hidden');
       document.getElementById('whatsapp-link').href = whatsappLink || 'https://wa.link/4wppln';
       document.getElementById('email-link').href = `mailto:${supportEmail || 'derivbotstore@gmail.com'}`;
       document.getElementById('copyright').textContent = copyrightText || 'Deriv Bot Store Affiliates 2025';
       document.getElementById('auth-buttons').classList.remove('hidden');
+
+      // Update Mpesa Details
+      mpesaDetails = savedMpesa || {};
 
       // Home Tab
       document.getElementById('affiliate-link').value = `https://botblitz.store?ref=${refCode}`;
@@ -602,6 +652,7 @@
       document.getElementById('current-balance').textContent = formatCurrency(currentBalance || 0);
       document.getElementById('withdrawn-total').textContent = formatCurrency(withdrawnTotal || 0);
       document.getElementById('request-withdrawal').disabled = (currentBalance || 0) < 1;
+      document.getElementById('withdrawal-amount-desc').textContent = `Available: ${formatCurrency(currentBalance || 0)}`;
       document.getElementById('commission-text').textContent = `Commission = Sale Amount × ${((commissionRate || 0.2) * 100).toFixed(0)}%\nExample: Sale = ${formatCurrency(1000)}, Rate = ${((commissionRate || 0.2) * 100).toFixed(0)}%, Commission = ${formatCurrency(1000 * (commissionRate || 0.2))} KES`;
 
       // Withdrawals Tab
@@ -698,7 +749,7 @@
         const div = document.createElement('div');
         const isRead = localStorage.getItem(`news-${n.id}`);
         div.innerHTML = `
-          <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <div class="bg-white dark:bg-gray-800 p-4 rounded shadow card-hover">
             <div class="flex justify-between items-center">
               <p class="text-sm text-gray-500">${new Date(n.timestamp).toLocaleString()}</p>
               ${!isRead ? '<span class="bg-blue-500 text-white px-2 rounded">New</span>' : ''}
@@ -718,11 +769,12 @@
       // Static Links
       const staticLinks = document.getElementById('static-links');
       staticLinks.innerHTML = '';
-      dashboardData.staticPages?.forEach(page => {
+      staticPages?.forEach(page => {
         const link = document.createElement('a');
         link.href = `/affiliate-${page.slug}`;
         link.className = 'text-blue-500 hover:underline';
         link.textContent = page.title;
+        link.setAttribute('aria-label', `View ${page.title}`);
         link.addEventListener('click', (e) => {
           e.preventDefault();
           showStaticPage(page.slug);
@@ -730,6 +782,12 @@
         staticLinks.appendChild(link);
         staticLinks.appendChild(document.createTextNode(' '));
       });
+
+      // Show urgent popup if enabled
+      if (urgentPopup?.enabled && !localStorage.getItem(`urgent-${urgentPopup.message}`)) {
+        showNotification(urgentPopup.message, 'red', true);
+        localStorage.setItem(`urgent-${urgentPopup.message}`, 'shown');
+      }
     }
 
     // Authentication
@@ -738,13 +796,7 @@
       document.getElementById('dashboard-section').classList.add('hidden');
       document.getElementById('welcome-message').classList.add('hidden');
       document.getElementById('auth-buttons').classList.add('hidden');
-      // Ensure login form is shown by default
-      document.getElementById('login-tab').classList.replace('bg-gray-500', 'bg-blue-500');
-      document.getElementById('signup-tab').classList.replace('bg-blue-500', 'bg-gray-500');
-      document.getElementById('forgot-tab').classList.replace('bg-blue-500', 'bg-gray-500');
-      document.getElementById('login-form').classList.remove('hidden');
-      document.getElementById('signup-form').classList.add('hidden');
-      document.getElementById('forgot-form').classList.add('hidden');
+      document.getElementById('login-tab').click();
     }
 
     function showDashboard() {
@@ -761,28 +813,35 @@
       try {
         const token = getCookie('jwt');
         if (!token) throw new Error('No authentication token found');
-        console.log('Fetching dashboard with token:', token.substring(0, 10) + '...');
-        const response = await fetch(`${API_BASE}/api/affiliate/data`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        const response = await fetch(`${API_BASE}/api/affiliate/validate`, {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) {
           const errorMessage = await parseErrorMessage(response);
           throw new Error(errorMessage);
         }
+        const validation = await response.json();
+        if (!validation.success) throw new Error(validation.error || 'Invalid session');
 
-        const data = await response.json();
+        const dashboardResponse = await fetch(`${API_BASE}/api/affiliate/data`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!dashboardResponse.ok) {
+          if (handleRateLimit(dashboardResponse, 'data')) return;
+          const errorMessage = await parseErrorMessage(dashboardResponse);
+          throw new Error(errorMessage);
+        }
+
+        const data = await dashboardResponse.json();
         if (data.success) {
           dashboardData = data.data;
           updateDashboard();
           data.data.notificationsJSON?.forEach(n => {
             if (!n.read) showNotification(n.message, n.colour, false, n.id);
           });
-          if (data.data.urgentPopup?.enabled) {
-            showNotification(data.data.urgentPopup.message, 'red', true);
-          }
         } else {
           throw new Error(data.error || 'Failed to load dashboard');
         }
@@ -799,6 +858,7 @@
       try {
         const response = await fetch(`${API_BASE}/api/affiliate/static-page/${slug}`);
         if (!response.ok) {
+          if (handleRateLimit(response, `static-page/${slug}`)) return;
           const errorMessage = await parseErrorMessage(response);
           throw new Error(errorMessage);
         }
@@ -809,7 +869,7 @@
           document.getElementById('static-content').innerHTML = data.page.content;
           document.getElementById('static-page-modal').classList.remove('hidden');
         } else {
-          throw new Error(data.error || 'Failed to load page');
+          throw new Error(data.error || 'Page not found');
         }
       } catch (err) {
         showNotification(`Failed to load page: ${err.message}`, 'red');
@@ -853,6 +913,9 @@
         document.getElementById('login-form').classList.remove('hidden');
         document.getElementById('signup-form').classList.add('hidden');
         document.getElementById('forgot-form').classList.add('hidden');
+        document.getElementById('login-tab').setAttribute('aria-selected', 'true');
+        document.getElementById('signup-tab').setAttribute('aria-selected', 'false');
+        document.getElementById('forgot-tab').setAttribute('aria-selected', 'false');
       });
       document.getElementById('signup-tab').addEventListener('click', () => {
         document.getElementById('signup-tab').classList.replace('bg-gray-500', 'bg-blue-500');
@@ -861,15 +924,22 @@
         document.getElementById('signup-form').classList.remove('hidden');
         document.getElementById('login-form').classList.add('hidden');
         document.getElementById('forgot-form').classList.add('hidden');
+        document.getElementById('signup-tab').setAttribute('aria-selected', 'true');
+        document.getElementById('login-tab').setAttribute('aria-selected', 'false');
+        document.getElementById('forgot-tab').setAttribute('aria-selected', 'false');
       });
       document.getElementById('forgot-link').addEventListener('click', (e) => {
         e.preventDefault();
+        document.getElementById('forgot-tab').classList.remove('hidden');
         document.getElementById('forgot-tab').classList.replace('bg-gray-500', 'bg-blue-500');
         document.getElementById('login-tab').classList.replace('bg-blue-500', 'bg-gray-500');
         document.getElementById('signup-tab').classList.replace('bg-blue-500', 'bg-gray-500');
         document.getElementById('forgot-form').classList.remove('hidden');
         document.getElementById('login-form').classList.add('hidden');
         document.getElementById('signup-form').classList.add('hidden');
+        document.getElementById('forgot-tab').setAttribute('aria-selected', 'true');
+        document.getElementById('login-tab').setAttribute('aria-selected', 'false');
+        document.getElementById('signup-tab').setAttribute('aria-selected', 'false');
       });
       document.getElementById('login-link').addEventListener('click', (e) => {
         e.preventDefault();
@@ -885,6 +955,7 @@
             const isPassword = input.type === 'password';
             input.type = isPassword ? 'text' : 'password';
             toggle.textContent = isPassword ? 'Hide' : 'Show';
+            toggle.setAttribute('aria-label', isPassword ? 'Hide Password' : 'Show Password');
           });
         }
       });
@@ -892,9 +963,9 @@
       // Signup Form
       document.getElementById('signup-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const name = document.getElementById('signup-name').value;
-        const username = document.getElementById('signup-username').value;
-        const email = document.getElementById('signup-email').value;
+        const name = document.getElementById('signup-name').value.trim();
+        const username = document.getElementById('signup-username').value.trim();
+        const email = document.getElementById('signup-email').value.trim();
         const password = document.getElementById('signup-password').value;
         const terms = document.getElementById('signup-terms').checked;
 
@@ -906,6 +977,12 @@
         if (!validatePassword(password)) return showNotification('Password must be 8+ characters with at least one letter and one number', 'red');
         if (!terms) return showNotification('You must agree to the Terms & Conditions', 'red');
 
+        const now = Date.now();
+        if (rateLimitErrors['register'] && now < rateLimitErrors['register']) {
+          const remainingMinutes = Math.ceil((rateLimitErrors['register'] - now) / 1000 / 60);
+          return showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
+        }
+
         document.getElementById('signup-loading').classList.remove('hidden');
         try {
           const response = await fetch(`${API_BASE}/api/affiliate/register`, {
@@ -914,6 +991,7 @@
             body: JSON.stringify({ name, username, email, password, termsAccepted: true })
           });
           if (!response.ok) {
+            if (handleRateLimit(response, 'register')) return;
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
@@ -936,8 +1014,9 @@
       });
 
       // Username Real-Time Validation
+      let usernameTimeout;
       document.getElementById('signup-username').addEventListener('input', () => {
-        const username = document.getElementById('signup-username').value;
+        const username = document.getElementById('signup-username').value.trim();
         const status = document.getElementById('username-status');
         if (hasInvalidCharacters(username)) {
           status.textContent = 'Only numbers and letters are allowed';
@@ -946,8 +1025,14 @@
           status.textContent = 'Username must be 5+ characters with at least one letter and one number';
           status.className = 'text-sm mt-1 text-red-500';
         } else {
-          status.textContent = '';
-          if (ws) ws.send(JSON.stringify({ type: 'username_check', username }));
+          status.textContent = 'Checking availability...';
+          status.className = 'text-sm mt-1 text-blue-500';
+          clearTimeout(usernameTimeout);
+          usernameTimeout = setTimeout(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'username_check', username }));
+            }
+          }, 500);
         }
       });
 
@@ -970,10 +1055,16 @@
       // Login Form
       document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email = document.getElementById('login-email').value;
+        const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value;
 
         if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
+
+        const now = Date.now();
+        if (rateLimitErrors['login'] && now < rateLimitErrors['login']) {
+          const remainingMinutes = Math.ceil((rateLimitErrors['login'] - now) / 1000 / 60);
+          return showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
+        }
 
         document.getElementById('login-loading').classList.remove('hidden');
         try {
@@ -983,6 +1074,7 @@
             body: JSON.stringify({ email, password })
           });
           if (!response.ok) {
+            if (handleRateLimit(response, 'login')) return;
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
@@ -1009,17 +1101,23 @@
       // Forgot Password Form
       document.getElementById('forgot-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const name = document.getElementById('forgot-name').value;
-        const email = document.getElementById('forgot-email').value;
-        const username = document.getElementById('forgot-username').value;
+        const name = document.getElementById('forgot-name').value.trim();
+        const email = document.getElementById('forgot-email').value.trim();
+        const username = document.getElementById('forgot-username').value.trim();
         const lastWithdrawalAmount = parseFloat(document.getElementById('forgot-amount').value) || 0;
-        const description = document.getElementById('forgot-description').value;
+        const description = document.getElementById('forgot-description').value.trim();
 
         if (!validateName(name)) return showNotification('Full name must have at least two words', 'red');
         if (!validateEmail(email)) return showNotification('Invalid email format', 'red');
         if (hasInvalidCharacters(username)) return showNotification('Only numbers and letters are allowed in username', 'red');
         if (!validateUsername(username)) return showNotification('Username must be 5+ characters with at least one letter and one number', 'red');
         if (description.length > 100) return showNotification('Description must be 100 characters or less', 'red');
+
+        const now = Date.now();
+        if (rateLimitErrors['reset-password'] && now < rateLimitErrors['reset-password']) {
+          const remainingMinutes = Math.ceil((rateLimitErrors['reset-password'] - now) / 1000 / 60);
+          return showNotification(`Too many attempts, try again in ${remainingMinutes} minutes`, 'red');
+        }
 
         document.getElementById('forgot-loading').classList.remove('hidden');
         try {
@@ -1029,6 +1127,7 @@
             body: JSON.stringify({ name, email, username, lastWithdrawalAmount, description })
           });
           if (!response.ok) {
+            if (handleRateLimit(response, 'reset-password')) return;
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
@@ -1069,6 +1168,7 @@
             body: JSON.stringify({ currentPassword, newPassword })
           });
           if (!response.ok) {
+            if (handleRateLimit(response, 'update-password')) return;
             const errorMessage = await parseErrorMessage(response);
             throw new Error(errorMessage);
           }
@@ -1101,21 +1201,116 @@
           status.textContent = 'Password must be 8+ characters with at least one letter and one number';
           status.className = 'text-sm mt-1 text-red-500';
         } else {
-          status.textContent = '';
-          status.className = 'text-sm mt-1';
+          status.textContent =status.textContent = 'Password is valid';
+          status.className = 'text-sm mt-1 text-green-500';
+        }
+      });
+
+      // Withdrawal Form
+      document.getElementById('withdrawal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const amount = parseFloat(document.getElementById('withdrawal-amount').value);
+        let mpesaNumber = document.getElementById('mpesa-number').value.trim();
+        let mpesaName = document.getElementById('mpesa-name').value.trim();
+        const password = document.getElementById('withdrawal-password').value;
+        const reuseDetails = document.getElementById('reuse-details').checked;
+
+        if (amount < 1 || amount > (dashboardData.currentBalance || 0)) {
+          return showNotification('Invalid withdrawal amount', 'red');
+        }
+        if (!mpesaNumber && mpesaDetails.number) mpesaNumber = mpesaDetails.number;
+        if (!mpesaName && mpesaDetails.name) mpesaName = mpesaDetails.name;
+        if (!validateMpesaNumber(mpesaNumber)) {
+          return showNotification('Invalid MPESA number (e.g., 0712345678)', 'red');
+        }
+        if (!validateName(mpesaName)) {
+          return showNotification('MPESA name must have at least two words', 'red');
+        }
+
+        document.getElementById('withdrawal-loading').classList.remove('hidden');
+        try {
+          const response = await fetch(`${API_BASE}/api/affiliate/request-withdrawal`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${getCookie('jwt')}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ amount, mpesaNumber, mpesaName, password, reuseDetails })
+          });
+          if (!response.ok) {
+            if (handleRateLimit(response, 'request-withdrawal')) return;
+            const errorMessage = await parseErrorMessage(response);
+            throw new Error(errorMessage);
+          }
+
+          const data = await response.json();
+          document.getElementById('withdrawal-loading').classList.add('hidden');
+          if (data.success) {
+            document.getElementById('withdrawal-modal').classList.add('hidden');
+            showNotification('Withdrawal request submitted', 'green');
+            fetchDashboard();
+          } else {
+            showNotification(data.error || 'Failed to submit withdrawal request', 'red');
+          }
+        } catch (err) {
+          document.getElementById('withdrawal-loading').classList.add('hidden');
+          showNotification(`Error: ${err.message}`, 'red');
+        }
+      });
+
+      // Edit MPESA Details
+      document.getElementById('edit-mpesa').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('mpesa-number').value = '';
+        document.getElementById('mpesa-name').value = '';
+        document.getElementById('reuse-details').checked = false;
+        showNotification('Enter new MPESA details', 'blue');
+      });
+
+      // Delete Account
+      document.getElementById('confirm-delete').addEventListener('click', async () => {
+        document.getElementById('delete-loading').classList.remove('hidden');
+        try {
+          const response = await fetch(`${API_BASE}/api/affiliate/delete-account`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${getCookie('jwt')}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (!response.ok) {
+            if (handleRateLimit(response, 'delete-account')) return;
+            const errorMessage = await parseErrorMessage(response);
+            throw new Error(errorMessage);
+          }
+
+          const data = await response.json();
+          document.getElementById('delete-loading').classList.add('hidden');
+          if (data.success) {
+            clearCookie('jwt');
+            ws?.close();
+            document.getElementById('delete-account-modal').classList.add('hidden');
+            showNotification('Account deleted successfully', 'green');
+            showAuth();
+          } else {
+            showNotification(data.error || 'Failed to delete account', 'red');
+          }
+        } catch (err) {
+          document.getElementById('delete-loading').classList.add('hidden');
+          showNotification(`Error: ${err.message}`, 'red');
         }
       });
 
       // Dashboard Tabs
       ['home', 'withdrawals', 'rewards', 'leaderboard', 'notifications', 'news'].forEach(tab => {
         document.getElementById(`tab-${tab}`).addEventListener('click', () => {
-          document.querySelectorAll('nav button').forEach(btn => {
-            btn.classList.replace('bg-blue-500', 'bg-gray-500');
+          document.querySelectorAll('[role="tab"]').forEach(t => {
+            t.classList.replace('bg-blue-500', 'bg-gray-500');
+            t.setAttribute('aria-selected', 'false');
           });
           document.getElementById(`tab-${tab}`).classList.replace('bg-gray-500', 'bg-blue-500');
-          document.querySelectorAll('#dashboard-section > div').forEach(div => {
-            div.classList.add('hidden');
-          });
+          document.getElementById(`tab-${tab}`).setAttribute('aria-selected', 'true');
+          document.querySelectorAll('[role="tabpanel"]').forEach(p => p.classList.add('hidden'));
           document.getElementById(`${tab}-content`).classList.remove('hidden');
         });
       });
@@ -1150,30 +1345,25 @@
         document.getElementById('commission-modal').classList.add('hidden');
       });
       document.getElementById('request-withdrawal').addEventListener('click', () => {
-        document.getElementById('withdrawal-amount').value = '';
-        document.getElementById('mpesa-number').value = mpesaDetails.mpesaNumber || '';
-        document.getElementById('mpesa-name').value = mpesaDetails.mpesaName || '';
-        document.getElementById('reuse-details').checked = !!mpesaDetails.mpesaNumber;
-        document.getElementById('withdrawal-password').value = '';
         document.getElementById('withdrawal-modal').classList.remove('hidden');
+        document.getElementById('mpesa-number').value = mpesaDetails.number || '';
+        document.getElementById('mpesa-name').value = mpesaDetails.name || '';
+        document.getElementById('withdrawal-amount').value = '';
+        document.getElementById('withdrawal-password').value = '';
       });
       document.getElementById('close-withdrawal').addEventListener('click', () => {
         document.getElementById('withdrawal-modal').classList.add('hidden');
       });
-      document.getElementById('edit-mpesa').addEventListener('click', () => {
-        document.getElementById('mpesa-number').value = '';
-        document.getElementById('mpesa-name').value = '';
-        document.getElementById('reuse-details').checked = false;
-      });
       document.getElementById('change-password').addEventListener('click', () => {
-        document.getElementById('settings-dropdown').classList.add('hidden');
         document.getElementById('change-password-modal').classList.remove('hidden');
+        document.getElementById('current-password').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
       });
       document.getElementById('close-change-password').addEventListener('click', () => {
         document.getElementById('change-password-modal').classList.add('hidden');
       });
       document.getElementById('delete-account').addEventListener('click', () => {
-        document.getElementById('settings-dropdown').classList.add('hidden');
         document.getElementById('delete-account-modal').classList.remove('hidden');
       });
       document.getElementById('close-delete').addEventListener('click', () => {
@@ -1187,108 +1377,34 @@
       document.getElementById('settings-toggle').addEventListener('click', () => {
         document.getElementById('settings-dropdown').classList.toggle('hidden');
       });
+      document.addEventListener('click', (e) => {
+        if (!document.getElementById('settings').contains(e.target)) {
+          document.getElementById('settings-dropdown').classList.add('hidden');
+        }
+      });
 
       // Copy Affiliate Link
       document.getElementById('copy-link').addEventListener('click', () => {
-        const link = document.getElementById('affiliate-link').value;
-        navigator.clipboard.writeText(link).then(() => {
-          showNotification('Link copied to clipboard', 'green');
-        }).catch(() => {
-          showNotification('Failed to copy link', 'red');
-        });
-      });
-
-      // Withdrawal Form
-      document.getElementById('withdrawal-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const amount = parseFloat(document.getElementById('withdrawal-amount').value);
-        const mpesaNumber = document.getElementById('mpesa-number').value;
-        const mpesaName = document.getElementById('mpesa-name').value;
-        const reuseDetails = document.getElementById('reuse-details').checked;
-        const password = document.getElementById('withdrawal-password').value;
-
-        if (amount <= 0 || amount > dashboardData.currentBalance) return showNotification('Invalid amount', 'red');
-        if (!validateMpesaNumber(mpesaNumber)) return showNotification('MPESA number must be 10 digits starting with 07 or 01', 'red');
-        if (!validateName(mpesaName)) return showNotification('MPESA name must have at least two words', 'red');
-
-        document.getElementById('withdrawal-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/request-withdrawal`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getCookie('jwt')}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails, password })
-          });
-          if (!response.ok) {
-            const errorMessage = await parseErrorMessage(response);
-            throw new Error(errorMessage);
-          }
-
-          const data = await response.json();
-          document.getElementById('withdrawal-loading').classList.add('hidden');
-          if (data.success) {
-            if (reuseDetails) {
-              mpesaDetails = { mpesaNumber, mpesaName };
-            }
-            document.getElementById('withdrawal-modal').classList.add('hidden');
-            showNotification('Withdrawal submitted. You’ll receive it soon as processed.', 'green');
-            fetchDashboard();
-          } else {
-            showNotification(data.error || 'Failed to request withdrawal', 'red');
-          }
-        } catch (err) {
-          document.getElementById('withdrawal-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
-      });
-
-      // Delete Account
-      document.getElementById('confirm-delete').addEventListener('click', async () => {
-        document.getElementById('delete-loading').classList.remove('hidden');
-        try {
-          const response = await fetch(`${API_BASE}/api/affiliate/delete-account`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${getCookie('jwt')}` }
-          });
-          if (!response.ok) {
-            const errorMessage = await parseErrorMessage(response);
-            throw new Error(errorMessage);
-          }
-
-          const data = await response.json();
-          document.getElementById('delete-loading').classList.add('hidden');
-          if (data.success) {
-            clearCookie('jwt');
-            document.getElementById('delete-account-modal').classList.add('hidden');
-            showNotification('Account deleted successfully', 'green');
-            showAuth();
-          } else {
-            showNotification(data.error || 'Failed to delete account', 'red');
-          }
-        } catch (err) {
-          document.getElementById('delete-loading').classList.add('hidden');
-          showNotification(`Error: ${err.message}`, 'red');
-        }
+        const link = document.getElementById('affiliate-link');
+        link.select();
+        document.execCommand('copy');
+        showNotification('Affiliate link copied to clipboard', 'green');
       });
 
       // Logout
       document.getElementById('logout').addEventListener('click', () => {
         clearCookie('jwt');
         ws?.close();
-        document.getElementById('settings-dropdown').classList.add('hidden');
         showNotification('Logged out successfully', 'green');
         showAuth();
       });
 
-      // Initial Auth Check
-      const token = getCookie('jwt');
-      if (token) {
+      // Initialize
+      if (getCookie('jwt')) {
         try {
-          const decoded = jwt_decode(token);
+          const decoded = jwt_decode(getCookie('jwt'));
           if (decoded.exp * 1000 > Date.now()) {
-            initWebSocket(token);
+            initWebSocket(getCookie('jwt'));
             showDashboard();
           } else {
             clearCookie('jwt');
@@ -1303,3 +1419,5 @@
       }
     });
   </script>
+</body>
+</html>
