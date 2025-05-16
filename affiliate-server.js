@@ -10,6 +10,7 @@ const cron = require('node-cron');
 const axios = require('axios');
 
 const app = express();
+app.set('trust proxy', 1); // Important for rate limiting behind proxies like Render
 const port = process.env.PORT || 3000;
 
 // Environment Variables
