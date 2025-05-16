@@ -209,12 +209,12 @@ const fetchAffiliates = async () => {
     TotalSalesMonthly: parseInt(row[9] || '0'),
     CurrentBalance: parseFloat(row[10] || '0'),
     WithdrawnTotal: parseFloat(row[11] || '0'),
-    WithdrawalsJSON: JSON.parse(row[12] || '[]').sort((a, b) => new Date(b.date) - new Date(a.date)),
-    RewardsJSON: JSON.parse(row[13] || '[]').sort((a, b) => new Date(b.date) - new Date(a.date)),
-    NotificationsJSON: JSON.parse(row[14] || '[]').sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
-    ResetJSON: JSON.parse(row[15] || '[]').sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
-    LeaderboardJSON: JSON.parse(row[16] || '{"previousRank": 0, "currentRank": 0}'),
-    MpesaDetails: JSON.parse(row[17] || '{}')
+    WithdrawalsJSON: parseAndSort(row[12], 'date'),
+RewardsJSON: parseAndSort(row[13], 'date'),
+NotificationsJSON: parseAndSort(row[14], 'timestamp'),
+ResetJSON: parseAndSort(row[15], 'timestamp'),
+LeaderboardJSON: JSON.parse(row[16] || '{"previousRank": 0, "currentRank": 0}'),
+MpesaDetails: JSON.parse(row[17] || '{}')
   }));
 };
 
@@ -535,6 +535,16 @@ cron.schedule('*/10 * * * *', async () => {
     console.error('Sales sync failed:', err.message);
   }
 });
+function parseAndSort(jsonStr, sortKey = 'date') {
+  try {
+    const data = JSON.parse(jsonStr || '[]');
+    return Array.isArray(data)
+      ? data.sort((a, b) => new Date(b[sortKey]) - new Date(a[sortKey]))
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 // Validation Functions
 const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
