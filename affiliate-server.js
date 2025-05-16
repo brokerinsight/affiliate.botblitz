@@ -582,6 +582,21 @@ const authenticateAdmin = (req, res, next) => {
 };
 
 // Endpoints
+app.post('/api/affiliate/check-username', async (req, res) => {
+  try {
+    const { username } = req.body;
+    if (!validateUsername(username)) {
+      return res.status(400).json({ success: false, message: 'Invalid username format' });
+    }
+    const affiliates = await fetchAffiliates();
+    const available = !affiliates.some(a => a.Username === username);
+    res.json({ success: true, available });
+  } catch (err) {
+    console.error('Username check failed:', err.message);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.post('/api/affiliate/register', registerLimiter, async (req, res) => {
   try {
     const { name, username, email, password, termsAccepted } = req.body;
@@ -734,6 +749,10 @@ app.post('/api/affiliate/reset-password', resetLimiter, async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to submit reset request', error: error.message });
   }
 });
+app.post('/api/affiliate/forgot-password', (req, res) => {
+  req.url = '/api/affiliate/reset-password';
+  app._router.handle(req, res);
+});
 
 app.get('/api/affiliate/data', authenticateAffiliate, async (req, res) => {
   try {
@@ -776,6 +795,16 @@ app.get('/api/affiliate/data', authenticateAffiliate, async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch data', error: error.message });
   }
 });
+
+app.get('/api/affiliate/settings', authenticateAffiliate, async (req, res) => {
+  try {
+    res.json({ success: true, settings: cachedDataAffiliate.settings });
+  } catch (err) {
+    console.error('Failed to fetch settings:', err.message);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 
 app.get('/api/admin/affiliate/affiliates', authenticateAdmin, async (req, res) => {
   try {
