@@ -50,56 +50,6 @@ redisClient.on('error', (err) => console.error('Redis Client Error', err.message
 })();
 const cachedData = { users: [], settings: [], static_pages: [], news: [], forums: [] };
 
-// Create tables if they don't exist
-(async () => {
-  try {
-    const tables = [
-      { name: 'users', schema: 'id UUID PRIMARY KEY, email TEXT UNIQUE, username TEXT UNIQUE, name TEXT, joinDate TIMESTAMP, refCode TEXT UNIQUE, password TEXT, status TEXT DEFAULT \'active\', linkClicks INTEGER DEFAULT 0, totalSales INTEGER DEFAULT 0, totalSalesMonthly INTEGER DEFAULT 0, currentBalance NUMERIC DEFAULT 0, withdrawnTotal NUMERIC DEFAULT 0, theme TEXT DEFAULT \'light\'' },
-      { name: 'history', schema: 'id UUID PRIMARY KEY, email TEXT, eventType TEXT, data JSONB, timestamp TIMESTAMP DEFAULT now()' },
-      { name: 'settings', schema: 'key TEXT PRIMARY KEY, value JSONB' },
-      { name: 'static_pages', schema: 'slug TEXT PRIMARY KEY, title TEXT, content TEXT' },
-      { name: 'news', schema: 'id UUID PRIMARY KEY, message TEXT, timestamp TIMESTAMP DEFAULT now()' },
-      { name: 'forums', schema: 'id UUID PRIMARY KEY, name TEXT, link TEXT, icon TEXT, description TEXT CHECK (LENGTH(description) <= 200), createdAt TIMESTAMP DEFAULT now()' }
-    ];
-    for (const table of tables) {
-      // Fallback to raw SQL if rpc is not available or fails
-      try {
-        const { error } = await supabaseAdmin.rpc('create_table_if_not_exists', {
-          table_name: table.name,
-          schema: table.schema
-        });
-        if (error) {
-          console.warn(`RPC failed for ${table.name}, trying raw SQL:`, error.message);
-          await supabaseAdmin.from('pg_tables').insert({ schemaname: 'public', tablename: table.name }, { count: 'exact' }).then(async () => {
-            await supabaseAdmin.sql(`CREATE TABLE IF NOT EXISTS ${table.name} (${table.schema})`);
-          }).catch(sqlErr => console.error(`Raw SQL error for ${table.name}:`, sqlErr.message));
-        } else {
-          console.log(`Table ${table.name} created or already exists via RPC`);
-        }
-      } catch (rpcErr) {
-        console.warn(`RPC not supported, using raw SQL for ${table.name}:`, rpcErr.message);
-        await supabaseAdmin.sql(`CREATE TABLE IF NOT EXISTS ${table.name} (${table.schema})`).catch(sqlErr => console.error(`Raw SQL error for ${table.name}:`, sqlErr.message));
-      }
-    }
-
-    // Initial settings data
-    const { data, error: settingsError } = await supabaseAdmin.from('settings').upsert([
-      { key: 'supportEmail', value: JSON.stringify('derivbotstore@gmail.com') },
-      { key: 'copyrightText', value: JSON.stringify('Deriv Bot Store Affiliates 2025') },
-      { key: 'whatsappLink', value: JSON.stringify('https://wa.link/4wppln') },
-      { key: 'commissionRate', value: JSON.stringify(0.2) },
-      { key: 'urgentPopup', value: JSON.stringify({ message: '', enabled: false }) }
-    ], { onConflict: 'key' });
-    if (settingsError) {
-      console.error('Error initializing settings:', settingsError.message || 'Unknown error');
-    } else {
-      console.log('Settings initialized successfully', data);
-    }
-  } catch (err) {
-    console.error('Error during database setup:', err.message);
-  }
-})();
-
 // Cache refresh function
 async function refreshCache() {
   try {
@@ -261,7 +211,6 @@ const limiter = rateLimit({
 });
 
 // Authentication endpoints
-// [Rest of the endpoints remain unchanged for brevity, but ensure they are included as in the original code]
 app.post('/api/affiliate/register', limiter, async (req, res) => {
   try {
     const { name, username, email, password, termsAccepted, recaptchaToken } = req.body;
