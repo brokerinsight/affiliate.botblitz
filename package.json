@@ -2,10 +2,10 @@
   "name": "deriv-bot-store-affiliate-server",
   "version": "1.0.1",
   "description": "Backend server for Deriv Bot Store Affiliate System",
-  "main": "index.js",
+  "main": "affiliate-server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node affiliate-server.js",
+    "dev": "nodemon affiliate-server.js",
     "test": "echo \"No tests defined yet\" && exit 0"
   },
   "author": "xAI Team",
