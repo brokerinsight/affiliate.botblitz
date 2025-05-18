@@ -51,13 +51,13 @@ async function refreshCache() {
     const [users, settings, staticPages, news, forums] = await Promise.all([
       supabase.from('users').select('*'),
       supabase.from('settings').select('*'),
-      supabase.from('static_pages').select('*'),
+      supabase.from('static_pages').select('name, slug'),
       supabase.from('news').select('*').order('timestamp', { ascending: false }).limit(40),
       supabase.from('forums').select('*').order('createdAt', { ascending: false })
     ]);
     cachedData.users = users.data || [];
     cachedData.settings = settings.data || [];
-    cachedData.static_pages = staticPages.data || [];
+    cachedData.static_pages = staticPages.data.map(p => ({ name: p.name, slug: p.slug })) || [];
     cachedData.news = news.data || [];
     cachedData.forums = forums.data || [];
     console.log('Cache refreshed successfully');
@@ -111,8 +111,7 @@ cron.schedule('0 0 1 * *', async () => {
     await supabaseAdmin.from('users').update({ totalSalesMonthly: 0 }).in('status', ['active']);
     const { data: leaderboard } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
     await supabase.from('history').insert(leaderboard.map(l => ({ email: l.email, eventType: 'leaderboard', data: { totalSalesMonthly: l.totalSalesMonthly } })));
-    const rewardRateSetting = cachedData.settings.find(s => s.key === 'rewardRate');
-    const rewardRate = rewardRateSetting ? (typeof rewardRateSetting.value === 'string' ? parseFloat(rewardRateSetting.value) : rewardRateSetting.value) : 0.2;
+    const rewardRate = cachedData.settings.find(s => s.key === 'rewardRate')?.value || 0.2;
     for (const affiliate of leaderboard) {
       const reward = affiliate.totalSalesMonthly * rewardRate;
       await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
@@ -206,8 +205,13 @@ const limiter = rateLimit({
   max: 5,
   keyGenerator: (req) => req.body.email || req.ip,
   handler: (req, res) => {
-    res.status(429).json({ success: false, error: `Rate limit exceeded, try again in ${Math.ceil(req.rateLimit.resetTime - Date.now()) / 1000} seconds` });
-    sendEmail('alert_mail', process.env.ALERT_MAIL, { message: `Rate limit hit for ${req.body.email || req.ip} on ${req.path}` });
+    const user = cachedData.users.find(u => u.email === req.body.email && u.status === 'active');
+    if (user) {
+      res.status(429).json({ success: false, error: `Rate limit exceeded, try again in ${Math.ceil(req.rateLimit.resetTime - Date.now()) / 1000} seconds` });
+      sendEmail('alert_mail', req.body.email, { message: 'You have hit the rate limit on this action. Please try again later.' });
+    } else {
+      res.status(429).json({ success: false, error: `Rate limit exceeded, try again in ${Math.ceil(req.rateLimit.resetTime - Date.now()) / 1000} seconds` });
+    }
   }
 });
 
@@ -304,8 +308,13 @@ app.post('/api/affiliate/verify-signup-otp', async (req, res) => {
     if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid, start over' });
 
     const signupData = JSON.parse(await redisClient.get(`signup:${email}`));
-    await supabase.from('users').insert({
-      ...signupData,
+    const { error } = await supabase.from('users').insert({
+      name: signupData.name,
+      username: signupData.username,
+      email: signupData.email,
+      password: signupData.password,
+      refCode: signupData.refCode,
+      status: 'active',
       joinDate: new Date().toISOString(),
       linkClicks: 0,
       totalSales: 0,
@@ -313,6 +322,10 @@ app.post('/api/affiliate/verify-signup-otp', async (req, res) => {
       currentBalance: 0,
       withdrawnTotal: 0
     });
+    if (error) {
+      console.error('Supabase insert error during signup:', error.message);
+      return res.status(500).json({ success: false, error: 'Failed to create account' });
+    }
     await Promise.all([
       redisClient.del(`signup:${email}`),
       redisClient.del(`otp:signup:${email}`)
@@ -334,7 +347,7 @@ app.post('/api/affiliate/verify-login-otp', async (req, res) => {
     const storedOtp = await redisClient.get(`otp:login:${email}`);
     if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid, start over' });
 
-    const { data: user } = await supabase.from('users').select('name, username, refCode').eq('email', email).single();
+    const { data: user } = await supabase.from('users').select('name, username, refCode, currentBalance, linkClicks, totalSales, totalSalesMonthly, withdrawnTotal').eq('email', email).single();
     if (!user) return res.status(400).json({ success: false, error: 'User not found' });
     const token = jwt.sign({ email }, process.env.JWT_SECRET_SUPABASE, { expiresIn: '7d' });
     res.status(200).json({ success: true, token, data: user });
@@ -364,7 +377,11 @@ app.post('/api/affiliate/set-new-password', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid password format' });
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
+    const { error } = await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
+    if (error) {
+      console.error('Supabase update error during password reset:', error.message);
+      return res.status(500).json({ success: false, error: 'Failed to update password' });
+    }
     for (const [clientEmail, client] of wsClients.entries()) {
       if (clientEmail === email && client.ws) {
         client.ws.send(JSON.stringify({ type: 'logout' }));
@@ -385,11 +402,18 @@ app.get('/api/affiliate/data', async (req, res) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
-    const { data: user } = await supabase.from('users').select('*').eq('email', decoded.email).single();
-    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { data: user, error: userError } = await supabase.from('users').select('*').eq('email', decoded.email).single();
+    if (userError || !user) {
+      console.error('Supabase user fetch error:', userError?.message);
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
 
-    const { data: leaderboard } = await supabase.from('users').select('name, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
-    const { data: history } = await supabase.from('history').select('*').eq('email', decoded.email).order('timestamp', { ascending: false }).limit(20);
+    const { data: leaderboard, error: leaderboardError } = await supabase.from('users').select('name, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
+    if (leaderboardError) console.error('Supabase leaderboard fetch error:', leaderboardError.message);
+
+    const { data: history, error: historyError } = await supabase.from('history').select('*').eq('email', decoded.email).order('timestamp', { ascending: false }).limit(20);
+    if (historyError) console.error('Supabase history fetch error:', historyError.message);
+
     const withdrawals = history ? history.filter(h => h.eventType === 'withdrawal') : [];
     const rewards = history ? history.filter(h => h.eventType === 'reward') : [];
     const notifications = history ? history.filter(h => h.eventType === 'notification') : [];
@@ -401,9 +425,11 @@ app.get('/api/affiliate/data', async (req, res) => {
         withdrawals, 
         rewards, 
         notifications, 
-        leaderboard, 
+        leaderboard: leaderboard || [], 
         news: cachedData.news, 
-        commissionRate: cachedData.settings.find(s => s.key === 'commissionRate')?.value ? (typeof cachedData.settings.find(s => s.key === 'commissionRate').value === 'string' ? parseFloat(cachedData.settings.find(s => s.key === 'commissionRate').value) : cachedData.settings.find(s => s.key === 'commissionRate').value) : 0.2 
+        forums: cachedData.forums,
+        commissionRate: cachedData.settings.find(s => s.key === 'commissionRate')?.value || 0.2,
+        rewardRate: cachedData.settings.find(s => s.key === 'rewardRate')?.value || 0.2
       } 
     });
   } catch (err) {
@@ -420,7 +446,11 @@ app.get('/api/admin/affiliate/affiliates', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
     if (!decoded || decoded.role !== 'admin') return res.status(403).json({ success: false, error: 'Forbidden' });
 
-    const { data } = await supabase.from('users').select('*');
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) {
+      console.error('Supabase affiliates fetch error:', error.message);
+      return res.status(500).json({ success: false, error: 'Failed to fetch affiliates' });
+    }
     res.status(200).json({ success: true, affiliates: data || [] });
   } catch (err) {
     console.error('Get affiliates endpoint error:', err.message);
@@ -431,9 +461,13 @@ app.get('/api/admin/affiliate/affiliates', async (req, res) => {
 app.post('/api/affiliate/track-click', cors(), async (req, res) => {
   try {
     const { affiliateref } = req.body;
-    const { data: user } = await supabase.from('users').select('email, linkClicks').eq('refCode', affiliateref).single();
-    if (!user) return res.status(400).json({ success: false, error: 'Invalid referral code' });
-    await supabase.from('users').update({ linkClicks: user.linkClicks + 1 }).eq('email', user.email);
+    const { data: user, error } = await supabase.from('users').select('email, linkClicks').eq('refCode', affiliateref).single();
+    if (error || !user) {
+      console.error('Supabase user fetch error for track-click:', error?.message);
+      return res.status(400).json({ success: false, error: 'Invalid referral code' });
+    }
+    const { error: updateError } = await supabase.from('users').update({ linkClicks: user.linkClicks + 1 }).eq('email', user.email);
+    if (updateError) console.error('Supabase update error for track-click:', updateError.message);
     wsClients.get(user.email)?.ws?.send(JSON.stringify({ type: 'update' }));
     res.status(200).json({ success: true });
   } catch (err) {
@@ -446,15 +480,20 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
   try {
     const { affiliateref, amount, item, apiKey } = req.body;
     if (apiKey !== process.env.API_KEY) return res.status(401).json({ success: false, error: 'Invalid API key' });
-    const { data: user } = await supabase.from('users').select('*').eq('refCode', affiliateref).single();
-    if (!user) return res.status(400).json({ success: false, error: 'Invalid referral code' });
-    const commission = amount * (cachedData.settings.find(s => s.key === 'commissionRate')?.value ? (typeof cachedData.settings.find(s => s.key === 'commissionRate').value === 'string' ? parseFloat(cachedData.settings.find(s => s.key === 'commissionRate').value) : cachedData.settings.find(s => s.key === 'commissionRate').value) : 0.2);
-    await supabase.from('users').update({
+    const { data: user, error } = await supabase.from('users').select('*').eq('refCode', affiliateref).single();
+    if (error || !user) {
+      console.error('Supabase user fetch error for confirmed-sale:', error?.message);
+      return res.status(400).json({ success: false, error: 'Invalid referral code' });
+    }
+    const commission = amount * (cachedData.settings.find(s => s.key === 'commissionRate')?.value || 0.2);
+    const { error: updateError } = await supabase.from('users').update({
       totalSales: supabase.sql`totalSales + ${amount}`,
       totalSalesMonthly: supabase.sql`totalSalesMonthly + ${amount}`,
       currentBalance: supabase.sql`currentBalance + ${commission}`
     }).eq('email', user.email);
-    await supabase.from('history').insert({ email: user.email, eventType: 'sale', data: { amount, item, commission } });
+    if (updateError) console.error('Supabase update error for confirmed-sale:', updateError.message);
+    const { error: historyError } = await supabase.from('history').insert({ email: user.email, eventType: 'sale', data: { amount, item, commission } });
+    if (historyError) console.error('Supabase history insert error for confirmed-sale:', historyError.message);
     wsClients.get(user.email)?.ws?.send(JSON.stringify({ type: 'update' }));
     res.status(200).json({ success: true });
   } catch (err) {
@@ -475,8 +514,11 @@ app.post('/api/affiliate/request-withdrawal-otp', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid input' });
     }
 
-    const { data: user } = await supabase.from('users').select('currentBalance, email, name').eq('email', decoded.email).single();
-    if (!user) return res.status(401).json({ success: false, error: 'User not found' });
+    const { data: user, error } = await supabase.from('users').select('currentBalance, email, name').eq('email', decoded.email).single();
+    if (error || !user) {
+      console.error('Supabase user fetch error for withdrawal:', error?.message);
+      return res.status(401).json({ success: false, error: 'User not found' });
+    }
     if (user.currentBalance < amount) return res.status(400).json({ success: false, error: 'Insufficient balance' });
 
     await redisClient.setEx(`withdrawal:${decoded.email}`, 300, JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails }));
@@ -497,11 +539,16 @@ app.post('/api/affiliate/verify-withdrawal-otp', async (req, res) => {
     if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
 
     const withdrawalData = JSON.parse(await redisClient.get(`withdrawal:${email}`));
-    await supabase.from('users').update({ 
+    const { error } = await supabase.from('users').update({ 
       currentBalance: supabase.sql`currentBalance - ${amount}`, 
       ...(reuseDetails && { mpesaNumber, mpesaName }) 
     }).eq('email', email);
-    await supabase.from('history').insert({ email, eventType: 'withdrawal', data: { amount, mpesaNumber, mpesaName, status: 'pending' } });
+    if (error) {
+      console.error('Supabase update error during withdrawal:', error.message);
+      return res.status(500).json({ success: false, error: 'Failed to process withdrawal' });
+    }
+    const { error: historyError } = await supabase.from('history').insert({ email, eventType: 'withdrawal', data: { amount, mpesaNumber, mpesaName, status: 'pending' } });
+    if (historyError) console.error('Supabase history insert error for withdrawal:', historyError.message);
     await sendEmail('withdrawal_mail', email, { name: cachedData.users.find(u => u.email === email)?.name || 'User', message: 'Withdrawal request submitted' });
     await Promise.all([redisClient.del(`withdrawal:${email}`), redisClient.del(`otp:withdrawal:${email}`)]);
     wsClients.get(email)?.ws?.send(JSON.stringify({ type: 'update' }));
@@ -520,13 +567,15 @@ app.post('/api/admin/affiliate/rewards', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
     if (!decoded || decoded.role !== 'admin') return res.status(403).json({ success: false, error: 'Forbidden' });
 
-    const { data: leaderboard } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
-    const rewardRateSetting = cachedData.settings.find(s => s.key === 'rewardRate');
-    const rewardRate = rewardRateSetting ? (typeof rewardRateSetting.value === 'string' ? parseFloat(rewardRateSetting.value) : rewardRateSetting.value) : 0.2;
-    for (const affiliate of leaderboard) {
+    const { data: leaderboard, error: leaderboardError } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
+    if (leaderboardError) console.error('Supabase leaderboard fetch error:', leaderboardError.message);
+    const rewardRate = cachedData.settings.find(s => s.key === 'rewardRate')?.value || 0.2;
+    for (const affiliate of (leaderboard || [])) {
       const reward = affiliate.totalSalesMonthly * rewardRate;
-      await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
-      await supabase.from('history').insert({ email: affiliate.email, eventType: 'reward', data: { amount: reward, type: 'leaderboard' } });
+      const { error: updateError } = await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
+      if (updateError) console.error('Supabase update error for rewards:', updateError.message);
+      const { error: historyError } = await supabase.from('history').insert({ email: affiliate.email, eventType: 'reward', data: { amount: reward, type: 'leaderboard' } });
+      if (historyError) console.error('Supabase history insert error for rewards:', historyError.message);
       await sendEmail('reward_mail', affiliate.email, { name: cachedData.users.find(u => u.email === affiliate.email)?.name || 'User', amount: reward });
       wsClients.get(affiliate.email)?.ws?.send(JSON.stringify({ type: 'notification', message: `You received ${reward} KES as a reward`, color: 'green' }));
     }
@@ -558,7 +607,8 @@ app.post('/api/admin/affiliate/communication', async (req, res) => {
 
     const { type, message } = req.body;
     if (type === 'urgentPopup') {
-      await supabase.from('settings').update({ value: JSON.stringify({ message, enabled: true }) }).eq('key', 'urgentPopup');
+      const { error } = await supabase.from('settings').update({ value: JSON.stringify({ message, enabled: true }) }).eq('key', 'urgentPopup');
+      if (error) console.error('Supabase update error for urgentPopup:', error.message);
       for (const [email, client] of wsClients.entries()) {
         if (client.role === 'affiliate') {
           client.ws?.send(JSON.stringify({ type: 'notification', message, color: 'red', urgent: true }));
@@ -566,7 +616,10 @@ app.post('/api/admin/affiliate/communication', async (req, res) => {
       }
     } else if (type === 'news') {
       const { error } = await supabase.from('news').insert({ message: sanitizeHtml(message) });
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      if (error) {
+        console.error('Supabase insert error for news:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+      }
       for (const [email, client] of wsClients.entries()) {
         client.ws?.send(JSON.stringify({ type: 'update' }));
       }
@@ -586,8 +639,11 @@ app.post('/api/affiliate/update-password', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
     const { currentPassword, newPassword } = req.body;
 
-    const { data: user } = await supabase.from('users').select('password').eq('email', decoded.email).single();
-    if (!user || !(await bcrypt.compare(currentPassword, user.password))) return res.status(401).json({ success: false, error: 'Invalid password' });
+    const { data: user, error } = await supabase.from('users').select('password').eq('email', decoded.email).single();
+    if (error || !user || !(await bcrypt.compare(currentPassword, user.password))) {
+      console.error('Supabase user fetch or password compare error:', error?.message);
+      return res.status(401).json({ success: false, error: 'Invalid password' });
+    }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     await redisClient.setEx(`otp:change-password:${decoded.email}`, 300, otp);
@@ -605,8 +661,11 @@ app.post('/api/affiliate/delete-account', async (req, res) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
-    const { data: user } = await supabase.from('users').select('currentBalance, name').eq('email', decoded.email).single();
-    if (!user) return res.status(401).json({ success: false, error: 'User not found' });
+    const { data: user, error } = await supabase.from('users').select('currentBalance, name').eq('email', decoded.email).single();
+    if (error || !user) {
+      console.error('Supabase user fetch error for delete-account:', error?.message);
+      return res.status(401).json({ success: false, error: 'User not found' });
+    }
     if (user.currentBalance > 0) return res.status(400).json({ success: false, error: 'Cannot delete account with balance' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -629,7 +688,11 @@ app.post('/api/affiliate/verify-password-otp', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid password format' });
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
+    const { error } = await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
+    if (error) {
+      console.error('Supabase update error during password change:', error.message);
+      return res.status(500).json({ success: false, error: 'Failed to update password' });
+    }
     for (const [clientEmail, client] of wsClients.entries()) {
       if (clientEmail === email && client.ws) {
         client.ws.send(JSON.stringify({ type: 'logout' }));
@@ -650,7 +713,11 @@ app.post('/api/affiliate/verify-delete-otp', async (req, res) => {
     const storedOtp = await redisClient.get(`otp:delete:${email}`);
     if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
 
-    await supabase.from('users').update({ status: 'deleted' }).eq('email', email);
+    const { error } = await supabase.from('users').update({ status: 'deleted' }).eq('email', email);
+    if (error) {
+      console.error('Supabase update error during account deletion:', error.message);
+      return res.status(500).json({ success: false, error: 'Failed to delete account' });
+    }
     for (const [clientEmail, client] of wsClients.entries()) {
       if (clientEmail === email && client.ws) {
         client.ws.send(JSON.stringify({ type: 'logout' }));
@@ -664,6 +731,7 @@ app.post('/api/affiliate/verify-delete-otp', async (req, res) => {
     res.status(500).json({ success: false, error: 'Server error' });
   }
 });
+
 // Health check endpoint for monitoring
 app.get('/api/health', (req, res) => {
   res.status(200).json({ success: true, message: 'Server is running', timestamp: new Date().toISOString() });
@@ -679,7 +747,6 @@ app.post('/api/affiliate/logout', async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
     
-    // Remove the WebSocket client
     if (wsClients.has(decoded.email)) {
       const client = wsClients.get(decoded.email);
       if (client.ws) {
