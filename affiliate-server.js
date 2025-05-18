@@ -107,37 +107,38 @@ refreshCache();
 setInterval(refreshCache, 15 * 60 * 1000);
 
 // WebSocket setup
-const wsServer = new WebSocket.Server({ noServer: true });
 const wsClients = new Map();
-app.server = app.listen(process.env.PORT || 3000);
-app.server.on('upgrade', (request, socket, head) => {
-  wsServer.handleUpgrade(request, socket, head, (ws) => {
-    const url = new URL(request.url, `wss://${request.headers.host}`);
-    const token = url.searchParams.get('token');
-    if (!token) {
+const server = app.listen(process.env.PORT, () => {
+  console.log(`Server running on port ${process.env.PORT}`);
+});
+
+const wsServer = new WebSocket.Server({ server });
+wsServer.on('connection', (ws, request) => {
+  const url = new URL(request.url, `wss://${request.headers.host}`);
+  const token = url.searchParams.get('token');
+  if (!token) {
+    ws.close();
+    return;
+  }
+  jwt.verify(token, process.env.JWT_SECRET_SUPABASE, async (err, decoded) => {
+    if (err || !decoded.email) {
       ws.close();
       return;
     }
-    jwt.verify(token, process.env.JWT_SECRET_SUPABASE, async (err, decoded) => {
-      if (err || !decoded.email) {
-        ws.close();
-        return;
+    const { data: user } = await supabase.from('users').select('email, status').eq('email', decoded.email).single();
+    if (!user || user.status !== 'active') {
+      ws.close();
+      return;
+    }
+    wsClients.set(decoded.email, { ws, role: 'affiliate' });
+    ws.on('message', (msg) => {
+      const data = JSON.parse(msg);
+      if (data.type === 'username_check') {
+        const available = !cachedData.users.some(u => u.username === data.username);
+        ws.send(JSON.stringify({ type: 'username_check', available, message: available ? 'Username available' : 'Username taken' }));
       }
-      const { data: user } = await supabase.from('users').select('email, status').eq('email', decoded.email).single();
-      if (!user || user.status !== 'active') {
-        ws.close();
-        return;
-      }
-      wsClients.set(decoded.email, { ws, role: 'affiliate' });
-      ws.on('message', (msg) => {
-        const data = JSON.parse(msg);
-        if (data.type === 'username_check') {
-          const available = !cachedData.users.some(u => u.username === data.username);
-          ws.send(JSON.stringify({ type: 'username_check', available, message: available ? 'Username available' : 'Username taken' }));
-        }
-      });
-      ws.on('close', () => wsClients.delete(decoded.email));
     });
+    ws.on('close', () => wsClients.delete(decoded.email));
   });
 });
 
@@ -612,7 +613,7 @@ app.post('/api/affiliate/verify-password-otp', async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
     const storedOtp = await redisClient.get(`otp:change-password:${email}`);
-    if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
+    if (!storedOtp || storedOt !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
@@ -634,7 +635,7 @@ app.post('/api/affiliate/verify-delete-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
     const storedOtp = await redisClient.get(`otp:delete:${email}`);
-    if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
+    if (!storedOtp || storedOt !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
 
     await supabase.from('users').update({ status: 'deleted' }).eq('email', email);
     for (const [clientEmail, client] of wsClients.entries()) {
@@ -649,8 +650,4 @@ app.post('/api/affiliate/verify-delete-otp', async (req, res) => {
     console.error('Verify delete OTP endpoint error:', err.message);
     res.status(500).json({ success: false, error: 'Server error' });
   }
-});
-
-app.listen(process.env.PORT || 4000, () => {
-  console.log(`Server running on port ${process.env.PORT || 4000}`);
 });
