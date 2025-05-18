@@ -34,12 +34,16 @@ const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABAS
 
 // Initialize Redis
 const redisClient = redis.createClient({ url: process.env.REDIS_URL });
-redisClient.on('error', (err) => console.error('Redis Client Error', err));
+redisClient.on('error', (err) => console.error('Redis Client Error', err.message));
 (async () => {
   try {
     await redisClient.connect();
-    await redisClient.configSet('maxmemory-policy', 'volatile-ttl');
-    console.log('Redis connected successfully');
+    try {
+      await redisClient.configSet('maxmemory-policy', 'volatile-ttl');
+      console.log('Redis connected and configured successfully');
+    } catch (configErr) {
+      console.warn('Failed to set Redis maxmemory-policy:', configErr.message);
+    }
   } catch (err) {
     console.error('Redis connection failed:', err.message);
   }
@@ -58,11 +62,23 @@ const cachedData = { users: [], settings: [], static_pages: [], news: [], forums
       { name: 'forums', schema: 'id UUID PRIMARY KEY, name TEXT, link TEXT, icon TEXT, description TEXT CHECK (LENGTH(description) <= 200), createdAt TIMESTAMP DEFAULT now()' }
     ];
     for (const table of tables) {
-      const { error } = await supabaseAdmin.sql(`CREATE TABLE IF NOT EXISTS ${table.name} (${table.schema})`);
-      if (error) {
-        console.error(`Error creating table ${table.name}:`, error.message);
-      } else {
-        console.log(`Table ${table.name} created or already exists`);
+      // Fallback to raw SQL if rpc is not available or fails
+      try {
+        const { error } = await supabaseAdmin.rpc('create_table_if_not_exists', {
+          table_name: table.name,
+          schema: table.schema
+        });
+        if (error) {
+          console.warn(`RPC failed for ${table.name}, trying raw SQL:`, error.message);
+          await supabaseAdmin.from('pg_tables').insert({ schemaname: 'public', tablename: table.name }, { count: 'exact' }).then(async () => {
+            await supabaseAdmin.sql(`CREATE TABLE IF NOT EXISTS ${table.name} (${table.schema})`);
+          }).catch(sqlErr => console.error(`Raw SQL error for ${table.name}:`, sqlErr.message));
+        } else {
+          console.log(`Table ${table.name} created or already exists via RPC`);
+        }
+      } catch (rpcErr) {
+        console.warn(`RPC not supported, using raw SQL for ${table.name}:`, rpcErr.message);
+        await supabaseAdmin.sql(`CREATE TABLE IF NOT EXISTS ${table.name} (${table.schema})`).catch(sqlErr => console.error(`Raw SQL error for ${table.name}:`, sqlErr.message));
       }
     }
 
@@ -245,6 +261,7 @@ const limiter = rateLimit({
 });
 
 // Authentication endpoints
+// [Rest of the endpoints remain unchanged for brevity, but ensure they are included as in the original code]
 app.post('/api/affiliate/register', limiter, async (req, res) => {
   try {
     const { name, username, email, password, termsAccepted, recaptchaToken } = req.body;
