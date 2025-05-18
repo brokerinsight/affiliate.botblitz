@@ -1,1685 +1,511 @@
+require('dotenv').config();
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const { google } = require('googleapis');
+const { createClient } = require('@supabase/supabase-js');
+const redis = require('redis');
 const WebSocket = require('ws');
 const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
 const sanitizeHtml = require('sanitize-html');
-const cron = require('node-cron');
-const axios = require('axios');
+const cors = require('cors');
 
 const app = express();
-app.set('trust proxy', 1); // Important for rate limiting behind proxies like Render
-const port = process.env.PORT || 3000;
-
-// Environment Variables
-const {
-  APP_EMAIL, APP_PASSWORD, AFFILIATES_SHEET_ID, ADMIN_SHEET_ID,
-  GOOGLE_CREDENTIALS, AFFILIATE_API_KEY, JWT_SECRET,
-  BOT_STORE_API_URL, BOT_STORE_API_KEY
-} = process.env;
-
-// Validate Environment Variables
-const validateEnv = () => {
-  try {
-    if (!APP_EMAIL || !APP_PASSWORD || !AFFILIATES_SHEET_ID || !ADMIN_SHEET_ID || 
-        !AFFILIATE_API_KEY || !JWT_SECRET || !BOT_STORE_API_URL || !BOT_STORE_API_KEY) {
-      throw new Error('Missing environment variables');
-    }
-    let credentials;
-    try {
-      credentials = JSON.parse(GOOGLE_CREDENTIALS);
-    } catch {
-      const stripped = GOOGLE_CREDENTIALS.replace(/^"|"$/g, '').replace(/\\"/g, '"');
-      credentials = JSON.parse(stripped);
-    }
-    if (!credentials.client_email || !credentials.private_key) {
-      throw new Error('GOOGLE_CREDENTIALS missing required fields');
-    }
-    return credentials;
-  } catch (err) {
-    console.error('Environment validation failed:', err.message);
-    process.exit(1);
-  }
-};
-const credentials = validateEnv();
-
-// Middleware
 app.use(express.json());
-app.use(express.static('public'));
+app.use(cors({
+  origin: ['https://affiliate-botblitz.onrender.com', 'https://botblitz.store', 'https://bot-delivery-system.onrender.com', 'http://localhost:10000']
+}));
 
-// Rate Limiting
-const globalPostLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests, please try again later'
-});
-app.use('/api', globalPostLimiter);
-
-const loginLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 5,
-  keyGenerator: (req) => req.body.email || 'unknown',
-  message: 'Too many login attempts, please try again later'
-});
-const registerLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 5,
-  keyGenerator: (req) => req.body.email || 'unknown',
-  message: 'Too many registration attempts, please try again later'
-});
-const resetLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 5,
-  keyGenerator: (req) => req.body.email || 'unknown',
-  message: 'Too many reset attempts, please try again later'
-});
-
-// Google Sheets Setup
-const sheets = google.sheets({ version: 'v4', auth: new google.auth.JWT({
-  email: credentials.client_email,
-  key: credentials.private_key,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets']
-}) });
-
-const initializeSheets = async () => {
-  try {
-    const getSheetTabs = async (spreadsheetId) => {
-      const response = await sheets.spreadsheets.get({ spreadsheetId });
-      return response.data.sheets.map(sheet => sheet.properties.title);
-    };
-
-    const createTab = async (spreadsheetId, tabName) => {
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        resource: {
-          requests: [{ addSheet: { properties: { title: tabName } } }]
-        }
-      });
-      console.log(`Created tab '${tabName}' in spreadsheet ${spreadsheetId}`);
-    };
-
-    const affiliatesHeaders = [
-      'Email', 'Username', 'Name', 'JoinDate', 'RefCode', 'Password',
-      'Statusjson', 'LinkClicks', 'TotalSales', 'TotalSalesMonthly',
-      'CurrentBalance', 'WithdrawnTotal', 'WithdrawalsJSON', 'RewardsJSON',
-      'NotificationsJSON', 'ResetJSON', 'LeaderboardJSON', 'MpesaDetails'
-    ];
-    let affiliateTabs = await getSheetTabs(AFFILIATES_SHEET_ID);
-    if (!affiliateTabs.includes('all affiliates')) {
-      await createTab(AFFILIATES_SHEET_ID, 'all affiliates');
-    }
-    if (!affiliateTabs.includes('transactionLog')) {
-      await createTab(AFFILIATES_SHEET_ID, 'transactionLog');
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: AFFILIATES_SHEET_ID,
-        range: 'transactionLog!A1:C1',
-        valueInputOption: 'RAW',
-        resource: { values: [['Timestamp', 'Email', 'Action']] }
-      });
-    }
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: 'all affiliates!A1:R1',
-      valueInputOption: 'RAW',
-      resource: { values: [affiliatesHeaders] }
-    });
-
-    const settingsData = [
-      ['supportEmail', 'derivbotstore@gmail.com'],
-      ['copyrightText', 'Deriv Bot Store Affiliates 2025'],
-      ['whatsappLink', 'https://wa.link/4wppln'],
-      ['commissionRate', '0.2'],
-      ['logoUrl', ''],
-      ['adminEmail', 'martinke444@gmail.com'],
-      ['adminPassword', 'kaylie2025'],
-      ['urgentPopup', JSON.stringify({ message: '', enabled: false })]
-    ];
-    let adminTabs = await getSheetTabs(ADMIN_SHEET_ID);
-    if (!adminTabs.includes('settingsAffiliate')) {
-      await createTab(ADMIN_SHEET_ID, 'settingsAffiliate');
-    }
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'settingsAffiliate!A1:B8',
-      valueInputOption: 'RAW',
-      resource: { values: settingsData }
-    });
-
-    const adminTabsConfig = [
-      { name: 'staticPagesAffiliate', headers: ['Slug', 'Title', 'Content'] },
-      { name: 'News', headers: ['Id', 'Message', 'Timestamp'] }
-    ];
-    for (const tab of adminTabsConfig) {
-      if (!adminTabs.includes(tab.name)) {
-        await createTab(ADMIN_SHEET_ID, tab.name);
-      }
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: ADMIN_SHEET_ID,
-        range: `${tab.name}!A1:${String.fromCharCode(65 + tab.headers.length - 1)}1`,
-        valueInputOption: 'RAW',
-        resource: { values: [tab.headers] }
-      });
-    }
-  } catch (err) {
-    console.error('Failed to initialize sheets:', err.message);
+// Validate environment variables
+const requiredEnv = ['SUPABASE_URL', 'SUPABASE_ANON', 'SUPABASE_SERVICE_ROLE', 'REDIS_URL', 'JWT_SECRET_SUPABASE', 'CAPTCHA_SECRET_KEY', 'PASSWORD_RESET_MAIL', 'PASSWORD_RESET_MAIL_PASS', 'SIGNUP_MAIL', 'SIGNUP_MAIL_PASS', 'LOGIN_MAIL', 'LOGIN_MAIL_PASS', 'WITHDRAWAL_MAIL', 'WITHDRAWAL_MAIL_PASS', 'ALERT_MAIL', 'ALERT_MAIL_PASS', 'ADMIN_MAIL', 'ADMIN_MAIL_PASS', 'REWARD_MAIL', 'REWARD_MAIL_PASS'];
+for (const env of requiredEnv) {
+  if (!process.env[env]) {
+    console.error(`Missing environment variable: ${env}`);
     process.exit(1);
-  }
-};
-
-// Cache
-let cachedDataAffiliate = {
-  affiliates: [],
-  settings: {},
-  staticPages: [],
-  news: []
-};
-
-// Transaction Logging
-async function logTransaction(email, action, details) {
-  try {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: 'transactionLog!A:C',
-      valueInputOption: 'RAW',
-      resource: { values: [[new Date().toISOString(), email, `${action}: ${JSON.stringify(details)}`]] }
-    });
-  } catch (error) {
-    console.error('Error logging transaction:', error.message);
   }
 }
 
-// Fetch and Cache Data
-const fetchAffiliates = async () => {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: 'all affiliates!A2:R'
-  });
-  const rows = response.data.values || [];
-  return rows.map(row => ({
-    Email: row[0] || '',
-    Username: row[1] || '',
-    Name: row[2] || '',
-    JoinDate: row[3] || '',
-    RefCode: row[4] || '',
-    Password: row[5] || '',
-    Statusjson: JSON.parse(row[6] || '{"status": "active"}'),
-    LinkClicks: parseInt(row[7] || '0'),
-    TotalSales: parseInt(row[8] || '0'),
-    TotalSalesMonthly: parseInt(row[9] || '0'),
-    CurrentBalance: parseFloat(row[10] || '0'),
-    WithdrawnTotal: parseFloat(row[11] || '0'),
-    WithdrawalsJSON: parseAndSort(row[12], 'date'),
-RewardsJSON: parseAndSort(row[13], 'date'),
-NotificationsJSON: parseAndSort(row[14], 'timestamp'),
-ResetJSON: parseAndSort(row[15], 'timestamp'),
-LeaderboardJSON: JSON.parse(row[16] || '{"previousRank": 0, "currentRank": 0}'),
-MpesaDetails: JSON.parse(row[17] || '{}')
-  }));
-};
+// Initialize Supabase
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON, {
+  auth: { autoRefreshToken: true, persistSession: false }
+});
+const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
 
-const fetchSettings = async () => {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'settingsAffiliate!A2:B'
-  });
-  const rows = response.data.values || [];
-  const settings = {};
-  rows.forEach(([key, value]) => {
-    settings[key] = key === 'urgentPopup' || key === 'commissionRate' ? JSON.parse(value) : value;
-  });
-  return settings;
-};
+// Initialize Redis
+const redisClient = redis.createClient({ url: process.env.REDIS_URL });
+redisClient.on('error', (err) => console.error('Redis Client Error', err));
+(async () => {
+  await redisClient.connect();
+  await redisClient.config('SET', 'maxmemory-policy', 'volatile-ttl');
+})();
+const cachedData = { users: {}, settings: {}, static_pages: {}, news: {}, forums: {} };
 
-const fetchStaticPages = async () => {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'staticPagesAffiliate!A2:C'
-  });
-  const rows = response.data.values || [];
-  return rows.map(row => ({ Slug: row[0], Title: row[1], Content: row[2] }));
-};
-
-const fetchNews = async () => {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'News!A2:C'
-  });
-  const rows = response.data.values || [];
-  return rows.map(row => ({ Id: row[0], Message: row[1], Timestamp: row[2] }))
-    .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
-};
-
-const updateAffiliateField = async (email, field, value) => {
-  const affiliates = await fetchAffiliates();
-  const affiliateIndex = affiliates.findIndex(a => a.Email === email);
-  if (affiliateIndex === -1) throw new Error('Affiliate not found');
-  const rowIndex = affiliateIndex + 2;
-  const columnMap = {
-    CurrentBalance: 'K',
-    WithdrawalsJSON: 'M',
-    RewardsJSON: 'N',
-    NotificationsJSON: 'O',
-    ResetJSON: 'P',
-    LeaderboardJSON: 'Q',
-    MpesaDetails: 'R',
-    Statusjson: 'G',
-    Password: 'F',
-    TotalSales: 'I',
-    TotalSalesMonthly: 'J',
-    WithdrawnTotal: 'L'
-  };
-  if (!columnMap[field]) throw new Error('Unsupported field');
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!${columnMap[field]}${rowIndex}`,
-    valueInputOption: 'RAW',
-    resource: { values: [[typeof value === 'object' ? JSON.stringify(value) : value]] }
-  });
-  await updateCache();
-};
-
-const updateAffiliateByEmail = async (email, updatedData) => {
-  const affiliates = await fetchAffiliates();
-  const affiliateIndex = affiliates.findIndex(a => a.Email === email);
-  if (affiliateIndex === -1) throw new Error('Affiliate not found');
-  const rowIndex = affiliateIndex + 2;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: AFFILIATES_SHEET_ID,
-    range: `all affiliates!A${rowIndex}:R${rowIndex}`,
-    valueInputOption: 'RAW',
-    resource: {
-      values: [[
-        updatedData.Email, updatedData.Username, updatedData.Name, updatedData.JoinDate,
-        updatedData.RefCode, updatedData.Password, JSON.stringify(updatedData.Statusjson),
-        updatedData.LinkClicks, updatedData.TotalSales, updatedData.TotalSalesMonthly,
-        updatedData.CurrentBalance, updatedData.WithdrawnTotal,
-        JSON.stringify(updatedData.WithdrawalsJSON), JSON.stringify(updatedData.RewardsJSON),
-        JSON.stringify(updatedData.NotificationsJSON), JSON.stringify(updatedData.ResetJSON),
-        JSON.stringify(updatedData.LeaderboardJSON), JSON.stringify(updatedData.MpesaDetails)
-      ]]
-    }
-  });
-  await updateCache();
-};
-
-const updateCache = async () => {
-  cachedDataAffiliate.affiliates = await fetchAffiliates();
-  cachedDataAffiliate.settings = await fetchSettings();
-  cachedDataAffiliate.staticPages = await fetchStaticPages();
-  cachedDataAffiliate.news = await fetchNews();
-};
-
-// WebSocket Setup
-const wss = new WebSocket.Server({ noServer: true });
-const wsClients = new Map();
-
-const validateWebSocket = (token) => {
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch {
-    return null;
+// Create tables if not exist
+(async () => {
+  const tables = [
+    { name: 'users', schema: 'id UUID PRIMARY KEY, email TEXT UNIQUE, username TEXT UNIQUE, name TEXT, joinDate TIMESTAMP, refCode TEXT UNIQUE, password TEXT, status TEXT DEFAULT \'active\', linkClicks INTEGER DEFAULT 0, totalSales INTEGER DEFAULT 0, totalSalesMonthly INTEGER DEFAULT 0, currentBalance NUMERIC DEFAULT 0, withdrawnTotal NUMERIC DEFAULT 0, theme TEXT DEFAULT \'light\'' },
+    { name: 'history', schema: 'id UUID PRIMARY KEY, email TEXT, eventType TEXT, data JSONB, timestamp TIMESTAMP DEFAULT now()' },
+    { name: 'settings', schema: 'key TEXT PRIMARY KEY, value JSONB' },
+    { name: 'static_pages', schema: 'slug TEXT PRIMARY KEY, title TEXT, content TEXT' },
+    { name: 'news', schema: 'id UUID PRIMARY KEY, message TEXT, timestamp TIMESTAMP DEFAULT now()' },
+    { name: 'forums', schema: 'id UUID PRIMARY KEY, name TEXT, link TEXT, icon TEXT, description TEXT CHECK (LENGTH(description) <= 200), createdAt TIMESTAMP DEFAULT now()' }
+  ];
+  for (const table of tables) {
+    const { error } = await supabaseAdmin.rpc('create_table_if_not_exists', { table_name: table.name, schema: table.schema });
+    if (error) console.error(`Error creating table ${table.name}:`, error);
   }
-};
 
-function startHeartbeat(ws, key) {
-  ws.isAlive = true;
-  ws.pingInterval = setInterval(() => {
-    if (!ws.isAlive) {
-      ws.terminate();
-      wsClients.delete(key);
-      console.log(`Disconnected WebSocket client: ${key}`);
+  // Initial settings data
+  const { error: settingsError } = await supabaseAdmin.from('settings').upsert([
+    { key: 'supportEmail', value: JSON.stringify('derivbotstore@gmail.com') },
+    { key: 'copyrightText', value: JSON.stringify('Deriv Bot Store Affiliates 2025') },
+    { key: 'whatsappLink', value: JSON.stringify('https://wa.link/4wppln') },
+    { key: 'commissionRate', value: JSON.stringify(0.2) },
+    { key: 'urgentPopup', value: JSON.stringify({ message: '', enabled: false }) }
+  ], { onConflict: 'key' });
+  if (settingsError) console.error('Error initializing settings:', settingsError);
+})();
+
+// Cache refresh function
+async function refreshCache() {
+  const [users, settings, staticPages, news, forums] = await Promise.all([
+    supabase.from('users').select('*'),
+    supabase.from('settings').select('*'),
+    supabase.from('static_pages').select('*'),
+    supabase.from('news').select('*').order('timestamp', { ascending: false }).limit(40),
+    supabase.from('forums').select('*').order('createdAt', { ascending: false })
+  ]);
+  cachedData.users = users.data || {};
+  cachedData.settings = settings.data || {};
+  cachedData.static_pages = staticPages.data || {};
+  cachedData.news = news.data || {};
+  cachedData.forums = forums.data || {};
+}
+refreshCache();
+setInterval(refreshCache, 15 * 60 * 1000);
+
+// WebSocket setup
+const wsServer = new WebSocket.Server({ noServer: true });
+const wsClients = new Map();
+app.server = app.listen(process.env.PORT || 3000);
+app.server.on('upgrade', (request, socket, head) => {
+  wsServer.handleUpgrade(request, socket, head, (ws) => {
+    const url = new URL(request.url, `wss://${request.headers.host}`);
+    const token = url.searchParams.get('token');
+    if (!token) {
+      ws.close();
       return;
     }
-    ws.isAlive = false;
-    ws.ping();
-  }, 30000);
-}
-
-wss.on('connection', (ws, request, decoded) => {
-  const key = decoded.role === 'admin' ? 'admin' : decoded.email;
-  wsClients.set(key, ws);
-  startHeartbeat(ws, key);
-  logTransaction(key, 'websocket_connect', { role: decoded.role });
-
-  ws.on('pong', () => {
-    ws.isAlive = true;
-  });
-
-  ws.on('message', async (message) => {
-    try {
-      const data = JSON.parse(message);
-      if (data.type === 'username_check' && decoded.role === 'affiliate') {
-        const affiliates = await fetchAffiliates();
-        const available = !affiliates.some(a => a.Username === data.username);
-        ws.send(JSON.stringify({
-          type: 'username_check',
-          data: { available, message: available ? 'Username available' : 'Username taken' }
-        }));
+    jwt.verify(token, process.env.JWT_SECRET_SUPABASE, async (err, decoded) => {
+      if (err || !decoded.email) {
+        ws.close();
+        return;
       }
-    } catch (err) {
-      console.error('WebSocket message error:', err.message);
-    }
-  });
-
-  ws.on('close', () => {
-    wsClients.delete(key);
-    clearInterval(ws.pingInterval);
-    console.log(`WebSocket client closed: ${key}`);
-    logTransaction(key, 'websocket_disconnect', { role: decoded.role });
+      const { data: user } = await supabase.from('users').select('email, status').eq('email', decoded.email).single();
+      if (!user || user.status !== 'active') {
+        ws.close();
+        return;
+      }
+      wsClients.set(decoded.email, { ws, role: 'affiliate' });
+      ws.on('message', (msg) => {
+        const data = JSON.parse(msg);
+        if (data.type === 'username_check') {
+          const available = !cachedData.users.some(u => u.username === data.username);
+          ws.send(JSON.stringify({ type: 'username_check', available, message: available ? 'Username available' : 'Username taken' }));
+        }
+      });
+      ws.on('close', () => wsClients.delete(decoded.email));
+    });
   });
 });
 
-// NodeMailer Setup
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: { user: APP_EMAIL, pass: APP_PASSWORD }
-});
-
-const sendEmail = async (to, subject, text) => {
-  try {
-    await transporter.sendMail({ from: APP_EMAIL, to, subject, text });
-  } catch (err) {
-    console.error(`Failed to send email to ${to}:`, err.message);
-  }
-};
-
-// Cron Jobs
+// Cron jobs
+const cron = require('node-cron');
 cron.schedule('0 0 1 * *', async () => {
-  const affiliates = await fetchAffiliates();
-  for (const affiliate of affiliates) {
-    affiliate.TotalSalesMonthly = 0;
-    affiliate.LeaderboardJSON.previousRank = affiliate.LeaderboardJSON.currentRank;
-    affiliate.LeaderboardJSON.currentRank = 0;
-    await updateAffiliateByEmail(affiliate.Email, affiliate);
+  await supabaseAdmin.from('users').update({ totalSalesMonthly: 0 }).in('status', ['active']);
+  const { data: leaderboard } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
+  await supabase.from('history').insert(leaderboard.map(l => ({ email: l.email, eventType: 'leaderboard', data: { totalSalesMonthly: l.totalSalesMonthly } })));
+  const rewardRate = JSON.parse((await supabase.from('settings').select('value').eq('key', 'rewardRate').single()).data.value);
+  for (const affiliate of leaderboard) {
+    const reward = affiliate.totalSalesMonthly * rewardRate;
+    await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
+    await supabase.from('history').insert({ email: affiliate.email, eventType: 'reward', data: { amount: reward, type: 'leaderboard' } });
+    await sendEmail('reward_mail', affiliate.email, { name: cachedData.users.find(u => u.email === affiliate.email).name, amount: reward });
   }
-  const updatedAffiliates = await fetchAffiliates();
-  const rankedAffiliates = updatedAffiliates
-    .filter(a => a.Statusjson.status === 'active')
-    .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly);
-  for (let i = 0; i < Math.min(rankedAffiliates.length, 10); i++) {
-    const affiliate = rankedAffiliates[i];
-    affiliate.LeaderboardJSON.currentRank = i + 1;
-    if (affiliate.LeaderboardJSON.previousRank && affiliate.LeaderboardJSON.currentRank !== affiliate.LeaderboardJSON.previousRank) {
-      const message = affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank
-        ? 'You moved up in the leaderboard!'
-        : 'You moved down in the leaderboard.';
-      affiliate.NotificationsJSON.unshift({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank ? 'green' : 'red',
-        message,
-        timestamp: new Date().toISOString()
-      });
-      if (wsClients.has(affiliate.Email)) {
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'notification',
-          data: affiliate.NotificationsJSON[0]
-        }));
-      }
-      await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-    }
-    await updateAffiliateField(affiliate.Email, 'LeaderboardJSON', affiliate.LeaderboardJSON);
-  }
-  await updateCache();
-  wsClients.forEach((ws, key) => {
-    if (key !== 'admin') {
-      ws.send(JSON.stringify({ type: 'update', data: updatedAffiliates.find(a => a.Email === key) }));
-    }
-  });
+  await sendEmail('admin_mail', process.env.ADMIN_MAIL, { message: 'Monthly sales reset completed' });
 });
-
-cron.schedule('0 0 30-31 * *', () => {
-  sendEmail(
-    APP_EMAIL,
-    'Monthly Sales Reset Reminder',
-    'Monthly sales will reset tomorrow at 00:00 UTC.'
-  );
-});
-
 cron.schedule('0 0 * * *', async () => {
-  const affiliates = await fetchAffiliates();
-  for (const affiliate of affiliates) {
-    const arrays = ['WithdrawalsJSON', 'RewardsJSON', 'NotificationsJSON', 'ResetJSON'];
-    for (const key of arrays) {
-      affiliate[key] = affiliate[key]
-        .sort((a, b) => new Date(b.date || b.timestamp) - new Date(a.date || a.timestamp))
-        .slice(0, 20);
-      await updateAffiliateField(affiliate.Email, key, affiliate[key]);
-    }
-  }
-  let response = await sheets.spreadsheets.values.get({
-    spreadsheetId: ADMIN_SHEET_ID,
-    range: 'News!A2:C'
-  });
-  let rows = response.data.values || [];
-  if (rows.length > 40) {
-    rows = rows.sort((a, b) => new Date(b[2]) - new Date(a[2])).slice(0, 40);
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'News!A2:C'
-    });
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'News!A2:C',
-      valueInputOption: 'RAW',
-      resource: { values: rows }
-    });
-  }
-  await updateCache();
+  await supabase.from('history').delete().lt('timestamp', supabase.sql`now() - interval '30 days'`);
+  await supabase.from('news').delete().gt('id', (await supabase.from('news').select('id', { count: 'exact' }).order('timestamp', { ascending: false }).limit(40)).count);
+});
+setInterval(refreshCache, 15 * 60 * 1000).unref();
+
+// Nodemailer setup
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: process.env.SIGNUP_MAIL, pass: process.env.SIGNUP_MAIL_PASS }
+});
+transporter.verify((error) => {
+  if (error) console.error('Email service error:', error);
+  else console.log('Email service ready');
 });
 
-cron.schedule('*/15 * * * *', updateCache);
-
-cron.schedule('*/10 * * * *', async () => {
+async function sendEmail(type, to, data) {
+  const templates = {
+    signup_mail: { subject: 'Welcome to Deriv Bot Store Affiliates', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Your account has been created. Verify with OTP: ${data.otp}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
+    login_mail: { subject: 'Login Verification', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Verify your login with OTP: ${data.otp}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
+    password_reset_mail: { subject: 'Password Reset', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Reset your password with OTP: ${data.otp}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
+    withdrawal_mail: { subject: 'Withdrawal Request', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Verify your withdrawal with OTP: ${data.otp}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
+    alert_mail: { subject: 'Account Alert', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name || 'admin'}</p><p>${data.message}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
+    admin_mail: { subject: 'Admin Notification', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, admin</p><p>${data.message}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
+    reward_mail: { subject: 'Reward Credited', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>You received ${data.amount} KES as a reward.</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` }
+  };
+  const mailOptions = {
+    from: process.env[type.toUpperCase().replace(/_/g, '')],
+    to,
+    subject: templates[type].subject,
+    html: templates[type].html,
+    attachments: [{ filename: 'logo.png', path: 'public/assets/logo.png', cid: 'logo' }]
+  };
   try {
-    const response = await axios.get(`${BOT_STORE_API_URL}/api/sales`, {
-      headers: { 'Authorization': `Bearer ${BOT_STORE_API_KEY}` }
-    });
-    if (!response.data.success || !Array.isArray(response.data.sales)) return;
-    const sales = response.data.sales;
-    const affiliates = await fetchAffiliates();
-    for (const sale of sales) {
-      const { refCode, amount, item } = sale;
-      if (!refCode || amount <= 0) continue;
-      const affiliate = affiliates.find(a => a.RefCode === refCode);
-      if (!affiliate) continue;
-      const commission = amount * cachedDataAffiliate.settings.commissionRate;
-      affiliate.TotalSales += 1;
-      affiliate.TotalSalesMonthly += 1;
-      affiliate.CurrentBalance += commission;
-      affiliate.NotificationsJSON.unshift({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: 'green',
-        message: `Sale confirmed: ${amount} KES for ${item}, Commission: ${commission} KES`,
-        timestamp: new Date().toISOString()
-      });
-      if (affiliate.NotificationsJSON.length > 20) {
-        affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
-      }
-      affiliate.LeaderboardJSON.previousRank = affiliate.LeaderboardJSON.currentRank;
-      const rankedAffiliates = affiliates
-        .filter(a => a.Statusjson.status === 'active')
-        .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly);
-      affiliate.LeaderboardJSON.currentRank = rankedAffiliates.findIndex(a => a.Email === affiliate.Email) + 1;
-      if (affiliate.LeaderboardJSON.previousRank && affiliate.LeaderboardJSON.currentRank !== affiliate.LeaderboardJSON.previousRank) {
-        affiliate.NotificationsJSON.unshift({
-          id: `NOTIF${Date.now()}`,
-          read: false,
-          colour: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank ? 'green' : 'red',
-          message: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank
-            ? 'You moved up in the leaderboard!'
-            : 'You moved down in the leaderboard.',
-          timestamp: new Date().toISOString()
-        });
-      }
-      await updateAffiliateField(affiliate.Email, 'TotalSales', affiliate.TotalSales);
-      await updateAffiliateField(affiliate.Email, 'TotalSalesMonthly', affiliate.TotalSalesMonthly);
-      await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
-      await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-      await updateAffiliateField(affiliate.Email, 'LeaderboardJSON', affiliate.LeaderboardJSON);
-      await logTransaction(affiliate.Email, 'sale_confirmed', { refCode, amount, commission, item });
-      if (wsClients.has(affiliate.Email)) {
-        wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'notification',
-          data: affiliate.NotificationsJSON[0]
-        }));
-      }
-    }
-    await updateCache();
-  } catch (err) {
-    console.error('Sales sync failed:', err.message);
-  }
-});
-function parseAndSort(jsonStr, sortKey = 'date') {
-  try {
-    const data = JSON.parse(jsonStr || '[]');
-    return Array.isArray(data)
-      ? data.sort((a, b) => new Date(b[sortKey]) - new Date(a[sortKey]))
-      : [];
-  } catch {
-    return [];
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error(`Email ${type} failed:`, error);
   }
 }
 
-// Validation Functions
-const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const validateUsername = (username) => /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{5,}$/.test(username);
-const validateName = (name) => /^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/.test(name);
-const validatePassword = (password) => /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*])[a-zA-Z\d!@#$%^&*]{12,}$/.test(password);
-const validateMpesaNumber = (number) => /^0[17]\d{8}$/.test(number);
-
-// Authentication Middleware
-const authenticateAffiliate = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ success: false, message: 'Unauthorized' });
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'affiliate') throw new Error('Invalid role');
-    req.user = decoded;
-    next();
-  } catch {
-    res.status(401).json({ success: false, message: 'Unauthorized' });
-  }
-};
-
-const authenticateAdmin = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ success: false, message: 'Unauthorized' });
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin') throw new Error('Invalid role');
-    req.user = decoded;
-    next();
-  } catch {
-    res.status(401).json({ success: false, message: 'Unauthorized' });
-  }
-};
-
-// Endpoints
-app.post('/api/affiliate/check-username', async (req, res) => {
-  try {
-    const { username } = req.body;
-    if (!validateUsername(username)) {
-      return res.status(400).json({ success: false, message: 'Invalid username format' });
-    }
-    const affiliates = await fetchAffiliates();
-    const available = !affiliates.some(a => a.Username === username);
-    res.json({ success: true, available });
-  } catch (err) {
-    console.error('Username check failed:', err.message);
-    res.status(500).json({ success: false, message: 'Server error' });
+// Rate limiting middleware
+const limiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 5,
+  keyGenerator: (req) => req.body.email,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, error: `Rate limit exceeded, try again in ${Math.ceil(req.rateLimit.resetTime - Date.now()) / 1000} seconds` });
+    sendEmail('alert_mail', process.env.ALERT_MAIL, { message: `Rate limit hit for ${req.body.email} on ${req.path}` });
   }
 });
 
-app.post('/api/affiliate/register', registerLimiter, async (req, res) => {
-  try {
-    const { name, username, email, password, termsAccepted } = req.body;
-    if (!validateName(name) || !validateUsername(username) || !validateEmail(email) || !validatePassword(password) || !termsAccepted) {
-      return res.status(400).json({ success: false, message: 'Invalid input' });
-    }
-    const affiliates = await fetchAffiliates();
-    if (affiliates.some(a => a.Email === email || a.Username === username)) {
-      return res.status(400).json({ success: false, message: 'Email or username taken' });
-    }
-    if (affiliates.some(a => a.Email === email && ['blocked', 'deleted'].includes(a.Statusjson.status))) {
-      return res.status(400).json({ success: false, message: 'Account blocked' });
-    }
-    let refCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-    let attempts = 0;
-    while (affiliates.some(a => a.RefCode === refCode) && attempts < 3) {
-      refCode = Math.random().toString(36).substring(2, 10 + attempts * 4).toUpperCase();
-      attempts++;
-    }
-    if (affiliates.some(a => a.RefCode === refCode)) {
-      return res.status(500).json({ success: false, message: 'Failed to generate unique referral code' });
-    }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const affiliate = {
-      Email: email,
-      Username: username,
-      Name: name,
-      JoinDate: new Date().toISOString(),
-      RefCode: refCode,
-      Password: hashedPassword,
-      Statusjson: { status: 'active' },
-      LinkClicks: 0,
-      TotalSales: 0,
-      TotalSalesMonthly: 0,
-      CurrentBalance: 0,
-      WithdrawnTotal: 0,
-      WithdrawalsJSON: [],
-      RewardsJSON: [],
-      NotificationsJSON: [],
-      ResetJSON: [],
-      LeaderboardJSON: { previousRank: 0, currentRank: 0 },
-      MpesaDetails: {}
-    };
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: AFFILIATES_SHEET_ID,
-      range: 'all affiliates!A:R',
-      valueInputOption: 'RAW',
-      resource: {
-        values: [[
-          affiliate.Email, affiliate.Username, affiliate.Name, affiliate.JoinDate,
-          affiliate.RefCode, affiliate.Password, JSON.stringify(affiliate.Statusjson),
-          affiliate.LinkClicks, affiliate.TotalSales, affiliate.TotalSalesMonthly,
-          affiliate.CurrentBalance, affiliate.WithdrawnTotal,
-          JSON.stringify(affiliate.WithdrawalsJSON), JSON.stringify(affiliate.RewardsJSON),
-          JSON.stringify(affiliate.NotificationsJSON), JSON.stringify(affiliate.ResetJSON),
-          JSON.stringify(affiliate.LeaderboardJSON), JSON.stringify(affiliate.MpesaDetails)
-        ]]
-      }
-    });
-    await logTransaction(email, 'register', { username, refCode });
-    const token = jwt.sign({ email, username, role: 'affiliate' }, JWT_SECRET, { expiresIn: '7d' });
-    await updateCache();
-    res.json({ success: true, token, data: { name, username, refCode } });
-  } catch (error) {
-    console.error('Error in /api/affiliate/register:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to register affiliate', error: error.message });
+// Authentication endpoints
+app.post('/api/affiliate/register', limiter, async (req, res) => {
+  const { name, username, email, password, termsAccepted, recaptchaToken } = req.body;
+
+  // Validation
+  if (!name.match(/^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/) || !username.match(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{5,}$/) || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) || !password.match(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{8,}$/) || !termsAccepted) {
+    return res.status(400).json({ success: false, error: 'Invalid input' });
   }
+
+  const recaptchaRes = await fetch(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.CAPTCHA_SECRET_KEY}&response=${recaptchaToken}`, { method: 'POST' });
+  const recaptchaData = await recaptchaRes.json();
+  if (!recaptchaData.success) return res.status(400).json({ success: false, error: 'reCAPTCHA verification failed' });
+
+  const { data: existingUser } = await supabase.from('users').select('email, username, status').or(`email.eq.${email},username.eq.${username}`).limit(1);
+  if (existingUser.length) {
+    if (existingUser[0].status !== 'active') return res.status(400).json({ success: false, error: 'Account blocked or deleted' });
+    if (existingUser[0].email === email) return res.status(400).json({ success: false, error: 'Email already exists' });
+    if (existingUser[0].username === username) return res.status(400).json({ success: false, error: 'Username taken' });
+  }
+
+  const refCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+  const hashedPassword = await bcrypt.hash(password, 10);
+  await redisClient.setEx(`signup:${email}`, 300, JSON.stringify({ name, username, email, password: hashedPassword, refCode, status: 'pending' }));
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await redisClient.setEx(`otp:signup:${email}`, 300, otp);
+  await sendEmail('signup_mail', email, { name, otp });
+
+  await redisClient.incr(`rate:signup:${email}`);
+  await redisClient.expire(`rate:signup:${email}`, 600);
+  res.status(200).json({ success: true, message: 'Verify your email' });
 });
 
-app.post('/api/affiliate/login', loginLimiter, async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!validateEmail(email)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === email);
-    if (!affiliate || !(await bcrypt.compare(password, affiliate.Password))) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-    if (affiliate.Statusjson.status === 'blocked') {
-      return res.status(401).json({ success: false, message: 'Account suspended, please contact support' });
-    }
-    if (affiliate.Statusjson.status === 'deleted') {
-      return res.status(401).json({ success: false, message: 'This email cannot create account' });
-    }
-    const token = jwt.sign({ email, username: affiliate.Username, role: 'affiliate' }, JWT_SECRET, { expiresIn: '7d' });
-    if (wsClients.has(email)) {
-      wsClients.get(email).send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
-      wsClients.delete(email);
-    }
-    await logTransaction(email, 'login', {});
-    res.json({ success: true, token, data: { name: affiliate.Name, username: affiliate.Username, refCode: affiliate.RefCode } });
-  } catch (error) {
-    console.error('Error in /api/affiliate/login:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to login', error: error.message });
-  }
+app.post('/api/affiliate/login', limiter, async (req, res) => {
+  const { email, password, recaptchaToken } = req.body;
+
+  const recaptchaRes = await fetch(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.CAPTCHA_SECRET_KEY}&response=${recaptchaToken}`, { method: 'POST' });
+  const recaptchaData = await recaptchaRes.json();
+  if (!recaptchaData.success) return res.status(400).json({ success: false, error: 'reCAPTCHA verification failed' });
+
+  const { data: user, error } = await supabase.from('users').select('email, password, status').eq('email', email).single();
+  if (error || !user || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ success: false, error: 'Invalid credentials' });
+  if (user.status !== 'active') return res.status(401).json({ success: false, error: user.status === 'blocked' ? 'Account suspended' : 'This email cannot create account' });
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await redisClient.setEx(`otp:login:${email}`, 300, otp);
+  await sendEmail('login_mail', email, { name: user.name, otp });
+
+  await redisClient.incr(`rate:login:${email}`);
+  await redisClient.expire(`rate:login:${email}`, 600);
+  res.status(200).json({ success: true, message: 'Verify your login' });
 });
 
-app.post('/api/admin/affiliate/login', loginLimiter, async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const settings = await fetchSettings();
-    if (email !== settings.adminEmail || password !== settings.adminPassword) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-    const token = jwt.sign({ email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({ type: 'logout', message: 'Session disconnected, please re-login' }));
-      wsClients.delete('admin');
-    }
-    await logTransaction(email, 'admin_login', {});
-    res.json({ success: true, token });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/login:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to login admin', error: error.message });
-  }
+app.post('/api/affiliate/reset-password', limiter, async (req, res) => {
+  const { email, recaptchaToken } = req.body;
+
+  const recaptchaRes = await fetch(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.CAPTCHA_SECRET_KEY}&response=${recaptchaToken}`, { method: 'POST' });
+  const recaptchaData = await recaptchaRes.json();
+  if (!recaptchaData.success) return res.status(400).json({ success: false, error: 'reCAPTCHA verification failed' });
+
+  const { data: user } = await supabase.from('users').select('email').eq('email', email).single();
+  if (!user) return res.status(400).json({ success: false, error: 'Email not found' });
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await redisClient.setEx(`otp:reset:${email}`, 300, otp);
+  await sendEmail('password_reset_mail', email, { name: cachedData.users.find(u => u.email === email).name, otp });
+
+  await redisClient.incr(`rate:reset:${email}`);
+  await redisClient.expire(`rate:reset:${email}`, 600);
+  res.status(200).json({ success: true, message: 'Verify your email' });
 });
 
-app.post('/api/affiliate/reset-password', resetLimiter, async (req, res) => {
-  try {
-    const { name, email, username, lastWithdrawalAmount, description } = req.body;
-    const sanitizedDescription = sanitizeHtml(description);
-    if (!validateName(name) || !validateEmail(email) || !validateUsername(username) || sanitizedDescription.length > 100) {
-      return res.status(400).json({ success: false, message: 'Invalid input' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === email && a.Username === username);
-    if (!affiliate) {
-      return res.status(400).json({ success: false, message: 'Email or username does not exist' });
-    }
-    affiliate.ResetJSON.unshift({
-      status: 'pending',
-      timestamp: new Date().toISOString(),
-      description: sanitizedDescription,
-      lastWithdrawalAmount: lastWithdrawalAmount || 0,
-      oneTimePassword: ''
-    });
-    if (affiliate.ResetJSON.length > 20) {
-      affiliate.ResetJSON = affiliate.ResetJSON.slice(0, 20);
-    }
-    await updateAffiliateField(affiliate.Email, 'ResetJSON', affiliate.ResetJSON);
-    await logTransaction(email, 'reset_password_request', { username, lastWithdrawalAmount, description: sanitizedDescription });
-    await sendEmail(
-      APP_EMAIL,
-      'Password Reset Request',
-      `User: ${email}, Username: ${username}, Name: ${name}, Last Withdrawal: ${lastWithdrawalAmount || 0}, Description: ${sanitizedDescription}`
-    );
-    res.json({ success: true, message: 'Reset request submitted' });
-  } catch (error) {
-    console.error('Error in /api/affiliate/reset-password:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to submit reset request', error: error.message });
-  }
-});
-app.post('/api/affiliate/forgot-password', (req, res) => {
-  req.url = '/api/affiliate/reset-password';
-  app._router.handle(req, res);
+app.post('/api/affiliate/verify-signup-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  const storedOtp = await redisClient.get(`otp:signup:${email}`);
+  if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid, start over' });
+
+  const signupData = JSON.parse(await redisClient.get(`signup:${email}`));
+  await supabase.from('users').insert({
+    ...signupData,
+    joinDate: new Date().toISOString(),
+    linkClicks: 0,
+    totalSales: 0,
+    totalSalesMonthly: 0,
+    currentBalance: 0,
+    withdrawnTotal: 0
+  });
+  await Promise.all([
+    redisClient.del(`signup:${email}`),
+    redisClient.del(`otp:signup:${email}`)
+  ]);
+  await sendEmail('signup_mail', email, { name: signupData.name, message: 'Welcome to Deriv Bot Store Affiliates' });
+
+  const token = jwt.sign({ email: signupData.email }, process.env.JWT_SECRET_SUPABASE, { expiresIn: '7d' });
+  wsClients.set(signupData.email, { ws: null, role: 'affiliate' });
+  res.status(200).json({ success: true, token, data: { name: signupData.name, username: signupData.username, refCode: signupData.refCode } });
 });
 
-app.get('/api/affiliate/data', authenticateAffiliate, async (req, res) => {
-  try {
-    const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
-    if (!affiliate) return res.status(401).json({ success: false, message: 'Unauthorized' });
-    const leaderboard = cachedDataAffiliate.affiliates
-      .filter(a => a.Statusjson.status === 'active')
-      .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
-      .slice(0, 10)
-      .map((a, i) => ({
-        rank: i + 1,
-        name: a.Name,
-        email: a.Email,
-        monthlySales: a.TotalSalesMonthly,
-        momentum: a.LeaderboardJSON.currentRank < a.LeaderboardJSON.previousRank ? 'up' :
-                  a.LeaderboardJSON.currentRank > a.LeaderboardJSON.previousRank ? 'down' : 'same'
-      }));
-    res.json({
-      success: true,
-      data: {
-        name: affiliate.Name,
-        refCode: affiliate.RefCode,
-        linkClicks: affiliate.LinkClicks,
-        totalSales: affiliate.TotalSales,
-        totalSalesMonthly: affiliate.TotalSalesMonthly,
-        currentBalance: affiliate.CurrentBalance,
-        withdrawnTotal: affiliate.WithdrawnTotal,
-        withdrawalsJSON: affiliate.WithdrawalsJSON,
-        rewardsJSON: affiliate.RewardsJSON,
-        notificationsJSON: affiliate.NotificationsJSON,
-        resetJSON: affiliate.ResetJSON,
-        leaderboardJSON: affiliate.LeaderboardJSON,
-        leaderboard,
-        news: cachedDataAffiliate.news,
-        commissionRate: cachedDataAffiliate.settings.commissionRate
-      }
-    });
-  } catch (error) {
-    console.error('Error in /api/affiliate/data:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch data', error: error.message });
-  }
+app.post('/api/affiliate/verify-login-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  const storedOtp = await redisClient.get(`otp:login:${email}`);
+  if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid, start over' });
+
+  const { data: user } = await supabase.from('users').select('name, username, refCode').eq('email', email).single();
+  const token = jwt.sign({ email }, process.env.JWT_SECRET_SUPABASE, { expiresIn: '7d' });
+  res.status(200).json({ success: true, token, data: user });
 });
 
-app.get('/api/affiliate/settings', authenticateAffiliate, async (req, res) => {
-  try {
-    res.json({ success: true, settings: cachedDataAffiliate.settings });
-  } catch (err) {
-    console.error('Failed to fetch settings:', err.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+app.post('/api/affiliate/verify-reset-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  const storedOtp = await redisClient.get(`otp:reset:${email}`);
+  if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid, start over' });
+
+  res.status(200).json({ success: true, message: 'Set new password' });
 });
 
-
-app.get('/api/admin/affiliate/affiliates', authenticateAdmin, async (req, res) => {
-  try {
-    res.json({ success: true, affiliates: cachedDataAffiliate.affiliates });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/affiliates:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch affiliates', error: error.message });
-  }
+app.post('/api/affiliate/set-new-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
+  wsClients.forEach((client, clientEmail) => {
+    if (clientEmail === email && client.ws) client.ws.send(JSON.stringify({ type: 'logout' }));
+  });
+  await sendEmail('alert_mail', email, { message: 'Your password was changed. <a href="https://affiliate-botblitz.onrender.com/affiliate#forgot-password">Reset again</a>' });
+  await redisClient.del(`otp:reset:${email}`);
+  res.status(200).json({ success: true, message: 'Password reset, please login' });
 });
 
-app.get('/api/admin/affiliate/withdrawals', authenticateAdmin, async (req, res) => {
-  try {
-    const withdrawals = cachedDataAffiliate.affiliates
-      .flatMap(a => a.WithdrawalsJSON
-        .filter(w => w.status === 'Pending')
-        .map(w => ({ ...w, email: a.Email, name: a.Name }))
-      );
-    res.json({ success: true, withdrawals });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/withdrawals:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch withdrawals', error: error.message });
-  }
+app.get('/api/affiliate/data', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const token = authHeader.split(' ')[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
+  const { data: user } = await supabase.from('users').select('*').eq('email', decoded.email).single();
+  if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+  const { data: leaderboard } = await supabase.from('users').select('name, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
+  const { data: history } = await supabase.from('history').select('*').eq('email', decoded.email).order('timestamp', { ascending: false }).limit(20);
+  const withdrawals = history.filter(h => h.eventType === 'withdrawal');
+  const rewards = history.filter(h => h.eventType === 'reward');
+  const notifications = history.filter(h => h.eventType === 'notification');
+
+  res.status(200).json({ success: true, data: { user, withdrawals, rewards, notifications, leaderboard, news: cachedData.news, commissionRate: JSON.parse(cachedData.settings.find(s => s.key === 'commissionRate').value) } });
 });
 
-app.get('/api/admin/affiliate/reset-passwords', authenticateAdmin, async (req, res) => {
-  try {
-    const requests = cachedDataAffiliate.affiliates
-      .flatMap(a => a.ResetJSON
-        .filter(r => r.status === 'pending')
-        .map(r => ({ ...r, email: a.Email, username: a.Username, name: a.Name }))
-      );
-    res.json({ success: true, requests });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/reset-passwords:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch reset requests', error: error.message });
-  }
+app.get('/api/admin/affiliate/affiliates', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const token = authHeader.split(' ')[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
+  if (!decoded || decoded.role !== 'admin') return res.status(403).json({ success: false, error: 'Forbidden' });
+
+  const { data } = await supabase.from('users').select('*');
+  res.status(200).json({ success: true, affiliates: data });
 });
 
-app.get('/api/admin/affiliate/staticpages', authenticateAdmin, async (req, res) => {
-  try {
-    res.json({ success: true, pages: cachedDataAffiliate.staticPages });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/staticpages:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch static pages', error: error.message });
-  }
-});
-
-app.get('/api/affiliate/static-page/:slug', async (req, res) => {
-  try {
-    const page = cachedDataAffiliate.staticPages.find(p => p.Slug === req.params.slug);
-    if (!page) return res.status(404).json({ success: false, message: 'Page not found' });
-    res.json({ success: true, page });
-  } catch (error) {
-    console.error('Error in /api/affiliate/static-page:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch page', error: error.message });
-  }
-});
-
-app.post('/api/affiliate/track-click', async (req, res) => {
-  try {
-    const { refCode } = req.body;
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.RefCode === refCode);
-    if (!affiliate) return res.status(400).json({ success: false, message: 'Invalid refCode' });
-    affiliate.LinkClicks += 1;
-    await updateAffiliateField(affiliate.Email, 'LinkClicks', affiliate.LinkClicks);
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-    }
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error in /api/affiliate/track-click:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to track click', error: error.message });
-  }
+app.post('/api/affiliate/track-click', cors(), async (req, res) => {
+  const { affiliateref } = req.body;
+  const { data: user } = await supabase.from('users').select('email, linkClicks').eq('refCode', affiliateref).single();
+  if (!user) return res.status(400).json({ success: false, error: 'Invalid referral code' });
+  await supabase.from('users').update({ linkClicks: user.linkClicks + 1 }).eq('email', user.email);
+  wsClients.get(user.email)?.ws?.send(JSON.stringify({ type: 'update' }));
+  res.status(200).json({ success: true });
 });
 
 app.post('/api/affiliate/confirmed-sale', async (req, res) => {
-  try {
-    const { refCode, amount, item, apiKey } = req.body;
-    if (apiKey !== AFFILIATE_API_KEY || !refCode || amount <= 0) {
-      return res.status(401).json({ success: false, message: 'Invalid API key or data' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.RefCode === refCode);
-    if (!affiliate) return res.status(400).json({ success: false, message: 'Invalid refCode' });
-    const commission = amount * cachedDataAffiliate.settings.commissionRate;
-    affiliate.TotalSales += 1;
-    affiliate.TotalSalesMonthly += 1;
-    affiliate.CurrentBalance += commission;
-    affiliate.NotificationsJSON.unshift({
-      id: `NOTIF${Date.now()}`,
-      read: false,
-      colour: 'green',
-      message: `Sale confirmed: ${amount} KES for ${item}, Commission: ${commission} KES`,
-      timestamp: new Date().toISOString()
+  const { affiliateref, amount, item, apiKey } = req.body;
+  if (apiKey !== process.env.API_KEY) return res.status(401).json({ success: false, error: 'Invalid API key' });
+  const { data: user } = await supabase.from('users').select('*').eq('refCode', affiliateref).single();
+  if (!user) return res.status(400).json({ success: false, error: 'Invalid referral code' });
+  const commission = amount * JSON.parse(cachedData.settings.find(s => s.key === 'commissionRate').value);
+  await supabase.from('users').update({
+    totalSales: supabase.sql`totalSales + ${amount}`,
+    totalSalesMonthly: supabase.sql`totalSalesMonthly + ${amount}`,
+    currentBalance: supabase.sql`currentBalance + ${commission}`
+  }).eq('email', user.email);
+  await supabase.from('history').insert({ email: user.email, eventType: 'sale', data: { amount, item, commission } });
+  wsClients.get(user.email)?.ws?.send(JSON.stringify({ type: 'update' }));
+  res.status(200).json({ success: true });
+});
+
+app.post('/api/affiliate/request-withdrawal-otp', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const token = authHeader.split(' ')[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
+  const { amount, mpesaNumber, mpesaName, reuseDetails } = req.body;
+
+  if (!amount || amount <= 0 || !mpesaNumber.match(/^0[17]\d{8}$/) || !mpesaName.match(/^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/)) {
+    return res.status(400).json({ success: false, error: 'Invalid input' });
+  }
+
+  const { data: user } = await supabase.from('users').select('currentBalance, email').eq('email', decoded.email).single();
+  if (user.currentBalance < amount) return res.status(400).json({ success: false, error: 'Insufficient balance' });
+
+  await redisClient.setEx(`withdrawal:${decoded.email}`, 300, JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails }));
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await redisClient.setEx(`otp:withdrawal:${decoded.email}`, 300, otp);
+  await sendEmail('withdrawal_mail', decoded.email, { name: user.name, otp });
+  res.status(200).json({ success: true, message: 'Verify your email' });
+});
+
+app.post('/api/affiliate/verify-withdrawal-otp', async (req, res) => {
+  const { email, otp, amount, mpesaNumber, mpesaName, reuseDetails } = req.body;
+  const storedOtp = await redisClient.get(`otp:withdrawal:${email}`);
+  if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
+
+  const withdrawalData = JSON.parse(await redisClient.get(`withdrawal:${email}`));
+  await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance - ${amount}`, ...(reuseDetails && { mpesaNumber, mpesaName }) }).eq('email', email);
+  await supabase.from('history').insert({ email, eventType: 'withdrawal', data: { amount, mpesaNumber, mpesaName, status: 'pending' } });
+  await sendEmail('withdrawal_mail', email, { name: cachedData.users.find(u => u.email === email).name, message: 'Withdrawal request submitted' });
+  await Promise.all([redisClient.del(`withdrawal:${email}`), redisClient.del(`otp:withdrawal:${email}`)]);
+  wsClients.get(email)?.ws?.send(JSON.stringify({ type: 'update' }));
+  res.status(200).json({ success: true });
+});
+
+app.post('/api/admin/affiliate/rewards', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const token = authHeader.split(' ')[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
+  if (!decoded || decoded.role !== 'admin') return res.status(403).json({ success: false, error: 'Forbidden' });
+
+  const { data: leaderboard } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
+  const rewardRate = JSON.parse((await supabase.from('settings').select('value').eq('key', 'rewardRate').single()).data.value);
+  for (const affiliate of leaderboard) {
+    const reward = affiliate.totalSalesMonthly * rewardRate;
+    await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
+    await supabase.from('history').insert({ email: affiliate.email, eventType: 'reward', data: { amount: reward, type: 'leaderboard' } });
+    await sendEmail('reward_mail', affiliate.email, { name: cachedData.users.find(u => u.email === affiliate.email).name, amount: reward });
+    wsClients.get(affiliate.email)?.ws?.send(JSON.stringify({ type: 'notification', message: `You received ${reward} KES as a reward`, color: 'green' }));
+  }
+  res.status(200).json({ success: true });
+});
+
+app.get('/api/affiliate/static-page/:slug', async (req, res) => {
+  const page = cachedData.static_pages.find(p => p.slug === req.params.slug);
+  if (!page) return res.status(404).json({ success: false, error: 'Page not found' });
+  res.status(200).json({ success: true, data: page });
+});
+
+app.post('/api/admin/affiliate/communication', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const token = authHeader.split(' ')[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
+  if (!decoded || decoded.role !== 'admin') return res.status(403).json({ success: false, error: 'Forbidden' });
+
+  const { type, message } = req.body;
+  if (type === 'urgentPopup') {
+    await supabase.from('settings').update({ value: JSON.stringify({ message, enabled: true }) }).eq('key', 'urgentPopup');
+    wsClients.forEach((client, email) => {
+      if (client.role === 'affiliate') client.ws?.send(JSON.stringify({ type: 'notification', message, color: 'red', urgent: true }));
     });
-    if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
-    }
-    affiliate.LeaderboardJSON.previousRank = affiliate.LeaderboardJSON.currentRank;
-    const rankedAffiliates = affiliates
-      .filter(a => a.Statusjson.status === 'active')
-      .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly);
-    affiliate.LeaderboardJSON.currentRank = rankedAffiliates.findIndex(a => a.Email === affiliate.Email) + 1;
-    if (affiliate.LeaderboardJSON.previousRank && affiliate.LeaderboardJSON.currentRank !== affiliate.LeaderboardJSON.previousRank) {
-      affiliate.NotificationsJSON.unshift({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank ? 'green' : 'red',
-        message: affiliate.LeaderboardJSON.currentRank < affiliate.LeaderboardJSON.previousRank
-          ? 'You moved up in the leaderboard!'
-          : 'You moved down in the leaderboard.',
-        timestamp: new Date().toISOString()
-      });
-    }
-    await updateAffiliateField(affiliate.Email, 'TotalSales', affiliate.TotalSales);
-    await updateAffiliateField(affiliate.Email, 'TotalSalesMonthly', affiliate.TotalSalesMonthly);
-    await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
-    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-    await updateAffiliateField(affiliate.Email, 'LeaderboardJSON', affiliate.LeaderboardJSON);
-    await logTransaction(affiliate.Email, 'sale_confirmed', { refCode, amount, commission, item });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'notification',
-        data: affiliate.NotificationsJSON[0]
-      }));
-    }
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error in /api/affiliate/confirmed-sale:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to process sale', error: error.message });
+  } else if (type === 'news') {
+    const { data, error } = await supabase.from('news').insert({ message: sanitizeHtml(message) });
+    if (error) return res.status(500).json({ success: false, error });
+    wsClients.forEach((client) => client.ws?.send(JSON.stringify({ type: 'update' }));
   }
+  res.status(200).json({ success: true });
 });
 
-app.post('/api/affiliate/request-withdrawal', authenticateAffiliate, async (req, res) => {
-  try {
-    const { amount, mpesaNumber, mpesaName, reuseDetails, password } = req.body;
-    if (!validateMpesaNumber(mpesaNumber) || !validateName(mpesaName) || amount < 100 || amount > cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email).CurrentBalance) {
-      return res.status(400).json({ success: false, message: 'Invalid withdrawal details or insufficient balance' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === req.user.email);
-    if (!affiliate || !(await bcrypt.compare(password, affiliate.Password))) {
-      return res.status(401).json({ success: false, message: 'Incorrect password' });
-    }
-    affiliate.CurrentBalance -= amount;
-    affiliate.WithdrawnTotal += amount;
-    const withdrawal = {
-      date: new Date().toISOString(),
-      amount,
-      mpesaNumber,
-      mpesaName,
-      status: 'Pending',
-      mpesaRef: ''
-    };
-    affiliate.WithdrawalsJSON.unshift(withdrawal);
-    if (affiliate.WithdrawalsJSON.length > 20) {
-      affiliate.WithdrawalsJSON = affiliate.WithdrawalsJSON.slice(0, 20);
-    }
-    if (reuseDetails) {
-      affiliate.MpesaDetails = { mpesaNumber, mpesaName };
-    }
-    affiliate.NotificationsJSON.unshift({
-      id: `NOTIF${Date.now()}`,
-      read: false,
-      colour: 'green',
-      message: 'Withdrawal submitted. You’ll receive it soon as processed.',
-      timestamp: new Date().toISOString()
-    });
-    if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
-    }
-    await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
-    await updateAffiliateField(affiliate.Email, 'WithdrawnTotal', affiliate.WithdrawnTotal);
-    await updateAffiliateField(affiliate.Email, 'WithdrawalsJSON', affiliate.WithdrawalsJSON);
-    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-    if (reuseDetails) {
-      await updateAffiliateField(affiliate.Email, 'MpesaDetails', affiliate.MpesaDetails);
-    }
-    await logTransaction(affiliate.Email, 'request_withdrawal', { amount, mpesaNumber });
-    await sendEmail(
-      APP_EMAIL,
-      'Withdrawal Request',
-      `User: ${affiliate.Email}, Amount: ${amount} KES, MPESA Number: ${mpesaNumber}, MPESA Name: ${mpesaName}`
-    );
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'notification',
-        data: affiliate.NotificationsJSON[0]
-      }));
-    }
-    res.json({ success: true, withdrawal });
-  } catch (error) {
-    console.error('Error in /api/affiliate/request-withdrawal:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to request withdrawal', error: error.message });
-  }
+app.post('/api/affiliate/update-password', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const token = authHeader.split(' ')[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
+  const { currentPassword, newPassword } = req.body;
+
+  const { data: user } = await supabase.from('users').select('password').eq('email', decoded.email).single();
+  if (!user || !(await bcrypt.compare(currentPassword, user.password))) return res.status(401).json({ success: false, error: 'Invalid password' });
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await redisClient.setEx(`otp:change-password:${decoded.email}`, 300, otp);
+  await sendEmail('password_reset_mail', decoded.email, { name: cachedData.users.find(u => u.email === decoded.email).name, otp });
+  res.status(200).json({ success: true, message: 'Verify your email' });
 });
 
-app.post('/api/admin/affiliate/withdrawals/:action', authenticateAdmin, async (req, res) => {
-  try {
-    const { action } = req.params;
-    const { email, withdrawalId, status, refCode } = req.body;
-    if (!['done', 'dispute'].includes(action) || !['Done', 'Failed'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid action or status' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === email);
-    if (!affiliate) return res.status(400).json({ success: false, message: 'Affiliate not found' });
-    const withdrawal = affiliate.WithdrawalsJSON.find(w => w.date === withdrawalId);
-    if (!withdrawal) return res.status(400).json({ success: false, message: 'Withdrawal not found' });
-    if (action === 'done' && !refCode) {
-      return res.status(400).json({ success: false, message: 'Reference code required for Done status' });
-    }
-    withdrawal.status = status;
-    if (action === 'done') {
-      withdrawal.mpesaRef = refCode;
-      affiliate.NotificationsJSON.unshift({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: 'green',
-        message: `Payment sent. M-PESA Ref: ${refCode}`,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      affiliate.CurrentBalance += withdrawal.amount;
-      affiliate.NotificationsJSON.unshift({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: 'red',
-        message: 'Payment failed. Contact support',
-        timestamp: new Date().toISOString()
-      });
-      await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
-    }
-    if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
-    }
-    await updateAffiliateField(affiliate.Email, 'WithdrawalsJSON', affiliate.WithdrawalsJSON);
-    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-    await logTransaction(email, `withdrawal_${action}`, { withdrawalId, status, refCode });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'notification',
-        data: affiliate.NotificationsJSON[0]
-      }));
-    }
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'withdrawal_updated',
-        data: { email, withdrawalId, status }
-      }));
-    }
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/withdrawals:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to process withdrawal', error: error.message });
-  }
+app.post('/api/affiliate/delete-account', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const token = authHeader.split(' ')[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
+  const { data: user } = await supabase.from('users').select('currentBalance').eq('email', decoded.email).single();
+  if (user.currentBalance > 0) return res.status(400).json({ success: false, error: 'Cannot delete account with balance' });
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await redisClient.setEx(`otp:delete:${decoded.email}`, 300, otp);
+  await sendEmail('alert_mail', decoded.email, { name: user.name, otp });
+  res.status(200).json({ success: true, message: 'Verify your email' });
 });
 
-app.post('/api/admin/affiliate/rewards', authenticateAdmin, async (req, res) => {
-  try {
-    const { type, percentage, amount, recipients } = req.body;
-    const affiliates = await fetchAffiliates();
-    let rewardedAffiliates = [];
-    if (type === 'percentage') {
-      if (percentage < 0 || percentage > 1) {
-        return res.status(400).json({ success: false, message: 'Invalid percentage' });
-      }
-      rewardedAffiliates = affiliates
-        .filter(a => a.Statusjson.status === 'active')
-        .sort((a, b) => b.TotalSalesMonthly - a.TotalSalesMonthly)
-        .slice(0, 10);
-      for (const affiliate of rewardedAffiliates) {
-        const reward = affiliate.TotalSalesMonthly * percentage;
-        if (reward >= 100) {
-          affiliate.CurrentBalance += reward;
-          affiliate.RewardsJSON.unshift({
-            date: new Date().toISOString(),
-            type: 'leaderboard',
-            amount: reward,
-            description: `You were credited ${percentage * 100}% reward of your current sales this month`
-          });
-          affiliate.NotificationsJSON.unshift({
-            id: `NOTIF${Date.now()}`,
-            read: false,
-            colour: 'blue',
-            message: `Congratulations, you have been awarded ${reward} KES. Leaderboard awards`,
-            timestamp: new Date().toISOString()
-          });
-          if (affiliate.NotificationsJSON.length > 20) {
-            affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
-          }
-          if (affiliate.RewardsJSON.length > 20) {
-            affiliate.RewardsJSON = affiliate.RewardsJSON.slice(0, 20);
-          }
-          await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
-          await updateAffiliateField(affiliate.Email, 'RewardsJSON', affiliate.RewardsJSON);
-          await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-          if (wsClients.has(affiliate.Email)) {
-            wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-            wsClients.get(affiliate.Email).send(JSON.stringify({
-              type: 'notification',
-              data: affiliate.NotificationsJSON[0]
-            }));
-          }
-        }
-      }
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: ADMIN_SHEET_ID,
-        range: 'News!A:C',
-        valueInputOption: 'RAW',
-        resource: {
-          values: [[`NEWS${Date.now()}`, 'Rewards have been issued for the leaderboard', new Date().toISOString()]]
-        }
-      });
-    } else if (type === 'spot') {
-      if (amount < 100 || !Array.isArray(recipients)) {
-        return res.status(400).json({ success: false, message: 'Invalid amount or recipients' });
-      }
-      rewardedAffiliates = affiliates.filter(a => recipients.includes(a.Email) && a.Statusjson.status === 'active');
-      for (const affiliate of rewardedAffiliates) {
-        affiliate.CurrentBalance += amount;
-        affiliate.RewardsJSON.unshift({
-          date: new Date().toISOString(),
-          type: 'spot',
-          amount,
-          description: `Spot reward of ${amount} KES`
-        });
-        affiliate.NotificationsJSON.unshift({
-          id: `NOTIF${Date.now()}`,
-          read: false,
-          colour: 'blue',
-          message: `Congratulations, you have been awarded ${amount} KES`,
-          timestamp: new Date().toISOString()
-        });
-        if (affiliate.NotificationsJSON.length > 20) {
-          affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
-        }
-        if (affiliate.RewardsJSON.length > 20) {
-          affiliate.RewardsJSON = affiliate.RewardsJSON.slice(0, 20);
-        }
-        await updateAffiliateField(affiliate.Email, 'CurrentBalance', affiliate.CurrentBalance);
-        await updateAffiliateField(affiliate.Email, 'RewardsJSON', affiliate.RewardsJSON);
-        await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-        if (wsClients.has(affiliate.Email)) {
-          wsClients.get(affiliate.Email).send(JSON.stringify({ type: 'update', data: affiliate }));
-          wsClients.get(affiliate.Email).send(JSON.stringify({
-            type: 'notification',
-            data: affiliate.NotificationsJSON[0]
-          }));
-        }
-      }
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: ADMIN_SHEET_ID,
-        range: 'News!A:C',
-        valueInputOption: 'RAW',
-        resource: {
-          values: [[`NEWS${Date.now()}`, 'Rewards have been issued for selected affiliates', new Date().toISOString()]]
-        }
-      });
-    } else {
-      return res.status(400).json({ success: false, message: 'Invalid reward type' });
-    }
-    await logTransaction('admin', `rewards_${type}`, { percentage, amount, recipients: rewardedAffiliates.map(a => a.Email) });
-    await updateCache();
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'rewards_issued',
-        data: { type, recipients: rewardedAffiliates.map(a => a.Email) }
-      }));
-    }
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/rewards:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to apply rewards', error: error.message });
-  }
-});
+app.post('/api/affiliate/verify-password-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  const storedOtp = await redisClient.get(`otp:change-password:${email}`);
+  if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
 
-app.post('/api/admin/affiliate/staticpages', authenticateAdmin, async (req, res) => {
-  try {
-    const { slug, title, content } = req.body;
-    const sanitizedContent = sanitizeHtml(content);
-    if (!slug || !title || !sanitizedContent) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
-    }
-    const staticPages = await fetchStaticPages();
-    const existingPage = staticPages.find(p => p.Slug === slug);
-    if (existingPage) {
-      const pageIndex = staticPages.findIndex(p => p.Slug === slug) + 2;
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: ADMIN_SHEET_ID,
-        range: `staticPagesAffiliate!A${pageIndex}:C${pageIndex}`,
-        valueInputOption: 'RAW',
-        resource: { values: [[slug, title, sanitizedContent]] }
-      });
-    } else {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: ADMIN_SHEET_ID,
-        range: 'staticPagesAffiliate!A:C',
-        valueInputOption: 'RAW',
-        resource: { values: [[slug, title, sanitizedContent]] }
-      });
-    }
-    await logTransaction('admin', 'update_static_page', { slug, title });
-    await updateCache();
-    cachedDataAffiliate.affiliates.forEach(affiliate => {
-      if (wsClients.has(affiliate.Email)) {
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'static_page_updated',
-          data: { slug, title }
-        }));
-      }
-    });
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'static_page_updated',
-        data: { slug, title }
-      }));
-    }
-    res.json({ success: true, page: { slug, title, content: sanitizedContent } });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/staticpages:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to update static page', error: error.message });
-  }
-});
-
-app.post('/api/admin/affiliate/staticpages/delete', authenticateAdmin, async (req, res) => {
-  try {
-    const { slug } = req.body;
-    const staticPages = await fetchStaticPages();
-    const pageIndex = staticPages.findIndex(p => p.Slug === slug);
-    if (pageIndex === -1) {
-      return res.status(404).json({ success: false, message: 'Page not found' });
-    }
-    const rowIndex = pageIndex + 2;
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: `staticPagesAffiliate!A${rowIndex}:C${rowIndex}`
-    });
-    await logTransaction('admin', 'delete_static_page', { slug });
-    await updateCache();
-    cachedDataAffiliate.affiliates.forEach(affiliate => {
-      if (wsClients.has(affiliate.Email)) {
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'static_page_deleted',
-          data: { slug }
-        }));
-      }
-    });
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'static_page_deleted',
-        data: { slug }
-      }));
-    }
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/staticpages/delete:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to delete static page', error: error.message });
-  }
-});
-
-app.post('/api/admin/affiliate/communication', authenticateAdmin, async (req, res) => {
-  try {
-    const { type, message, enabled, filter } = req.body;
-    if (type === 'urgent') {
-      const settings = await fetchSettings();
-      settings.urgentPopup = { message, enabled };
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: ADMIN_SHEET_ID,
-        range: 'settingsAffiliate!A2:B',
-        valueInputOption: 'RAW',
-        resource: {
-          values: [
-            ['supportEmail', settings.supportEmail],
-            ['copyrightText', settings.copyrightText],
-            ['whatsappLink', settings.whatsappLink],
-            ['commissionRate', JSON.stringify(settings.commissionRate)],
-            ['logoUrl', settings.logoUrl],
-            ['adminEmail', settings.adminEmail],
-            ['adminPassword', settings.adminPassword],
-            ['urgentPopup', JSON.stringify(settings.urgentPopup)]
-          ]
-        }
-      });
-      await logTransaction('admin', 'update_urgent_message', { message, enabled });
-      await updateCache();
-      cachedDataAffiliate.affiliates.forEach(affiliate => {
-        if (wsClients.has(affiliate.Email)) {
-          wsClients.get(affiliate.Email).send(JSON.stringify({
-            type: 'settings_updated',
-            data: { urgentPopup: settings.urgentPopup }
-          }));
-        }
-      });
-      res.json({ success: true, message: 'Urgent message updated' });
-    } else if (type === 'news') {
-      const newsId = `NEWS${Date.now()}`;
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: ADMIN_SHEET_ID,
-        range: 'News!A:C',
-        valueInputOption: 'RAW',
-        resource: {
-          values: [[newsId, message, new Date().toISOString()]]
-        }
-      });
-      await logTransaction('admin', 'send_news', { message, filter });
-      await updateCache();
-      cachedDataAffiliate.affiliates
-        .filter(a => filter === 'all' || a.Statusjson.status === 'active')
-        .forEach(affiliate => {
-          if (wsClients.has(affiliate.Email)) {
-            wsClients.get(affiliate.Email).send(JSON.stringify({
-              type: 'news',
-              data: { Id: newsId, Message: message, Timestamp: new Date().toISOString() }
-            }));
-          }
-        });
-      res.json({ success: true, message: 'News sent' });
-    } else {
-      res.status(400).json({ success: false, message: 'Invalid communication type' });
-    }
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/communication:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to process communication', error: error.message });
-  }
-});
-
-app.post('/api/admin/affiliate/settings', authenticateAdmin, async (req, res) => {
-  try {
-    const { supportEmail, copyrightText, whatsappLink, commissionRate, logoUrl, adminEmail, adminPassword } = req.body;
-    if (!validateEmail(supportEmail) || !validateEmail(adminEmail) || (commissionRate && (commissionRate < 0 || commissionRate > 1))) {
-      return res.status(400).json({ success: false, message: 'Invalid input' });
-    }
-    const settings = await fetchSettings();
-    const updatedSettings = {
-      supportEmail: supportEmail || settings.supportEmail,
-      copyrightText: copyrightText || settings.copyrightText,
-      whatsappLink: whatsappLink || settings.whatsappLink,
-      commissionRate: commissionRate || settings.commissionRate,
-      logoUrl: logoUrl || settings.logoUrl,
-      adminEmail: adminEmail || settings.adminEmail,
-      adminPassword: adminPassword || settings.adminPassword,
-      urgentPopup: settings.urgentPopup
-    };
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: ADMIN_SHEET_ID,
-      range: 'settingsAffiliate!A2:B',
-      valueInputOption: 'RAW',
-      resource: {
-        values: [
-          ['supportEmail', updatedSettings.supportEmail],
-          ['copyrightText', updatedSettings.copyrightText],
-          ['whatsappLink', updatedSettings.whatsappLink],
-          ['commissionRate', JSON.stringify(updatedSettings.commissionRate)],
-          ['logoUrl', updatedSettings.logoUrl],
-          ['adminEmail', updatedSettings.adminEmail],
-          ['adminPassword', updatedSettings.adminPassword],
-          ['urgentPopup', JSON.stringify(updatedSettings.urgentPopup)]
-        ]
-      }
-    });
-    await logTransaction('admin', 'update_settings', updatedSettings);
-    await updateCache();
-    cachedDataAffiliate.affiliates.forEach(affiliate => {
-      if (wsClients.has(affiliate.Email)) {
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'settings_updated',
-          data: updatedSettings
-        }));
-      }
-    });
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'settings_updated',
-        data: updatedSettings
-      }));
-    }
-    res.json({ success: true, settings: updatedSettings });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/settings:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to update settings', error: error.message });
-  }
-});
-
-app.post('/api/affiliate/update-password', authenticateAffiliate, async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-    if (!validatePassword(newPassword)) {
-      return res.status(400).json({ success: false, message: 'New password must be at least 12 characters with letters, numbers, and special characters' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === req.user.email);
-    if (!affiliate || !(await bcrypt.compare(currentPassword, affiliate.Password))) {
-      return res.status(401).json({ success: false, message: 'Incorrect current password' });
-    }
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    affiliate.Password = hashedPassword;
-    await updateAffiliateField(affiliate.Email, 'Password', hashedPassword);
-    await logTransaction(affiliate.Email, 'update_password', {});
-    await sendEmail(
-      affiliate.Email,
-      'Password Updated',
-      'Your affiliate account password has been successfully updated.'
-    );
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'notification',
-        data: {
-          id: `NOTIF${Date.now()}`,
-          read: false,
-          colour: 'blue',
-          message: 'Your password has been updated successfully',
-          timestamp: new Date().toISOString()
-        }
-      }));
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'logout',
-        message: 'Password changed, please re-login'
-      }));
-      wsClients.delete(affiliate.Email);
-    }
-    res.json({ success: true, message: 'Password updated successfully' });
-  } catch (error) {
-    console.error('Error in /api/affiliate/update-password:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to update password', error: error.message });
-  }
-});
-
-app.post('/api/admin/affiliate/reset-password', authenticateAdmin, async (req, res) => {
-  try {
-    const { email, status, password } = req.body;
-    if (status === 'approved' && !validatePassword(password)) {
-      return res.status(400).json({ success: false, message: 'New password must be at least 12 characters with letters, numbers, and special characters' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === email);
-    if (!affiliate) return res.status(400).json({ success: false, message: 'Affiliate not found' });
-    const resetEntry = affiliate.ResetJSON.find(r => r.status === 'pending');
-    if (!resetEntry) return res.status(400).json({ success: false, message: 'No pending reset request found' });
-    resetEntry.status = status;
-    if (status === 'approved') {
-      resetEntry.oneTimePassword = password;
-      const hashedPassword = await bcrypt.hash(password, 10);
-      affiliate.Password = hashedPassword;
-      await updateAffiliateField(affiliate.Email, 'Password', hashedPassword);
-      await sendEmail(
-        affiliate.Email,
-        'Password Reset',
-        `Your password has been reset. Your new password is: ${password}. Please log in and change it immediately.`
-      );
-      affiliate.NotificationsJSON.unshift({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: 'blue',
-        message: 'Your password has been reset by admin. Please check your email.',
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      affiliate.NotificationsJSON.unshift({
-        id: `NOTIF${Date.now()}`,
-        read: false,
-        colour: 'red',
-        message: 'Your password reset request was declined. Contact support.',
-        timestamp: new Date().toISOString()
-      });
-    }
-    if (affiliate.NotificationsJSON.length > 20) {
-      affiliate.NotificationsJSON = affiliate.NotificationsJSON.slice(0, 20);
-    }
-    affiliate.ResetJSON = affiliate.ResetJSON.filter(r => (new Date() - new Date(r.timestamp)) / (1000 * 60 * 60) < 24);
-    await updateAffiliateField(affiliate.Email, 'ResetJSON', affiliate.ResetJSON);
-    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-    await logTransaction(email, 'reset_password_action', { status });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'notification',
-        data: affiliate.NotificationsJSON[0]
-      }));
-      if (status === 'approved') {
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'logout',
-          message: 'Password reset, please re-login'
-        }));
-        wsClients.delete(affiliate.Email);
-      }
-    }
-    res.json({ success: true, message: 'Reset request processed' });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/reset-password:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to process reset request', error: error.message });
-  }
-});
-
-app.post('/api/admin/affiliate/update-status', authenticateAdmin, async (req, res) => {
-  try {
-    const { email, status } = req.body;
-    if (!['active', 'blocked', 'deleted'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid status' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === email);
-    if (!affiliate) return res.status(400).json({ success: false, message: 'Affiliate not found' });
-    affiliate.Statusjson = { status };
-    await updateAffiliateField(affiliate.Email, 'Statusjson', affiliate.Statusjson);
-    await logTransaction(affiliate.Email, 'update_status', { status });
-    await sendEmail(
-      affiliate.Email,
-      `Account Status Updated: ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-      `Your affiliate account status has been updated to ${status}. Please contact ${cachedDataAffiliate.settings.supportEmail} for any questions.`
-    );
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'notification',
-        data: {
-          id: `NOTIF${Date.now()}`,
-          read: false,
-          colour: status === 'active' ? 'green' : 'red',
-          message: `Your account status has been updated to ${status}`,
-          timestamp: new Date().toISOString()
-        }
-      }));
-      if (status !== 'active') {
-        wsClients.get(affiliate.Email).send(JSON.stringify({
-          type: 'logout',
-          message: 'Your account status has changed. Please re-login.'
-        }));
-        wsClients.delete(affiliate.Email);
-      }
-    }
-    if (wsClients.has('admin')) {
-      wsClients.get('admin').send(JSON.stringify({
-        type: 'affiliate_status_updated',
-        data: { email, status }
-      }));
-    }
-    res.json({ success: true, message: `Affiliate status updated to ${status}` });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/update-status:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
-  }
-});
-
-app.post('/api/affiliate/mark-notification', authenticateAffiliate, async (req, res) => {
-  try {
-    const { notificationId } = req.body;
-    if (!notificationId) {
-      return res.status(400).json({ success: false, message: 'Notification ID required' });
-    }
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === req.user.email);
-    if (!affiliate) {
-      return res.status(401).json({ success: false, message: 'Affiliate not found' });
-    }
-    const notification = affiliate.NotificationsJSON.find(n => n.id === notificationId);
-    if (!notification) {
-      return res.status(400).json({ success: false, message: 'Notification not found' });
-    }
-    notification.read = true;
-    await updateAffiliateField(affiliate.Email, 'NotificationsJSON', affiliate.NotificationsJSON);
-    await logTransaction(affiliate.Email, 'mark_notification', { notificationId });
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'update',
-        data: affiliate
-      }));
-    }
-    res.json({ success: true, message: 'Notification marked as read' });
-  } catch (error) {
-    console.error('Error in /api/affiliate/mark-notification:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to mark notification', error: error.message });
-  }
-});
-
-app.post('/api/affiliate/delete-account', authenticateAffiliate, async (req, res) => {
-  try {
-    const affiliates = await fetchAffiliates();
-    const affiliate = affiliates.find(a => a.Email === req.user.email);
-    if (!affiliate) {
-      return res.status(401).json({ success: false, message: 'Affiliate not found' });
-    }
-    if (affiliate.CurrentBalance >= 1 || affiliate.WithdrawalsJSON.some(w => w.status === 'Pending')) {
-      return res.status(400).json({ success: false, message: 'Withdraw all money before deleting account' });
-    }
-    affiliate.Statusjson = { status: 'deleted' };
-    await updateAffiliateField(affiliate.Email, 'Statusjson', affiliate.Statusjson);
-    await logTransaction(affiliate.Email, 'delete_account', {});
-    await sendEmail(
-      affiliate.Email,
-      'Account Deleted',
-      `Your affiliate account has been deleted. Contact ${cachedDataAffiliate.settings.supportEmail} for any questions.`
-    );
-    if (wsClients.has(affiliate.Email)) {
-      wsClients.get(affiliate.Email).send(JSON.stringify({
-        type: 'logout',
-        message: 'Account deleted, please re-login'
-      }));
-      wsClients.delete(affiliate.Email);
-    }
-    res.json({ success: true, message: 'Account deleted successfully' });
-  } catch (error) {
-    console.error('Error in /api/affiliate/delete-account:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to delete account', error: error.message });
-  }
-});
-
-app.get('/api/affiliate/validate', authenticateAffiliate, async (req, res) => {
-  try {
-    const affiliate = cachedDataAffiliate.affiliates.find(a => a.Email === req.user.email);
-    if (!affiliate || affiliate.Statusjson.status !== 'active') {
-      return res.status(401).json({ success: false, message: 'Invalid or inactive session' });
-    }
-    res.json({ success: true, data: { email: affiliate.Email, username: affiliate.Username, name: affiliate.Name } });
-  } catch (error) {
-    console.error('Error in /api/affiliate/validate:', error.message);
-    res.status(401).json({ success: false, message: 'Session validation failed', error: error.message });
-  }
-});
-
-app.get('/api/admin/affiliate/validate', authenticateAdmin, async (req, res) => {
-  try {
-    const settings = await fetchSettings();
-    if (req.user.email !== settings.adminEmail) {
-      return res.status(401).json({ success: false, message: 'Invalid admin session' });
-    }
-    res.json({ success: true, data: { email: settings.adminEmail } });
-  } catch (error) {
-    console.error('Error in /api/admin/affiliate/validate:', error.message);
-    res.status(401).json({ success: false, message: 'Admin session validation failed', error: error.message });
-  }
-});
-
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err.stack);
-  res.status(500).json({ success: false, message: 'Server error, please try again later' });
-});
-
-// Start Server
-const server = app.listen(port, async () => {
-  try {
-    await initializeSheets();
-    await updateCache();
-    console.log(`Server running on port ${port}`);
-  } catch (err) {
-    console.error('Failed to start server:', err.message);
-    process.exit(1);
-  }
-});
-
-// WebSocket Upgrade
-server.on('upgrade', (request, socket, head) => {
-  const url = new URL(request.url, `http://${request.headers.host}`);
-  const token = url.searchParams.get('token');
-  const decoded = validateWebSocket(token);
-  if (!decoded) {
-    socket.write('Invalid token');
-    socket.destroy();
-    return;
-  }
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request, decoded);
+  const { newPassword } = req.body;
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
+  wsClients.forEach((client, clientEmail) => {
+    if (clientEmail === email && client.ws) client.ws.send(JSON.stringify({ type: 'logout' }));
   });
+  await sendEmail('alert_mail', email, { message: 'Your password was changed' });
+  await redisClient.del(`otp:change-password:${email}`);
+  res.status(200).json({ success: true });
 });
 
+app.post('/api/affiliate/verify-delete-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  const storedOtp = await redisClient.get(`otp:delete:${email}`);
+  if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
 
-// Graceful Shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down');
-  wsClients.forEach(ws => ws.terminate());
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+  await supabase.from('users').update({ status: 'deleted' }).eq('email', email);
+  wsClients.forEach((client, clientEmail) => {
+    if (clientEmail === email && client.ws) client.ws.send(JSON.stringify({ type: 'logout' }));
   });
+  await sendEmail('alert_mail', email, { message: 'Your account has been deleted' });
+  await redisClient.del(`otp:delete:${email}`);
+  res.status(200).json({ success: true });
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
 });
