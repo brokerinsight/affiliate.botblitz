@@ -12,6 +12,7 @@ const cors = require('cors');
 
 const app = express();
 app.use(express.json());
+app.use(express.static('public')); // Serve static files from the 'public' folder
 app.use(cors({
   origin: ['https://affiliate-botblitz.onrender.com', 'https://botblitz.store', 'https://bot-delivery-system.onrender.com', 'http://localhost:10000']
 }));
@@ -43,9 +44,9 @@ redisClient.on('error', (err) => console.error('Redis Client Error', err));
     console.error('Redis connection failed:', err.message);
   }
 })();
-const cachedData = { users: {}, settings: {}, static_pages: {}, news: {}, forums: {} };
+const cachedData = { users: [], settings: [], static_pages: [], news: [], forums: [] };
 
-// Create tables if not exist
+// Create tables if they don't exist
 (async () => {
   try {
     const tables = [
@@ -57,7 +58,7 @@ const cachedData = { users: {}, settings: {}, static_pages: {}, news: {}, forums
       { name: 'forums', schema: 'id UUID PRIMARY KEY, name TEXT, link TEXT, icon TEXT, description TEXT CHECK (LENGTH(description) <= 200), createdAt TIMESTAMP DEFAULT now()' }
     ];
     for (const table of tables) {
-      const { error } = await supabaseAdmin.rpc('create_table_if_not_exists', { table_name: table.name, schema: table.schema });
+      const { error } = await supabaseAdmin.sql(`CREATE TABLE IF NOT EXISTS ${table.name} (${table.schema})`);
       if (error) {
         console.error(`Error creating table ${table.name}:`, error.message);
       } else {
@@ -66,7 +67,7 @@ const cachedData = { users: {}, settings: {}, static_pages: {}, news: {}, forums
     }
 
     // Initial settings data
-    const { error: settingsError } = await supabaseAdmin.from('settings').upsert([
+    const { data, error: settingsError } = await supabaseAdmin.from('settings').upsert([
       { key: 'supportEmail', value: JSON.stringify('derivbotstore@gmail.com') },
       { key: 'copyrightText', value: JSON.stringify('Deriv Bot Store Affiliates 2025') },
       { key: 'whatsappLink', value: JSON.stringify('https://wa.link/4wppln') },
@@ -74,9 +75,9 @@ const cachedData = { users: {}, settings: {}, static_pages: {}, news: {}, forums
       { key: 'urgentPopup', value: JSON.stringify({ message: '', enabled: false }) }
     ], { onConflict: 'key' });
     if (settingsError) {
-      console.error('Error initializing settings:', settingsError.message);
+      console.error('Error initializing settings:', settingsError.message || 'Unknown error');
     } else {
-      console.log('Settings initialized successfully');
+      console.log('Settings initialized successfully', data);
     }
   } catch (err) {
     console.error('Error during database setup:', err.message);
@@ -108,8 +109,8 @@ setInterval(refreshCache, 15 * 60 * 1000);
 
 // WebSocket setup
 const wsClients = new Map();
-const server = app.listen(process.env.PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
+const server = app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
 });
 
 const wsServer = new WebSocket.Server({ server });
@@ -132,7 +133,7 @@ wsServer.on('connection', (ws, request) => {
     }
     wsClients.set(decoded.email, { ws, role: 'affiliate' });
     ws.on('message', (msg) => {
-      const data = JSON.parse(msg);
+      const data = JSON.parse(msg.toString());
       if (data.type === 'username_check') {
         const available = !cachedData.users.some(u => u.username === data.username);
         ws.send(JSON.stringify({ type: 'username_check', available, message: available ? 'Username available' : 'Username taken' }));
@@ -149,12 +150,13 @@ cron.schedule('0 0 1 * *', async () => {
     await supabaseAdmin.from('users').update({ totalSalesMonthly: 0 }).in('status', ['active']);
     const { data: leaderboard } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
     await supabase.from('history').insert(leaderboard.map(l => ({ email: l.email, eventType: 'leaderboard', data: { totalSalesMonthly: l.totalSalesMonthly } })));
-    const rewardRate = JSON.parse((await supabase.from('settings').select('value').eq('key', 'rewardRate').single()).data.value);
+    const rewardRateSetting = cachedData.settings.find(s => s.key === 'rewardRate');
+    const rewardRate = rewardRateSetting ? JSON.parse(rewardRateSetting.value) : 0.2;
     for (const affiliate of leaderboard) {
       const reward = affiliate.totalSalesMonthly * rewardRate;
       await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
       await supabase.from('history').insert({ email: affiliate.email, eventType: 'reward', data: { amount: reward, type: 'leaderboard' } });
-      await sendEmail('reward_mail', affiliate.email, { name: cachedData.users.find(u => u.email === affiliate.email).name, amount: reward });
+      await sendEmail('reward_mail', affiliate.email, { name: cachedData.users.find(u => u.email === affiliate.email)?.name || 'User', amount: reward });
       wsClients.get(affiliate.email)?.ws?.send(JSON.stringify({ type: 'notification', message: `You received ${reward} KES as a reward`, color: 'green' }));
     }
     await sendEmail('admin_mail', process.env.ADMIN_MAIL, { message: 'Monthly sales reset completed' });
@@ -166,7 +168,9 @@ cron.schedule('0 0 * * *', async () => {
   try {
     await supabase.from('history').delete().lt('timestamp', supabase.sql`now() - interval '30 days'`);
     const { count } = await supabase.from('news').select('id', { count: 'exact' }).order('timestamp', { ascending: false }).limit(40);
-    await supabase.from('news').delete().gt('id', count);
+    if (count > 40) {
+      await supabase.from('news').delete().gt('id', count - 40);
+    }
   } catch (err) {
     console.error('Daily cron job failed:', err.message);
   }
@@ -179,19 +183,40 @@ const transporter = nodemailer.createTransport({
   auth: { user: process.env.SIGNUP_MAIL, pass: process.env.SIGNUP_MAIL_PASS }
 });
 transporter.verify((error) => {
-  if (error) console.error('Email service error:', error);
+  if (error) console.error('Email service error:', error.message);
   else console.log('Email service ready');
 });
 
 async function sendEmail(type, to, data) {
   const templates = {
-    signup_mail: { subject: 'Welcome to Deriv Bot Store Affiliates', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Your account has been created. Verify with OTP: ${data.otp}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
-    login_mail: { subject: 'Login Verification', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Verify your login with OTP: ${data.otp}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
-    password_reset_mail: { subject: 'Password Reset', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Reset your password with OTP: ${data.otp}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
-    withdrawal_mail: { subject: 'Withdrawal Request', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Verify your withdrawal with OTP: ${data.otp}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
-    alert_mail: { subject: 'Account Alert', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name || 'admin'}</p><p>${data.message}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
-    admin_mail: { subject: 'Admin Notification', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, admin</p><p>${data.message}</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` },
-    reward_mail: { subject: 'Reward Credited', html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>You received ${data.amount} KES as a reward.</p><p>${JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value)}</p><p><a href="mailto:${JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value)}">Support</a></p>` }
+    signup_mail: { 
+      subject: 'Welcome to Deriv Bot Store Affiliates', 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>${data.otp ? `Your account has been created. Verify with OTP: ${data.otp}` : data.message || 'Welcome!'}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+    },
+    login_mail: { 
+      subject: 'Login Verification', 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Verify your login with OTP: ${data.otp}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+    },
+    password_reset_mail: { 
+      subject: 'Password Reset', 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Reset your password with OTP: ${data.otp}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+    },
+    withdrawal_mail: { 
+      subject: 'Withdrawal Request', 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>${data.otp ? `Verify your withdrawal with OTP: ${data.otp}` : data.message || 'Withdrawal request processed'}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+    },
+    alert_mail: { 
+      subject: 'Account Alert', 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name || 'admin'}</p><p>${data.message}${data.otp ? ` OTP: ${data.otp}` : ''}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+    },
+    admin_mail: { 
+      subject: 'Admin Notification', 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, admin</p><p>${data.message}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+    },
+    reward_mail: { 
+      subject: 'Reward Credited', 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>You received ${data.amount} KES as a reward.</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+    }
   };
   const mailOptions = {
     from: process.env[type.toUpperCase().replace(/_/g, '')],
@@ -212,10 +237,10 @@ async function sendEmail(type, to, data) {
 const limiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
   max: 5,
-  keyGenerator: (req) => req.body.email,
+  keyGenerator: (req) => req.body.email || req.ip,
   handler: (req, res) => {
     res.status(429).json({ success: false, error: `Rate limit exceeded, try again in ${Math.ceil(req.rateLimit.resetTime - Date.now()) / 1000} seconds` });
-    sendEmail('alert_mail', process.env.ALERT_MAIL, { message: `Rate limit hit for ${req.body.email} on ${req.path}` });
+    sendEmail('alert_mail', process.env.ALERT_MAIL, { message: `Rate limit hit for ${req.body.email || req.ip} on ${req.path}` });
   }
 });
 
@@ -294,7 +319,7 @@ app.post('/api/affiliate/reset-password', limiter, async (req, res) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     await redisClient.setEx(`otp:reset:${email}`, 300, otp);
-    await sendEmail('password_reset_mail', email, { name: cachedData.users.find(u => u.email === email)?.name, otp });
+    await sendEmail('password_reset_mail', email, { name: cachedData.users.find(u => u.email === email)?.name || 'User', otp });
 
     await redisClient.incr(`rate:reset:${email}`);
     await redisClient.expire(`rate:reset:${email}`, 600);
@@ -343,6 +368,7 @@ app.post('/api/affiliate/verify-login-otp', async (req, res) => {
     if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid, start over' });
 
     const { data: user } = await supabase.from('users').select('name, username, refCode').eq('email', email).single();
+    if (!user) return res.status(400).json({ success: false, error: 'User not found' });
     const token = jwt.sign({ email }, process.env.JWT_SECRET_SUPABASE, { expiresIn: '7d' });
     res.status(200).json({ success: true, token, data: user });
   } catch (err) {
@@ -367,6 +393,9 @@ app.post('/api/affiliate/verify-reset-otp', async (req, res) => {
 app.post('/api/affiliate/set-new-password', async (req, res) => {
   try {
     const { email, newPassword } = req.body;
+    if (!newPassword.match(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{8,}$/)) {
+      return res.status(400).json({ success: false, error: 'Invalid password format' });
+    }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
     for (const [clientEmail, client] of wsClients.entries()) {
@@ -394,11 +423,22 @@ app.get('/api/affiliate/data', async (req, res) => {
 
     const { data: leaderboard } = await supabase.from('users').select('name, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
     const { data: history } = await supabase.from('history').select('*').eq('email', decoded.email).order('timestamp', { ascending: false }).limit(20);
-    const withdrawals = history.filter(h => h.eventType === 'withdrawal');
-    const rewards = history.filter(h => h.eventType === 'reward');
-    const notifications = history.filter(h => h.eventType === 'notification');
+    const withdrawals = history ? history.filter(h => h.eventType === 'withdrawal') : [];
+    const rewards = history ? history.filter(h => h.eventType === 'reward') : [];
+    const notifications = history ? history.filter(h => h.eventType === 'notification') : [];
 
-    res.status(200).json({ success: true, data: { user, withdrawals, rewards, notifications, leaderboard, news: cachedData.news, commissionRate: JSON.parse(cachedData.settings.find(s => s.key === 'commissionRate')?.value) } });
+    res.status(200).json({ 
+      success: true, 
+      data: { 
+        user, 
+        withdrawals, 
+        rewards, 
+        notifications, 
+        leaderboard, 
+        news: cachedData.news, 
+        commissionRate: cachedData.settings.find(s => s.key === 'commissionRate')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'commissionRate').value) : 0.2 
+      } 
+    });
   } catch (err) {
     console.error('Get affiliate data endpoint error:', err.message);
     res.status(500).json({ success: false, error: 'Server error' });
@@ -414,7 +454,7 @@ app.get('/api/admin/affiliate/affiliates', async (req, res) => {
     if (!decoded || decoded.role !== 'admin') return res.status(403).json({ success: false, error: 'Forbidden' });
 
     const { data } = await supabase.from('users').select('*');
-    res.status(200).json({ success: true, affiliates: data });
+    res.status(200).json({ success: true, affiliates: data || [] });
   } catch (err) {
     console.error('Get affiliates endpoint error:', err.message);
     res.status(500).json({ success: false, error: 'Server error' });
@@ -441,7 +481,7 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
     if (apiKey !== process.env.API_KEY) return res.status(401).json({ success: false, error: 'Invalid API key' });
     const { data: user } = await supabase.from('users').select('*').eq('refCode', affiliateref).single();
     if (!user) return res.status(400).json({ success: false, error: 'Invalid referral code' });
-    const commission = amount * JSON.parse(cachedData.settings.find(s => s.key === 'commissionRate')?.value || '0.2');
+    const commission = amount * (cachedData.settings.find(s => s.key === 'commissionRate')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'commissionRate').value) : 0.2);
     await supabase.from('users').update({
       totalSales: supabase.sql`totalSales + ${amount}`,
       totalSalesMonthly: supabase.sql`totalSalesMonthly + ${amount}`,
@@ -469,6 +509,7 @@ app.post('/api/affiliate/request-withdrawal-otp', async (req, res) => {
     }
 
     const { data: user } = await supabase.from('users').select('currentBalance, email, name').eq('email', decoded.email).single();
+    if (!user) return res.status(401).json({ success: false, error: 'User not found' });
     if (user.currentBalance < amount) return res.status(400).json({ success: false, error: 'Insufficient balance' });
 
     await redisClient.setEx(`withdrawal:${decoded.email}`, 300, JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails }));
@@ -494,7 +535,7 @@ app.post('/api/affiliate/verify-withdrawal-otp', async (req, res) => {
       ...(reuseDetails && { mpesaNumber, mpesaName }) 
     }).eq('email', email);
     await supabase.from('history').insert({ email, eventType: 'withdrawal', data: { amount, mpesaNumber, mpesaName, status: 'pending' } });
-    await sendEmail('withdrawal_mail', email, { name: cachedData.users.find(u => u.email === email)?.name, message: 'Withdrawal request submitted' });
+    await sendEmail('withdrawal_mail', email, { name: cachedData.users.find(u => u.email === email)?.name || 'User', message: 'Withdrawal request submitted' });
     await Promise.all([redisClient.del(`withdrawal:${email}`), redisClient.del(`otp:withdrawal:${email}`)]);
     wsClients.get(email)?.ws?.send(JSON.stringify({ type: 'update' }));
     res.status(200).json({ success: true });
@@ -513,12 +554,13 @@ app.post('/api/admin/affiliate/rewards', async (req, res) => {
     if (!decoded || decoded.role !== 'admin') return res.status(403).json({ success: false, error: 'Forbidden' });
 
     const { data: leaderboard } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
-    const rewardRate = JSON.parse((await supabase.from('settings').select('value').eq('key', 'rewardRate').single()).data.value);
+    const rewardRateSetting = cachedData.settings.find(s => s.key === 'rewardRate');
+    const rewardRate = rewardRateSetting ? JSON.parse(rewardRateSetting.value) : 0.2;
     for (const affiliate of leaderboard) {
       const reward = affiliate.totalSalesMonthly * rewardRate;
       await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
       await supabase.from('history').insert({ email: affiliate.email, eventType: 'reward', data: { amount: reward, type: 'leaderboard' } });
-      await sendEmail('reward_mail', affiliate.email, { name: cachedData.users.find(u => u.email === affiliate.email)?.name, amount: reward });
+      await sendEmail('reward_mail', affiliate.email, { name: cachedData.users.find(u => u.email === affiliate.email)?.name || 'User', amount: reward });
       wsClients.get(affiliate.email)?.ws?.send(JSON.stringify({ type: 'notification', message: `You received ${reward} KES as a reward`, color: 'green' }));
     }
     res.status(200).json({ success: true });
@@ -556,7 +598,7 @@ app.post('/api/admin/affiliate/communication', async (req, res) => {
         }
       }
     } else if (type === 'news') {
-      const { data, error } = await supabase.from('news').insert({ message: sanitizeHtml(message) });
+      const { error } = await supabase.from('news').insert({ message: sanitizeHtml(message) });
       if (error) return res.status(500).json({ success: false, error: error.message });
       for (const [email, client] of wsClients.entries()) {
         client.ws?.send(JSON.stringify({ type: 'update' }));
@@ -582,7 +624,7 @@ app.post('/api/affiliate/update-password', async (req, res) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     await redisClient.setEx(`otp:change-password:${decoded.email}`, 300, otp);
-    await sendEmail('password_reset_mail', decoded.email, { name: cachedData.users.find(u => u.email === decoded.email)?.name, otp });
+    await sendEmail('password_reset_mail', decoded.email, { name: cachedData.users.find(u => u.email === decoded.email)?.name || 'User', otp });
     res.status(200).json({ success: true, message: 'Verify your email' });
   } catch (err) {
     console.error('Update password endpoint error:', err.message);
@@ -597,11 +639,12 @@ app.post('/api/affiliate/delete-account', async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
     const { data: user } = await supabase.from('users').select('currentBalance, name').eq('email', decoded.email).single();
+    if (!user) return res.status(401).json({ success: false, error: 'User not found' });
     if (user.currentBalance > 0) return res.status(400).json({ success: false, error: 'Cannot delete account with balance' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     await redisClient.setEx(`otp:delete:${decoded.email}`, 300, otp);
-    await sendEmail('alert_mail', decoded.email, { name: user.name, otp });
+    await sendEmail('alert_mail', decoded.email, { name: user.name, message: 'Please verify your account deletion with this OTP:', otp });
     res.status(200).json({ success: true, message: 'Verify your email' });
   } catch (err) {
     console.error('Delete account endpoint error:', err.message);
@@ -613,8 +656,11 @@ app.post('/api/affiliate/verify-password-otp', async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
     const storedOtp = await redisClient.get(`otp:change-password:${email}`);
-    if (!storedOtp || storedOt !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
+    if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
 
+    if (!newPassword.match(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{8,}$/)) {
+      return res.status(400).json({ success: false, error: 'Invalid password format' });
+    }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await supabase.from('users').update({ password: hashedPassword }).eq('email', email);
     for (const [clientEmail, client] of wsClients.entries()) {
@@ -635,7 +681,7 @@ app.post('/api/affiliate/verify-delete-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
     const storedOtp = await redisClient.get(`otp:delete:${email}`);
-    if (!storedOtp || storedOt !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
+    if (!storedOtp || storedOtp !== otp) return res.status(400).json({ success: false, error: 'OTP expired or invalid' });
 
     await supabase.from('users').update({ status: 'deleted' }).eq('email', email);
     for (const [clientEmail, client] of wsClients.entries()) {
