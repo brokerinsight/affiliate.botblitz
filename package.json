@@ -1,36 +1,30 @@
 {
-  "name": "deriv-bot-store-affiliate",
-  "version": "1.1.0",
-  "description": "Affiliate system for Deriv Bot Store, handling affiliate tracking, rewards, and withdrawals.",
+  "name": "deriv-bot-store-affiliate-server",
+  "version": "1.0.0",
+  "description": "Backend server for Deriv Bot Store Affiliate System",
   "main": "affiliate-server.js",
   "scripts": {
     "start": "node affiliate-server.js",
     "dev": "nodemon affiliate-server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"No tests defined yet\" && exit 0"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  },
+  "author": "xAI Team",
+  "license": "MIT",
   "dependencies": {
-    "axios": "^1.7.7",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
     "express": "^4.18.2",
-    "express-rate-limit": "^7.1.5",
-    "express-session": "^1.17.3",
-    "googleapis": "^134.0.0",
-    "jsonwebtoken": "^9.0.2",
-    "node-cron": "^3.0.3",
-    "nodemailer": "^6.9.13",
-    "sanitize-html": "^2.12.1",
-    "ws": "^8.16.0"
+    "express-rate-limit": "^6.7.0",
+    "jsonwebtoken": "^9.0.0",
+    "@supabase/supabase-js": "^2.38.0",
+    "redis": "^4.6.5",
+    "ws": "^8.13.0",
+    "nodemailer": "^6.9.1",
+    "sanitize-html": "^2.10.0",
+    "node-cron": "^3.0.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
-  },
-  "author": "Deriv Bot Store",
-  "license": "ISC",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/brokerinsight/affiliate.botblitz.git"
+    "nodemon": "^3.0.1"
   }
 }
