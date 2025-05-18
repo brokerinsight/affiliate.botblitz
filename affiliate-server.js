@@ -38,12 +38,7 @@ redisClient.on('error', (err) => console.error('Redis Client Error', err.message
 (async () => {
   try {
     await redisClient.connect();
-    try {
-      await redisClient.configSet('maxmemory-policy', 'volatile-ttl');
-      console.log('Redis connected and configured successfully');
-    } catch (configErr) {
-      console.warn('Failed to set Redis maxmemory-policy:', configErr.message);
-    }
+    console.log('Redis connected successfully');
   } catch (err) {
     console.error('Redis connection failed:', err.message);
   }
@@ -117,7 +112,7 @@ cron.schedule('0 0 1 * *', async () => {
     const { data: leaderboard } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
     await supabase.from('history').insert(leaderboard.map(l => ({ email: l.email, eventType: 'leaderboard', data: { totalSalesMonthly: l.totalSalesMonthly } })));
     const rewardRateSetting = cachedData.settings.find(s => s.key === 'rewardRate');
-    const rewardRate = rewardRateSetting ? JSON.parse(rewardRateSetting.value) : 0.2;
+    const rewardRate = rewardRateSetting ? (typeof rewardRateSetting.value === 'string' ? parseFloat(rewardRateSetting.value) : rewardRateSetting.value) : 0.2;
     for (const affiliate of leaderboard) {
       const reward = affiliate.totalSalesMonthly * rewardRate;
       await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
@@ -154,34 +149,40 @@ transporter.verify((error) => {
 });
 
 async function sendEmail(type, to, data) {
+  const getSettingValue = (key, defaultValue) => {
+    const setting = cachedData.settings.find(s => s.key === key);
+    if (!setting || !setting.value) return defaultValue;
+    return typeof setting.value === 'string' ? setting.value : JSON.stringify(setting.value);
+  };
+
   const templates = {
     signup_mail: { 
       subject: 'Welcome to Deriv Bot Store Affiliates', 
-      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>${data.otp ? `Your account has been created. Verify with OTP: ${data.otp}` : data.message || 'Welcome!'}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>${data.otp ? `Your account has been created. Verify with OTP: ${data.otp}` : data.message || 'Welcome!'}</p><p>${getSettingValue('copyrightText', 'Deriv Bot Store Affiliates 2025')}</p><p><a href="mailto:${getSettingValue('supportEmail', 'support@example.com')}">Support</a></p>` 
     },
     login_mail: { 
       subject: 'Login Verification', 
-      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Verify your login with OTP: ${data.otp}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Verify your login with OTP: ${data.otp}</p><p>${getSettingValue('copyrightText', 'Deriv Bot Store Affiliates 2025')}</p><p><a href="mailto:${getSettingValue('supportEmail', 'support@example.com')}">Support</a></p>` 
     },
     password_reset_mail: { 
       subject: 'Password Reset', 
-      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Reset your password with OTP: ${data.otp}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>Reset your password with OTP: ${data.otp}</p><p>${getSettingValue('copyrightText', 'Deriv Bot Store Affiliates 2025')}</p><p><a href="mailto:${getSettingValue('supportEmail', 'support@example.com')}">Support</a></p>` 
     },
     withdrawal_mail: { 
       subject: 'Withdrawal Request', 
-      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>${data.otp ? `Verify your withdrawal with OTP: ${data.otp}` : data.message || 'Withdrawal request processed'}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>${data.otp ? `Verify your withdrawal with OTP: ${data.otp}` : data.message || 'Withdrawal request processed'}</p><p>${getSettingValue('copyrightText', 'Deriv Bot Store Affiliates 2025')}</p><p><a href="mailto:${getSettingValue('supportEmail', 'support@example.com')}">Support</a></p>` 
     },
     alert_mail: { 
       subject: 'Account Alert', 
-      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name || 'admin'}</p><p>${data.message}${data.otp ? ` OTP: ${data.otp}` : ''}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name || 'admin'}</p><p>${data.message}${data.otp ? ` OTP: ${data.otp}` : ''}</p><p>${getSettingValue('copyrightText', 'Deriv Bot Store Affiliates 2025')}</p><p><a href="mailto:${getSettingValue('supportEmail', 'support@example.com')}">Support</a></p>` 
     },
     admin_mail: { 
       subject: 'Admin Notification', 
-      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, admin</p><p>${data.message}</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, admin</p><p>${data.message}</p><p>${getSettingValue('copyrightText', 'Deriv Bot Store Affiliates 2025')}</p><p><a href="mailto:${getSettingValue('supportEmail', 'support@example.com')}">Support</a></p>` 
     },
     reward_mail: { 
       subject: 'Reward Credited', 
-      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>You received ${data.amount} KES as a reward.</p><p>${cachedData.settings.find(s => s.key === 'copyrightText')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'copyrightText').value) : 'Deriv Bot Store Affiliates 2025'}</p><p><a href="mailto:${cachedData.settings.find(s => s.key === 'supportEmail')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'supportEmail').value) : 'support@example.com'}">Support</a></p>` 
+      html: `<img src="cid:logo" alt="Logo"><h1>Deriv Bot Store</h1><p>Hi, ${data.name}</p><p>You received ${data.amount} KES as a reward.</p><p>${getSettingValue('copyrightText', 'Deriv Bot Store Affiliates 2025')}</p><p><a href="mailto:${getSettingValue('supportEmail', 'support@example.com')}">Support</a></p>` 
     }
   };
   const mailOptions = {
@@ -402,7 +403,7 @@ app.get('/api/affiliate/data', async (req, res) => {
         notifications, 
         leaderboard, 
         news: cachedData.news, 
-        commissionRate: cachedData.settings.find(s => s.key === 'commissionRate')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'commissionRate').value) : 0.2 
+        commissionRate: cachedData.settings.find(s => s.key === 'commissionRate')?.value ? (typeof cachedData.settings.find(s => s.key === 'commissionRate').value === 'string' ? parseFloat(cachedData.settings.find(s => s.key === 'commissionRate').value) : cachedData.settings.find(s => s.key === 'commissionRate').value) : 0.2 
       } 
     });
   } catch (err) {
@@ -447,7 +448,7 @@ app.post('/api/affiliate/confirmed-sale', async (req, res) => {
     if (apiKey !== process.env.API_KEY) return res.status(401).json({ success: false, error: 'Invalid API key' });
     const { data: user } = await supabase.from('users').select('*').eq('refCode', affiliateref).single();
     if (!user) return res.status(400).json({ success: false, error: 'Invalid referral code' });
-    const commission = amount * (cachedData.settings.find(s => s.key === 'commissionRate')?.value ? JSON.parse(cachedData.settings.find(s => s.key === 'commissionRate').value) : 0.2);
+    const commission = amount * (cachedData.settings.find(s => s.key === 'commissionRate')?.value ? (typeof cachedData.settings.find(s => s.key === 'commissionRate').value === 'string' ? parseFloat(cachedData.settings.find(s => s.key === 'commissionRate').value) : cachedData.settings.find(s => s.key === 'commissionRate').value) : 0.2);
     await supabase.from('users').update({
       totalSales: supabase.sql`totalSales + ${amount}`,
       totalSalesMonthly: supabase.sql`totalSalesMonthly + ${amount}`,
@@ -521,7 +522,7 @@ app.post('/api/admin/affiliate/rewards', async (req, res) => {
 
     const { data: leaderboard } = await supabase.from('users').select('email, totalSalesMonthly').order('totalSalesMonthly', { ascending: false }).limit(10);
     const rewardRateSetting = cachedData.settings.find(s => s.key === 'rewardRate');
-    const rewardRate = rewardRateSetting ? JSON.parse(rewardRateSetting.value) : 0.2;
+    const rewardRate = rewardRateSetting ? (typeof rewardRateSetting.value === 'string' ? parseFloat(rewardRateSetting.value) : rewardRateSetting.value) : 0.2;
     for (const affiliate of leaderboard) {
       const reward = affiliate.totalSalesMonthly * rewardRate;
       await supabase.from('users').update({ currentBalance: supabase.sql`currentBalance + ${reward}` }).eq('email', affiliate.email);
@@ -661,5 +662,58 @@ app.post('/api/affiliate/verify-delete-otp', async (req, res) => {
   } catch (err) {
     console.error('Verify delete OTP endpoint error:', err.message);
     res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+// Health check endpoint for monitoring
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ success: true, message: 'Server is running', timestamp: new Date().toISOString() });
+});
+
+// Logout endpoint to clean up WebSocket connections
+app.post('/api/affiliate/logout', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_SUPABASE);
+    
+    // Remove the WebSocket client
+    if (wsClients.has(decoded.email)) {
+      const client = wsClients.get(decoded.email);
+      if (client.ws) {
+        client.ws.send(JSON.stringify({ type: 'logout' }));
+        client.ws.close();
+      }
+      wsClients.delete(decoded.email);
+    }
+    
+    res.status(200).json({ success: true, message: 'Logged out successfully' });
+  } catch (err) {
+    console.error('Logout endpoint error:', err.message);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// Error handling middleware for uncaught errors
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  res.status(500).json({ success: false, error: 'Internal server error' });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  try {
+    await redisClient.quit();
+    console.log('Redis connection closed');
+    server.close(() => {
+      console.log('Express server closed');
+      process.exit(0);
+    });
+  } catch (err) {
+    console.error('Error during shutdown:', err.message);
+    process.exit(1);
   }
 });
