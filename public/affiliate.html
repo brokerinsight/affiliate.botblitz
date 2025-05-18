@@ -35,7 +35,15 @@
     .theme-light { background-color: #ffffff; color: #000000; }
     .theme-dark { background-color: #1f2937; color: #d1d5db; }
     /* Focus styles */
-    input:focus, button:focus {
+    input:focus {
+      outline: none;
+      ring: 2px;
+      ring-color: #3b82f6;
+    }
+    button:focus {
+      outline: none;
+    }
+    #signupSubmit:focus, #loginSubmit:focus {
       outline: none;
       ring: 2px;
       ring-color: #3b82f6;
@@ -73,19 +81,19 @@
       </div>
       <!-- Navigation -->
       <div class="flex items-center space-x-2">
-        <button id="contactUsBtn" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 hidden focus:ring-2 focus:ring-blue-500">Contact Us</button>
+        <button id="contactUsBtn" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 hidden">Contact Us</button>
         <div id="settingsDropdown" class="relative hidden">
-          <button class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 flex items-center focus:ring-2 focus:ring-blue-500">
+          <button class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 flex items-center">
             <img src="/public/assets/setting.png" alt="Settings" class="w-6 h-6 mr-2" onerror="this.onerror=null; this.remove();"> Settings
           </button>
           <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg hidden theme-light" id="settingsMenu">
-            <button id="changePasswordBtn" class="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100 focus:ring-2 focus:ring-blue-500">Change Password</button>
-            <button id="deleteAccountBtn" class="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100 focus:ring-2 focus:ring-blue-500">Delete Account</button>
-            <button id="logoutBtn" class="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100 focus:ring-2 focus:ring-blue-500">Logout</button>
+            <button id="changePasswordBtn" class="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Change Password</button>
+            <button id="deleteAccountBtn" class="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Delete Account</button>
+            <button id="logoutBtn" class="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Logout</button>
           </div>
         </div>
         <!-- Theme Toggle -->
-        <button id="themeToggle" aria-label="Toggle theme" class="p-2 rounded-md hover:bg-gray-200 focus:ring-2 focus:ring-blue-500">
+        <button id="themeToggle" aria-label="Toggle theme" class="p-2 rounded-md hover:bg-gray-200">
           <svg id="sunIcon" class="w-6 h-6 hidden" fill="#f3f4f6" viewBox="0 0 24 24">
             <path d="M12 18a6 6 0 100-12 6 6 0 000 12zm0 2a8 8 0 110-16 8 8 0 010 16zM11 4V2h2v2h-2zm0 18v-2h2v2h-2zM4 11H2v2h2v-2zm18 0h-2v2h2v-2zM5.636 5.636l-1.414-1.414 1.414 1.414zm12.728 12.728l1.414-1.414-1.414 1.414zM5.636 18.364l1.414-1.414-1.414 1.414zm12.728-12.728l-1.414-1.414 1.414 1.414z"/>
           </svg>
@@ -103,9 +111,8 @@
     <div id="authSection" class="theme-light">
       <!-- Toggle Buttons -->
       <div class="flex justify-center space-x-2 mb-4">
-        <button id="loginToggle" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Login</button>
-        <button id="signupToggle" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Sign Up</button>
-        <button id="forgotPasswordToggle" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Forgot Password</button>
+        <button id="loginToggle" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md">Login</button>
+        <button id="signupToggle" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md">Sign Up</button>
       </div>
 
       <!-- Login Form -->
@@ -120,7 +127,7 @@
             <label class="block text-sm font-medium text-gray-700" for="loginPassword">Password</label>
             <div class="relative">
               <input type="password" id="loginPassword" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" required aria-required="true">
-              <button type="button" id="loginPasswordToggle" class="absolute right-2 top-2 text-gray-500 focus:ring-2 focus:ring-blue-500">Show</button>
+              <button type="button" id="loginPasswordToggle" class="absolute right-2 top-2 text-gray-500">Show</button>
             </div>
           </div>
           <div class="flex items-center">
@@ -132,7 +139,7 @@
             <span id="loginSubmitSpinner" class="spinner hidden"></span>
           </button>
           <p class="text-center text-sm">
-            <a href="#" id="showForgotPassword" class="text-blue-500 hover:underline focus:ring-2 focus:ring-blue-500">Forgot Password?</a>
+            <a href="#" id="showForgotPassword" class="text-blue-500 hover:underline">Forgot Password?</a>
           </p>
         </div>
       </div>
@@ -158,12 +165,12 @@
             <label class="block text-sm font-medium text-gray-700" for="signupPassword">Password</label>
             <div class="relative">
               <input type="password" id="signupPassword" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" required aria-required="true">
-              <button type="button" id="signupPasswordToggle" class="absolute right-2 top-2 text-gray-500 focus:ring-2 focus:ring-blue-500">Show</button>
+              <button type="button" id="signupPasswordToggle" class="absolute right-2 top-2 text-gray-500">Show</button>
             </div>
           </div>
           <div class="flex items-center">
             <input type="checkbox" id="signupTerms" required aria-required="true">
-            <label class="ml-2 text-sm text-gray-700" for="signupTerms">I agree to the <a href="/affiliate-terms" class="text-blue-500 hover:underline focus:ring-2 focus:ring-blue-500">Terms & Conditions</a></label>
+            <label class="ml-2 text-sm text-gray-700" for="signupTerms">I agree to the <a href="/affiliate-terms" class="text-blue-500 hover:underline">Terms & Conditions</a></label>
           </div>
           <div class="flex items-center">
             <input type="checkbox" id="signupRecaptcha" required aria-required="true">
@@ -174,7 +181,7 @@
             <span id="signupSubmitSpinner" class="spinner hidden"></span>
           </button>
           <p class="text-center text-sm">
-            Already have an account? <a href="#" id="showLogin" class="text-blue-500 hover:underline focus:ring-2 focus:ring-blue-500">Login</a>
+            Already have an account? <a href="#" id="showLogin" class="text-blue-500 hover:underline">Login</a>
           </p>
         </div>
       </div>
@@ -191,7 +198,7 @@
             <input type="checkbox" id="forgotRecaptcha" required aria-required="true">
             <label class="ml-2 text-sm text-gray-700" for="forgotRecaptcha">I am not a robot (reCAPTCHA)</label>
           </div>
-          <button id="forgotSubmit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:ring-2 focus:ring-blue-500">
+          <button id="forgotSubmit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
             <span id="forgotSubmitText">Submit</span>
             <span id="forgotSubmitSpinner" class="spinner hidden"></span>
           </button>
@@ -208,8 +215,11 @@
             <input type="text" id="otpInput" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" maxlength="6" required aria-required="true">
           </div>
           <p id="otpCountdown" class="text-sm text-gray-500"></p>
-          <button id="otpResend" class="w-full bg-gray-500 text-white px-4 py-2 rounded-md opacity-50 cursor-not-allowed focus:ring-2 focus:ring-blue-500">Resend Code</button>
-          <button id="otpVerify" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:ring-2 focus:ring-blue-500">
+          <button id="otpResend" class="w-full bg-gray-500 text-white px-4 py-2 rounded-md opacity-50 cursor-not-allowed">
+            <span id="otpResendText">Resend Code</span>
+            <span id="otpResendSpinner" class="spinner hidden"></span>
+          </button>
+          <button id="otpVerify" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
             <span id="otpVerifyText">Verify</span>
             <span id="otpVerifySpinner" class="spinner hidden"></span>
           </button>
@@ -224,17 +234,17 @@
             <label class="block text-sm font-medium text-gray-700" for="newPassword">New Password</label>
             <div class="relative">
               <input type="password" id="newPassword" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" required aria-required="true">
-              <button type="button" id="newPasswordToggle" class="absolute right-2 top-2 text-gray-500 focus:ring-2 focus:ring-blue-500">Show</button>
+              <button type="button" id="newPasswordToggle" class="absolute right-2 top-2 text-gray-500">Show</button>
             </div>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700" for="confirmPassword">Confirm Password</label>
             <div class="relative">
               <input type="password" id="confirmPassword" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" required aria-required="true">
-              <button type="button" id="confirmPasswordToggle" class="absolute right-2 top-2 text-gray-500 focus:ring-2 focus:ring-blue-500">Show</button>
+              <button type="button" id="confirmPasswordToggle" class="absolute right-2 top-2 text-gray-500">Show</button>
             </div>
           </div>
-          <button id="setNewPasswordSubmit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:ring-2 focus:ring-blue-500">
+          <button id="setNewPasswordSubmit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
             <span id="setNewPasswordSubmitText">Submit</span>
             <span id="setNewPasswordSubmitSpinner" class="spinner hidden"></span>
           </button>
@@ -246,13 +256,13 @@
     <div id="dashboardSection" class="hidden">
       <!-- Navigation Tabs -->
       <div class="flex flex-wrap gap-2 mb-4">
-        <button id="tabHome" class="bg-blue-500 text-white px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Home</button>
-        <button id="tabWithdrawalHistory" class="bg-gray-500 text-white px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Withdrawal History</button>
-        <button id="tabRewardsHistory" class="bg-gray-500 text-white px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Rewards History</button>
-        <button id="tabLeaderboard" class="bg-gray-500 text-white px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Leaderboard</button>
-        <button id="tabNotificationsHistory" class="bg-gray-500 text-white px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Notifications History</button>
-        <button id="tabNews" class="bg-gray-500 text-white px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">News</button>
-        <button id="tabMarketing" class="bg-gray-500 text-white px-4 py-2 rounded-md focus:ring-2 focus:ring-blue-500">Marketing</button>
+        <button id="tabHome" class="bg-blue-500 text-white px-4 py-2 rounded-md">Home</button>
+        <button id="tabWithdrawalHistory" class="bg-gray-500 text-white px-4 py-2 rounded-md">Withdrawal History</button>
+        <button id="tabRewardsHistory" class="bg-gray-500 text-white px-4 py-2 rounded-md">Rewards History</button>
+        <button id="tabLeaderboard" class="bg-gray-500 text-white px-4 py-2 rounded-md">Leaderboard</button>
+        <button id="tabNotificationsHistory" class="bg-gray-500 text-white px-4 py-2 rounded-md">Notifications History</button>
+        <button id="tabNews" class="bg-gray-500 text-white px-4 py-2 rounded-md">News</button>
+        <button id="tabMarketing" class="bg-gray-500 text-white px-4 py-2 rounded-md">Marketing</button>
       </div>
 
       <!-- Home Tab -->
@@ -262,7 +272,7 @@
           <label class="block text-sm font-medium">Affiliate Link</label>
           <div class="flex">
             <input id="affiliateLink" class="w-full p-2 border rounded" readonly aria-label="Affiliate Link">
-            <button id="copyLink" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 ml-2 focus:ring-2 focus:ring-blue-500">Copy</button>
+            <button id="copyLink" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 ml-2">Copy</button>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
@@ -288,7 +298,7 @@
             <p id="withdrawnTotal" class="text-lg">0.00</p>
           </div>
         </div>
-        <button id="commissionInfoBtn" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 mb-4 focus:ring-2 focus:ring-blue-500">Commission Info</button>
+        <button id="commissionInfoBtn" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 mb-4">Commission Info</button>
         <div class="bg-white p-4 rounded-lg shadow theme-light">
           <h3 class="font-medium mb-2">Request Withdrawal</h3>
           <div class="space-y-4">
@@ -308,8 +318,8 @@
               <input type="checkbox" id="reuseDetails" aria-label="Reuse Details">
               <label class="ml-2 text-sm" for="reuseDetails">Reuse Details</label>
             </div>
-            <button id="editMpesaDetails" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-blue-500">Edit MPESA Details</button>
-            <button id="requestWithdrawal" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:ring-2 focus:ring-blue-500">
+            <button id="editMpesaDetails" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Edit MPESA Details</button>
+            <button id="requestWithdrawal" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
               <span id="requestWithdrawalText">Request Withdrawal</span>
               <span id="requestWithdrawalSpinner" class="spinner hidden"></span>
             </button>
@@ -334,9 +344,9 @@
           <tbody id="withdrawalHistoryTable"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="withdrawalPrevPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-blue-500" disabled>Previous</button>
+          <button id="withdrawalPrevPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600" disabled>Previous</button>
           <span id="withdrawalPageNumber" class="text-sm text-gray-500">Page 1</span>
-          <button id="withdrawalNextPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-blue-500">Next</button>
+          <button id="withdrawalNextPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Next</button>
         </div>
       </div>
 
@@ -355,9 +365,9 @@
           <tbody id="rewardsHistoryTable"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="rewardsPrevPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-blue-500" disabled>Previous</button>
+          <button id="rewardsPrevPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600" disabled>Previous</button>
           <span id="rewardsPageNumber" class="text-sm text-gray-500">Page 1</span>
-          <button id="rewardsNextPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-blue-500">Next</button>
+          <button id="rewardsNextPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Next</button>
         </div>
       </div>
 
@@ -391,9 +401,9 @@
           <tbody id="notificationsHistoryTable"></tbody>
         </table>
         <div class="flex justify-between mt-4">
-          <button id="notificationsPrevPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-blue-500" disabled>Previous</button>
+          <button id="notificationsPrevPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600" disabled>Previous</button>
           <span id="notificationsPageNumber" class="text-sm text-gray-500">Page 1</span>
-          <button id="notificationsNextPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-blue-500">Next</button>
+          <button id="notificationsNextPage" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Next</button>
         </div>
       </div>
 
@@ -423,14 +433,14 @@
     <div class="bg-white p-6 rounded-lg max-w-md theme-light">
       <h2 class="text-xl font-bold mb-4">Contact Us</h2>
       <div class="space-y-4">
-        <a id="whatsappLink" href="https://wa.link/4wppln" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 focus:ring-2 focus:ring-blue-500">
+        <a id="whatsappLink" href="https://wa.link/4wppln" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">
           <img src="/public/assets/whatsapp.png" alt="WhatsApp" class="w-6 h-6 mr-2" onerror="this.onerror=null; this.remove();"> WhatsApp
         </a>
-        <a id="emailLink" href="mailto:derivbotstore@gmail.com" class="flex items-center bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:ring-2 focus:ring-blue-500">
+        <a id="emailLink" href="mailto:derivbotstore@gmail.com" class="flex items-center bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
           <img src="/public/assets/email.png" alt="Email" class="w-6 h-6 mr-2" onerror="this.onerror=null; this.remove();"> Email
         </a>
       </div>
-      <button id="closeContactUs" class="mt-4 text-gray-500 hover:text-gray-700 focus:ring-2 focus:ring-blue-500">Close</button>
+      <button id="closeContactUs" class="mt-4 text-gray-500 hover:text-gray-700">Close</button>
     </div>
   </div>
 
@@ -440,7 +450,7 @@
       <h2 class="text-xl font-bold mb-4">Commission Info</h2>
       <p id="commissionText" class="mb-2">Commission = Sale Amount × 20%</p>
       <p id="commissionExample" class="mb-4">Sale = 1000 KES, Rate = 20%, Commission = 200 KES</p>
-      <button id="closeCommissionInfo" class="text-gray-500 hover:text-gray-700 focus:ring-2 focus:ring-blue-500">Close</button>
+      <button id="closeCommissionInfo" class="text-gray-500 hover:text-gray-700">Close</button>
     </div>
   </div>
 
@@ -453,28 +463,28 @@
           <label class="block text-sm font-medium" for="currentPassword">Current Password</label>
           <div class="relative">
             <input type="password" id="currentPassword" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" required aria-required="true">
-            <button type="button" id="currentPasswordToggle" class="absolute right-2 top-2 text-gray-500 focus:ring-2 focus:ring-blue-500">Show</button>
+            <button type="button" id="currentPasswordToggle" class="absolute right-2 top-2 text-gray-500">Show</button>
           </div>
         </div>
         <div>
           <label class="block text-sm font-medium" for="changeNewPassword">New Password</label>
           <div class="relative">
             <input type="password" id="changeNewPassword" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" required aria-required="true">
-            <button type="button" id="changeNewPasswordToggle" class="absolute right-2 top-2 text-gray-500 focus:ring-2 focus:ring-blue-500">Show</button>
+            <button type="button" id="changeNewPasswordToggle" class="absolute right-2 top-2 text-gray-500">Show</button>
           </div>
         </div>
         <div>
           <label class="block text-sm font-medium" for="changeConfirmPassword">Confirm Password</label>
           <div class="relative">
             <input type="password" id="changeConfirmPassword" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" required aria-required="true">
-            <button type="button" id="changeConfirmPasswordToggle" class="absolute right-2 top-2 text-gray-500 focus:ring-2 focus:ring-blue-500">Show</button>
+            <button type="button" id="changeConfirmPasswordToggle" class="absolute right-2 top-2 text-gray-500">Show</button>
           </div>
         </div>
-        <button id="changePasswordSubmit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:ring-2 focus:ring-blue-500">
+        <button id="changePasswordSubmit" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
           <span id="changePasswordSubmitText">Submit</span>
           <span id="changePasswordSubmitSpinner" class="spinner hidden"></span>
         </button>
-        <button id="closeChangePassword" class="w-full text-gray-500 hover:text-gray-700 mt-2 focus:ring-2 focus:ring-blue-500">Cancel</button>
+        <button id="closeChangePassword" class="w-full text-gray-500 hover:text-gray-700 mt-2">Cancel</button>
       </div>
     </div>
   </div>
@@ -484,11 +494,11 @@
     <div class="bg-white p-6 rounded-lg max-w-md theme-light">
       <h2 class="text-xl font-bold mb-4">Delete Account</h2>
       <p class="mb-4">Are you sure you want to delete your account? This action cannot be undone.</p>
-      <button id="confirmDelete" class="w-full bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-blue-500">
+      <button id="confirmDelete" class="w-full bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">
         <span id="confirmDeleteText">Delete</span>
         <span id="confirmDeleteSpinner" class="spinner hidden"></span>
       </button>
-      <button id="closeDeleteAccount" class="w-full text-gray-500 hover:text-gray-700 mt-2 focus:ring-2 focus:ring-blue-500">Cancel</button>
+      <button id="closeDeleteAccount" class="w-full text-gray-500 hover:text-gray-700 mt-2">Cancel</button>
     </div>
   </div>
 
@@ -502,11 +512,11 @@
           <label class="block text-sm font-medium" for="sessionPassword">Password</label>
           <input type="password" id="sessionPassword" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" required aria-required="true">
         </div>
-        <button id="sessionYes" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:ring-2 focus:ring-blue-500">
+        <button id="sessionYes" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
           <span id="sessionYesText">Yes</span>
           <span id="sessionYesSpinner" class="spinner hidden"></span>
         </button>
-        <button id="sessionNo" class="w-full bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-blue-500">No</button>
+        <button id="sessionNo" class="w-full bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">No</button>
       </div>
     </div>
   </div>
@@ -516,7 +526,7 @@
     <div class="bg-white p-6 rounded-lg max-w-md theme-light">
       <h2 id="staticPageTitle" class="text-xl font-bold mb-4"></h2>
       <div id="staticPageContent" class="prose"></div>
-      <button id="closeStaticPage" class="mt-4 text-gray-500 hover:text-gray-700 focus:ring-2 focus:ring-blue-500">Close</button>
+      <button id="closeStaticPage" class="mt-4 text-gray-500 hover:text-gray-700">Close</button>
     </div>
   </div>
 
@@ -606,9 +616,11 @@
         div.innerHTML = `
           <div class="flex justify-between items-center">
             <p>${notif.message}</p>
-            <button onclick="dismissNotification('${notif.id}', this.parentElement.parentElement, ${notif.persist})" class="text-gray-500 hover:text-gray-700 focus:ring-2 focus:ring-blue-500">X</button>
+            <button class="notification-close text-gray-500 hover:text-gray-700">X</button>
           </div>
         `;
+        const closeButton = div.querySelector('.notification-close');
+        closeButton.addEventListener('click', () => dismissNotification(notif.id, div, notif.persist));
         document.getElementById('notificationContainer').appendChild(div);
         if (!notif.persist) {
           setTimeout(() => dismissNotification(notif.id, div, notif.persist), 30000);
@@ -872,7 +884,7 @@
           (data.data.staticPages || []).forEach(page => {
             const a = document.createElement('a');
             a.href = `/affiliate-${page.slug}`;
-            a.className = 'text-blue-500 hover:underline mx-2 focus:ring-2 focus:ring-blue-500';
+            a.className = 'text-blue-500 hover:underline mx-2';
             a.textContent = page.title;
             a.addEventListener('click', async (e) => {
               e.preventDefault();
@@ -912,15 +924,17 @@
 
       function toggleButtonLoading(buttonId, spinnerId, textId, isLoading) {
         const button = document.getElementById(buttonId);
-        const spinner = document.getElementById(spinnerId);
+        const spinner = spinnerId ? document.getElementById(spinnerId) : null;
         const text = document.getElementById(textId);
         if (isLoading) {
+          button.disabled = true;
           button.classList.add('opacity-50', 'cursor-not-allowed');
-          spinner.classList.remove('hidden');
+          if (spinner) spinner.classList.remove('hidden');
           text.classList.add('hidden');
         } else {
+          button.disabled = false;
           button.classList.remove('opacity-50', 'cursor-not-allowed');
-          spinner.classList.add('hidden');
+          if (spinner) spinner.classList.add('hidden');
           text.classList.remove('hidden');
         }
       }
@@ -974,11 +988,6 @@
         showSignupForm();
       });
 
-      document.getElementById('forgotPasswordToggle').addEventListener('click', (e) => {
-        e.preventDefault();
-        showForgotPasswordForm();
-      });
-
       document.getElementById('showLogin').addEventListener('click', (e) => {
         e.preventDefault();
         showLoginForm();
@@ -991,106 +1000,141 @@
 
       document.getElementById('signupUsername').addEventListener('input', () => {
         const username = document.getElementById('signupUsername').value;
-        if (username.length >= 5 && ws) {
-          ws.send(JSON.stringify({ type: 'username_check', username }));
+        const statusEl = document.getElementById('usernameStatus');
+        if (username.length < 5 && username.length > 0) {
+          statusEl.textContent = 'Username must be at least 5 characters';
+          statusEl.className = 'text-sm mt-1 text-red-500';
+        } else if (username.length >= 5 && ws) {
+                    ws.send(JSON.stringify({ type: 'username_check', username }));
         } else {
-          document.getElementById('usernameStatus').textContent = username.length > 0 ? 'Username must be at least 5 characters' : '';
-          document.getElementById('usernameStatus').className = 'text-sm mt-1 text-red-500';
+          statusEl.textContent = '';
         }
       });
 
       document.getElementById('signupPasswordToggle').addEventListener('click', () => {
-        const input = document.getElementById('signupPassword');
+        const password = document.getElementById('signupPassword');
         const toggle = document.getElementById('signupPasswordToggle');
-        input.type = input.type === 'password' ? 'text' : 'password';
-        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+        if (password.type === 'password') {
+          password.type = 'text';
+          toggle.textContent = 'Hide';
+        } else {
+          password.type = 'password';
+          toggle.textContent = 'Show';
+        }
       });
 
       document.getElementById('loginPasswordToggle').addEventListener('click', () => {
-        const input = document.getElementById('loginPassword');
+        const password = document.getElementById('loginPassword');
         const toggle = document.getElementById('loginPasswordToggle');
-        input.type = input.type === 'password' ? 'text' : 'password';
-        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+        if (password.type === 'password') {
+          password.type = 'text';
+          toggle.textContent = 'Hide';
+        } else {
+          password.type = 'password';
+          toggle.textContent = 'Show';
+        }
       });
 
       document.getElementById('newPasswordToggle').addEventListener('click', () => {
-        const input = document.getElementById('newPassword');
+        const password = document.getElementById('newPassword');
         const toggle = document.getElementById('newPasswordToggle');
-        input.type = input.type === 'password' ? 'text' : 'password';
-        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+        if (password.type === 'password') {
+          password.type = 'text';
+          toggle.textContent = 'Hide';
+        } else {
+          password.type = 'password';
+          toggle.textContent = 'Show';
+        }
       });
 
       document.getElementById('confirmPasswordToggle').addEventListener('click', () => {
-        const input = document.getElementById('confirmPassword');
+        const password = document.getElementById('confirmPassword');
         const toggle = document.getElementById('confirmPasswordToggle');
-        input.type = input.type === 'password' ? 'text' : 'password';
-        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+        if (password.type === 'password') {
+          password.type = 'text';
+          toggle.textContent = 'Hide';
+        } else {
+          password.type = 'password';
+          toggle.textContent = 'Show';
+        }
+      });
+
+      document.getElementById('currentPasswordToggle').addEventListener('click', () => {
+        const password = document.getElementById('currentPassword');
+        const toggle = document.getElementById('currentPasswordToggle');
+        if (password.type === 'password') {
+          password.type = 'text';
+          toggle.textContent = 'Hide';
+        } else {
+          password.type = 'password';
+          toggle.textContent = 'Show';
+        }
+      });
+
+      document.getElementById('changeNewPasswordToggle').addEventListener('click', () => {
+        const password = document.getElementById('changeNewPassword');
+        const toggle = document.getElementById('changeNewPasswordToggle');
+        if (password.type === 'password') {
+          password.type = 'text';
+          toggle.textContent = 'Hide';
+        } else {
+          password.type = 'password';
+          toggle.textContent = 'Show';
+        }
+      });
+
+      document.getElementById('changeConfirmPasswordToggle').addEventListener('click', () => {
+        const password = document.getElementById('changeConfirmPassword');
+        const toggle = document.getElementById('changeConfirmPasswordToggle');
+        if (password.type === 'password') {
+          password.type = 'text';
+          toggle.textContent = 'Hide';
+        } else {
+          password.type = 'password';
+          toggle.textContent = 'Show';
+        }
       });
 
       document.getElementById('signupSubmit').addEventListener('click', async () => {
         const name = document.getElementById('signupName').value.trim();
         const username = document.getElementById('signupUsername').value.trim();
         const email = document.getElementById('signupEmail').value.trim();
-        const password = document.getElementById('signupPassword').value;
+        const password = document.getElementById('signupPassword').value.trim();
         const terms = document.getElementById('signupTerms').checked;
         const recaptcha = document.getElementById('signupRecaptcha').checked;
 
-        if (!name) {
-          showNotification('Please enter your full name', 'red');
-          return;
-        }
-        if (!name.match(/^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/)) {
-          showNotification('Full name must contain at least two words', 'red');
-          return;
-        }
-        if (!username) {
-          showNotification('Please enter a username', 'red');
+        if (!name || !username || !email || !password || !terms || !recaptcha) {
+          showNotification('Please fill all fields and agree to terms', 'red');
           return;
         }
         if (!username.match(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{5,}$/)) {
-          showNotification('Username must be at least 5 characters with 1 letter and 1 number', 'red');
+          showNotification('Username must be 5+ characters with letters and numbers', 'red');
           return;
         }
-        if (!email) {
-          showNotification('Please enter your email', 'red');
-          return;
-        }
-        if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        if (!email.match(/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/)) {
           showNotification('Invalid email format', 'red');
           return;
         }
-        if (!password) {
-          showNotification('Please enter a password', 'red');
-          return;
-        }
-        if (!password.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
-          showNotification('Password must be at least 8 characters with 1 letter and 1 number', 'red');
-          return;
-        }
-        if (!terms) {
-          showNotification('You must agree to the Terms & Conditions', 'red');
-          return;
-        }
-        if (!recaptcha) {
-          showNotification('Please complete the reCAPTCHA', 'red');
+        if (!password.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/)) {
+          showNotification('Password must be 8+ characters with uppercase, lowercase, and numbers', 'red');
           return;
         }
 
         toggleButtonLoading('signupSubmit', 'signupSubmitSpinner', 'signupSubmitText', true);
-        const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
-        const res = await fetch(`${API_BASE}/register`, {
+        const token = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'signup' });
+        const res = await fetch(`${API_BASE}/signup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, username, email, password, termsAccepted: true, recaptchaToken })
+          body: JSON.stringify({ name, username, email, password, recaptchaToken: token })
         });
         const data = await res.json();
         toggleButtonLoading('signupSubmit', 'signupSubmitSpinner', 'signupSubmitText', false);
-
         if (data.success) {
-          document.getElementById('signupForm').classList.add('hidden');
+          otpContext = { email, type: 'signup' };
           document.getElementById('otpForm').classList.remove('hidden');
-          document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
-          otpContext = { type: 'signup', email };
+          document.getElementById('signupForm').classList.add('hidden');
+          document.getElementById('otpTitle').textContent = 'Verify Your Email Address';
+          document.getElementById('otpMessage').textContent = `We sent a 6-digit code to ${email}. It expires in 5 minutes.`;
           startOtpTimer();
         } else {
           showNotification(data.error, 'red');
@@ -1099,42 +1143,48 @@
 
       document.getElementById('loginSubmit').addEventListener('click', async () => {
         const email = document.getElementById('loginEmail').value.trim();
-        const password = document.getElementById('loginPassword').value;
+        const password = document.getElementById('loginPassword').value.trim();
         const recaptcha = document.getElementById('loginRecaptcha').checked;
 
-        if (!email) {
-          showNotification('Please enter your email', 'red');
+        if (!email || !password || !recaptcha) {
+          showNotification('Please fill all fields and verify reCAPTCHA', 'red');
           return;
         }
-        if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        if (!email.match(/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/)) {
           showNotification('Invalid email format', 'red');
-          return;
-        }
-        if (!password) {
-          showNotification('Please enter your password', 'red');
-          return;
-        }
-        if (!recaptcha) {
-          showNotification('Please complete the reCAPTCHA', 'red');
           return;
         }
 
         toggleButtonLoading('loginSubmit', 'loginSubmitSpinner', 'loginSubmitText', true);
-        const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
+        const token = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'login' });
         const res = await fetch(`${API_BASE}/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, recaptchaToken })
+          body: JSON.stringify({ email, password, recaptchaToken: token })
         });
         const data = await res.json();
         toggleButtonLoading('loginSubmit', 'loginSubmitSpinner', 'loginSubmitText', false);
-
         if (data.success) {
-          document.getElementById('loginForm').classList.add('hidden');
-          document.getElementById('otpForm').classList.remove('hidden');
-          document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
-          otpContext = { type: 'login', email };
-          startOtpTimer();
+          if (data.data.requiresOtp) {
+            otpContext = { email, type: 'login' };
+            document.getElementById('otpForm').classList.remove('hidden');
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('otpTitle').textContent = 'Verify Your Email Address';
+            document.getElementById('otpMessage').textContent = `We sent a 6-digit code to ${email}. It expires in 5 minutes.`;
+            startOtpTimer();
+          } else {
+            jwtToken = data.data.token;
+            setCookie('jwt', jwtToken, 30 * 24 * 60 * 60);
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            document.getElementById('contactUsBtn').classList.remove('hidden');
+            document.getElementById('settingsDropdown').classList.remove('hidden');
+            document.getElementById('welcomeMessage').classList.remove('hidden');
+            initializeWebSocket();
+            await fetchDashboardData();
+            startSessionTimer();
+            fetchSettings();
+          }
         } else {
           showNotification(data.error, 'red');
         }
@@ -1144,92 +1194,33 @@
         const email = document.getElementById('forgotEmail').value.trim();
         const recaptcha = document.getElementById('forgotRecaptcha').checked;
 
-        if (!email) {
-          showNotification('Please enter your email', 'red');
+        if (!email || !recaptcha) {
+          showNotification('Please enter an email and verify reCAPTCHA', 'red');
           return;
         }
-        if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        if (!email.match(/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/)) {
           showNotification('Invalid email format', 'red');
-          return;
-        }
-        if (!recaptcha) {
-          showNotification('Please complete the reCAPTCHA', 'red');
           return;
         }
 
         toggleButtonLoading('forgotSubmit', 'forgotSubmitSpinner', 'forgotSubmitText', true);
-        const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
-        const res = await fetch(`${API_BASE}/reset-password`, {
+        const token = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'forgot' });
+        const res = await fetch(`${API_BASE}/forgot-password`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, recaptchaToken })
+          body: JSON.stringify({ email, recaptchaToken: token })
         });
         const data = await res.json();
         toggleButtonLoading('forgotSubmit', 'forgotSubmitSpinner', 'forgotSubmitText', false);
-
         if (data.success) {
-          document.getElementById('forgotPasswordForm').classList.add('hidden');
+          otpContext = { email, type: 'reset' };
           document.getElementById('otpForm').classList.remove('hidden');
-          document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
-          otpContext = { type: 'reset', email };
+          document.getElementById('forgotPasswordForm').classList.add('hidden');
+          document.getElementById('otpTitle').textContent = 'Verify Your Email Address';
+          document.getElementById('otpMessage').textContent = `We sent a 6-digit code to ${email}. It expires in 5 minutes.`;
           startOtpTimer();
         } else {
           showNotification(data.error, 'red');
-        }
-      });
-
-      function startOtpTimer() {
-        clearInterval(otpTimer);
-        clearInterval(otpResendTimer);
-        clearInterval(otpBlockTimer);
-        let timeLeft = OTP_DURATION;
-        document.getElementById('otpCountdown').textContent = `Expires in ${formatTime(timeLeft)}`;
-        document.getElementById('otpResend').textContent = `Resend code in ${formatTime(timeLeft)}`;
-        otpTimer = setInterval(() => {
-          timeLeft -= 1000;
-          if (timeLeft <= 0) {
-            clearInterval(otpTimer);
-            document.getElementById('otpCountdown').textContent = 'Code expired';
-            document.getElementById('otpVerify').disabled = true;
-            return;
-          }
-          document.getElementById('otpCountdown').textContent = `Expires in ${formatTime(timeLeft)}`;
-        }, 1000);
-
-        otpResendTimer = setInterval(() => {
-          timeLeft -= 1000;
-          if (timeLeft <= 0) {
-            clearInterval(otpResendTimer);
-            document.getElementById('otpResend').classList.remove('opacity-50', 'cursor-not-allowed');
-            document.getElementById('otpResend').disabled = false;
-            document.getElementById('otpResend').textContent = 'Resend Code';
-            return;
-          }
-          document.getElementById('otpResend').textContent = `Resend code in ${formatTime(timeLeft)}`;
-        }, 1000);
-      }
-
-      document.getElementById('otpResend').addEventListener('click', async () => {
-        if (otpBlockTimer) return;
-        if (otpResendTimer) return;
-        const email = otpContext.email;
-        toggleButtonLoading('otpResend', '', 'otpResend', true);
-        const res = await fetch(`${API_BASE}/resend-otp`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-        const data = await res.json();
-        toggleButtonLoading('otpResend', '', 'otpResend', false);
-        if (data.success) {
-          startOtpTimer();
-          showNotification('New OTP sent to your email', 'green');
-        } else {
-          showNotification(data.error, 'red');
-          otpBlockTimer = setTimeout(() => {
-            clearInterval(otpBlockTimer);
-            otpBlockTimer = null;
-          }, OTP_BLOCK_DURATION);
         }
       });
 
@@ -1276,20 +1267,77 @@
         }
       });
 
+      document.getElementById('otpResend').addEventListener('click', async () => {
+        if (document.getElementById('otpResend').disabled) return;
+        const email = otpContext.email;
+        toggleButtonLoading('otpResend', 'otpResendSpinner', 'otpResendText', true);
+        const res = await fetch(`${API_BASE}/resend-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        toggleButtonLoading('otpResend', 'otpResendSpinner', 'otpResendText', false);
+        if (data.success) {
+          startOtpTimer();
+          showNotification('New OTP sent to your email', 'green');
+        } else {
+          showNotification(data.error, 'red');
+          otpBlockTimer = setTimeout(() => {
+            clearInterval(otpBlockTimer);
+            otpBlockTimer = null;
+          }, OTP_BLOCK_DURATION);
+        }
+      });
+
+      function startOtpTimer() {
+        clearInterval(otpTimer);
+        clearInterval(otpResendTimer);
+        clearInterval(otpBlockTimer);
+        let timeLeft = OTP_DURATION;
+        document.getElementById('otpCountdown').textContent = `Expires in ${formatTime(timeLeft)}`;
+        const resendButton = document.getElementById('otpResend');
+        resendButton.textContent = `Resend code in ${formatTime(timeLeft)}`;
+        resendButton.disabled = true;
+        resendButton.classList.add('opacity-50', 'cursor-not-allowed');
+        otpTimer = setInterval(() => {
+          timeLeft -= 1000;
+          if (timeLeft <= 0) {
+            clearInterval(otpTimer);
+            document.getElementById('otpCountdown').textContent = 'Code expired';
+            document.getElementById('otpVerify').disabled = true;
+            return;
+          }
+          document.getElementById('otpCountdown').textContent = `Expires in ${formatTime(timeLeft)}`;
+        }, 1000);
+
+        otpResendTimer = setInterval(() => {
+          timeLeft -= 1000;
+          if (timeLeft <= 0) {
+            clearInterval(otpResendTimer);
+            resendButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            resendButton.disabled = false;
+            resendButton.textContent = 'Resend Code';
+            return;
+          }
+          resendButton.textContent = `Resend code in ${formatTime(timeLeft)}`;
+        }, 1000);
+      }
+
       document.getElementById('setNewPasswordSubmit').addEventListener('click', async () => {
-        const newPassword = document.getElementById('newPassword').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
+        const newPassword = document.getElementById('newPassword').value.trim();
+        const confirmPassword = document.getElementById('confirmPassword').value.trim();
 
         if (!newPassword || !confirmPassword) {
-          showNotification('Please fill in both password fields', 'red');
+          showNotification('Please fill all fields', 'red');
           return;
         }
         if (newPassword !== confirmPassword) {
           showNotification('Passwords do not match', 'red');
           return;
         }
-        if (!newPassword.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
-          showNotification('Password must be at least 8 characters with 1 letter and 1 number', 'red');
+        if (!newPassword.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/)) {
+          showNotification('Password must be 8+ characters with uppercase, lowercase, and numbers', 'red');
           return;
         }
 
@@ -1297,62 +1345,83 @@
         const res = await fetch(`${API_BASE}/set-password`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: otpContext.email, newPassword })
+          body: JSON.stringify({ email: otpContext.email, password: newPassword, type: otpContext.type })
         });
         const data = await res.json();
         toggleButtonLoading('setNewPasswordSubmit', 'setNewPasswordSubmitSpinner', 'setNewPasswordSubmitText', false);
-
         if (data.success) {
+          showNotification('Password set successfully', 'green');
           if (otpContext.type === 'signup') {
-            showNotification('Account created successfully! Please log in.', 'green');
+            document.getElementById('setNewPasswordForm').classList.add('hidden');
             showLoginForm();
           } else if (otpContext.type === 'reset') {
-            showNotification('Password reset successfully! Please log in.', 'green');
+            document.getElementById('setNewPasswordForm').classList.add('hidden');
             showLoginForm();
           }
-          document.getElementById('setNewPasswordForm').classList.add('hidden');
-          document.getElementById('loginForm').classList.remove('hidden');
         } else {
           showNotification(data.error, 'red');
         }
       });
 
-      document.getElementById('currentPasswordToggle').addEventListener('click', () => {
-        const input = document.getElementById('currentPassword');
-        const toggle = document.getElementById('currentPasswordToggle');
-        input.type = input.type === 'password' ? 'text' : 'password';
-        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      document.getElementById('contactUsBtn').addEventListener('click', () => {
+        document.getElementById('contactUsModal').classList.remove('hidden');
       });
 
-      document.getElementById('changeNewPasswordToggle').addEventListener('click', () => {
-        const input = document.getElementById('changeNewPassword');
-        const toggle = document.getElementById('changeNewPasswordToggle');
-        input.type = input.type === 'password' ? 'text' : 'password';
-        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      document.getElementById('closeContactUs').addEventListener('click', () => {
+        document.getElementById('contactUsModal').classList.add('hidden');
       });
 
-      document.getElementById('changeConfirmPasswordToggle').addEventListener('click', () => {
-        const input = document.getElementById('changeConfirmPassword');
-        const toggle = document.getElementById('changeConfirmPasswordToggle');
-        input.type = input.type === 'password' ? 'text' : 'password';
-        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      document.getElementById('commissionInfoBtn').addEventListener('click', () => {
+        document.getElementById('commissionInfoModal').classList.remove('hidden');
+      });
+
+      document.getElementById('closeCommissionInfo').addEventListener('click', () => {
+        document.getElementById('commissionInfoModal').classList.add('hidden');
+      });
+
+      document.getElementById('settingsDropdown').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('settingsMenu').classList.toggle('hidden');
+      });
+
+      document.getElementById('changePasswordBtn').addEventListener('click', () => {
+        document.getElementById('changePasswordModal').classList.remove('hidden');
+        document.getElementById('settingsMenu').classList.add('hidden');
+      });
+
+      document.getElementById('closeChangePassword').addEventListener('click', () => {
+        document.getElementById('changePasswordModal').classList.add('hidden');
+      });
+
+      document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+        document.getElementById('deleteAccountModal').classList.remove('hidden');
+        document.getElementById('settingsMenu').classList.add('hidden');
+      });
+
+      document.getElementById('closeDeleteAccount').addEventListener('click', () => {
+        document.getElementById('deleteAccountModal').classList.add('hidden');
+      });
+
+      document.getElementById('logoutBtn').addEventListener('click', () => {
+        logout();
+        showNotification('Logged out successfully', 'green');
       });
 
       document.getElementById('changePasswordSubmit').addEventListener('click', async () => {
-        const currentPassword = document.getElementById('currentPassword').value;
-        const newPassword = document.getElementById('changeNewPassword').value;
-        const confirmPassword = document.getElementById('changeConfirmPassword').value;
+        const currentPassword = document.getElementById('currentPassword').value.trim();
+        const newPassword = document.getElementById('changeNewPassword').value.trim();
+        const confirmPassword = document.getElementById('changeConfirmPassword').value.trim();
 
         if (!currentPassword || !newPassword || !confirmPassword) {
-          showNotification('Please fill in all password fields', 'red');
+          showNotification('Please fill all fields', 'red');
           return;
         }
         if (newPassword !== confirmPassword) {
-          showNotification('New passwords do not match', 'red');
+          showNotification('Passwords do not match', 'red');
           return;
         }
-        if (!newPassword.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
-          showNotification('New password must be at least 8 characters with 1 letter and 1 number', 'red');
+        if (!newPassword.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/)) {
+          showNotification('Password must be 8+ characters with uppercase, lowercase, and numbers', 'red');
           return;
         }
 
@@ -1364,9 +1433,8 @@
         });
         const data = await res.json();
         toggleButtonLoading('changePasswordSubmit', 'changePasswordSubmitSpinner', 'changePasswordSubmitText', false);
-
         if (data.success) {
-          showNotification('Password changed successfully!', 'green');
+          showNotification('Password changed successfully', 'green');
           document.getElementById('changePasswordModal').classList.add('hidden');
         } else {
           showNotification(data.error, 'red');
@@ -1381,33 +1449,29 @@
         });
         const data = await res.json();
         toggleButtonLoading('confirmDelete', 'confirmDeleteSpinner', 'confirmDeleteText', false);
-
         if (data.success) {
-          showNotification('Account deleted successfully!', 'green');
           logout();
-          document.getElementById('deleteAccountModal').classList.add('hidden');
+          showNotification('Account deleted successfully', 'green');
         } else {
           showNotification(data.error, 'red');
         }
       });
 
       document.getElementById('sessionYes').addEventListener('click', async () => {
-        const password = document.getElementById('sessionPassword').value;
-
+        const password = document.getElementById('sessionPassword').value.trim();
         if (!password) {
           showNotification('Please enter your password', 'red');
           return;
         }
 
         toggleButtonLoading('sessionYes', 'sessionYesSpinner', 'sessionYesText', true);
-        const res = await fetch(`${API_BASE}/verify-session`, {
+        const res = await fetch(`${API_BASE}/validate-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
           body: JSON.stringify({ password })
         });
         const data = await res.json();
         toggleButtonLoading('sessionYes', 'sessionYesSpinner', 'sessionYesText', false);
-
         if (data.success) {
           document.getElementById('sessionTimeoutModal').classList.add('hidden');
           startSessionTimer();
@@ -1419,14 +1483,18 @@
       document.getElementById('sessionNo').addEventListener('click', () => {
         logout();
         document.getElementById('sessionTimeoutModal').classList.add('hidden');
-        showNotification('Session ended', 'red');
+        showNotification('Session ended', 'green');
+      });
+
+      document.getElementById('closeStaticPage').addEventListener('click', () => {
+        document.getElementById('staticPageModal').classList.add('hidden');
       });
 
       document.getElementById('copyLink').addEventListener('click', () => {
         const link = document.getElementById('affiliateLink');
         link.select();
         document.execCommand('copy');
-        showNotification('Link copied to clipboard!', 'green');
+        showNotification('Link copied to clipboard', 'green');
       });
 
       document.getElementById('requestWithdrawal').addEventListener('click', async () => {
@@ -1434,34 +1502,29 @@
         const mpesaNumber = document.getElementById('withdrawalMpesaNumber').value.trim();
         const mpesaName = document.getElementById('withdrawalMpesaName').value.trim();
 
-        if (isNaN(amount) || amount <= 0) {
-          showNotification('Please enter a valid amount', 'red');
+        if (!amount || !mpesaNumber || !mpesaName) {
+          showNotification('Please fill all fields', 'red');
           return;
         }
-        if (amount > userData.currentBalance) {
-          showNotification('Insufficient balance', 'red');
+        if (amount <= 0 || amount > userData.currentBalance) {
+          showNotification(`Amount must be between 1 and ${formatCurrency(userData.currentBalance)} KES`, 'red');
           return;
         }
-        if (!mpesaNumber.match(/^0[17]\d{8}$/)) {
-          showNotification('Invalid MPESA number (must start with 07 or 01 and be 10 digits)', 'red');
-          return;
-        }
-        if (!mpesaName.match(/^[a-zA-Z\s]+$/)) {
-          showNotification('MPESA name must contain only letters and spaces', 'red');
+        if (!mpesaNumber.match(/^\d{10}$/)) {
+          showNotification('MPESA number must be 10 digits', 'red');
           return;
         }
 
         toggleButtonLoading('requestWithdrawal', 'requestWithdrawalSpinner', 'requestWithdrawalText', true);
-        const res = await fetch(`${API_BASE}/withdraw`, {
+        const res = await fetch(`${API_BASE}/request-withdrawal`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
           body: JSON.stringify({ amount, mpesaNumber, mpesaName })
         });
         const data = await res.json();
         toggleButtonLoading('requestWithdrawal', 'requestWithdrawalSpinner', 'requestWithdrawalText', false);
-
         if (data.success) {
-          showNotification('Withdrawal request submitted!', 'green');
+          showNotification('Withdrawal request sent', 'green');
           await fetchDashboardData();
         } else {
           showNotification(data.error, 'red');
@@ -1475,16 +1538,67 @@
       });
 
       document.getElementById('reuseDetails').addEventListener('change', () => {
-        const checked = document.getElementById('reuseDetails').checked;
-        if (checked && userData.mpesaNumber && userData.mpesaName) {
-          document.getElementById('withdrawalMpesaNumber').value = userData.mpesaNumber;
-          document.getElementById('withdrawalMpesaName').value = userData.mpesaName;
+        if (document.getElementById('reuseDetails').checked) {
+          document.getElementById('withdrawalMpesaNumber').value = userData.mpesaNumber || '';
+          document.getElementById('withdrawalMpesaName').value = userData.mpesaName || '';
           document.getElementById('withdrawalMpesaNumber').disabled = true;
           document.getElementById('withdrawalMpesaName').disabled = true;
         } else {
           document.getElementById('withdrawalMpesaNumber').disabled = false;
           document.getElementById('withdrawalMpesaName').disabled = false;
         }
+      });
+
+      document.getElementById('tabHome').addEventListener('click', () => {
+        document.querySelectorAll('#dashboardSection > div').forEach(tab => tab.classList.add('hidden'));
+        document.getElementById('homeTab').classList.remove('hidden');
+        document.getElementById('tabHome').classList.add('bg-blue-500');
+        document.getElementById('tabHome').classList.remove('bg-gray-500');
+      });
+
+      document.getElementById('tabWithdrawalHistory').addEventListener('click', () => {
+        document.querySelectorAll('#dashboardSection > div').forEach(tab => tab.classList.add('hidden'));
+        document.getElementById('withdrawalHistoryTab').classList.remove('hidden');
+        document.getElementById('tabWithdrawalHistory').classList.add('bg-blue-500');
+        document.getElementById('tabWithdrawalHistory').classList.remove('bg-gray-500');
+        updateWithdrawalTable();
+      });
+
+      document.getElementById('tabRewardsHistory').addEventListener('click', () => {
+        document.querySelectorAll('#dashboardSection > div').forEach(tab => tab.classList.add('hidden'));
+        document.getElementById('rewardsHistoryTab').classList.remove('hidden');
+        document.getElementById('tabRewardsHistory').classList.add('bg-blue-500');
+        document.getElementById('tabRewardsHistory').classList.remove('bg-gray-500');
+        updateRewardsTable();
+      });
+
+      document.getElementById('tabLeaderboard').addEventListener('click', () => {
+        document.querySelectorAll('#dashboardSection > div').forEach(tab => tab.classList.add('hidden'));
+        document.getElementById('leaderboardTab').classList.remove('hidden');
+        document.getElementById('tabLeaderboard').classList.add('bg-blue-500');
+        document.getElementById('tabLeaderboard').classList.remove('bg-gray-500');
+      });
+
+      document.getElementById('tabNotificationsHistory').addEventListener('click', () => {
+        document.querySelectorAll('#dashboardSection > div').forEach(tab => tab.classList.add('hidden'));
+        document.getElementById('notificationsHistoryTab').classList.remove('hidden');
+        document.getElementById('tabNotificationsHistory').classList.add('bg-blue-500');
+        document.getElementById('tabNotificationsHistory').classList.remove('bg-gray-500');
+        updateNotificationsTable();
+      });
+
+      document.getElementById('tabNews').addEventListener('click', () => {
+        document.querySelectorAll('#dashboardSection > div').forEach(tab => tab.classList.add('hidden'));
+        document.getElementById('newsTab').classList.remove('hidden');
+        document.getElementById('tabNews').classList.add('bg-blue-500');
+        document.getElementById('tabNews').classList.remove('bg-gray-500');
+      });
+
+      document.getElementById('tabMarketing').addEventListener('click', () => {
+        document.querySelectorAll('#dashboardSection > div').forEach(tab => tab.classList.add('hidden'));
+        document.getElementById('marketingTab').classList.remove('hidden');
+        document.getElementById('tabMarketing').classList.add('bg-blue-500');
+        document.getElementById('tabMarketing').classList.remove('bg-gray-500');
       });
 
       document.getElementById('withdrawalPrevPage').addEventListener('click', () => {
@@ -1529,105 +1643,28 @@
         }
       });
 
-      document.getElementById('contactUsBtn').addEventListener('click', () => {
-        document.getElementById('contactUsModal').classList.remove('hidden');
-      });
-
-      document.getElementById('closeContactUs').addEventListener('click', () => {
-        document.getElementById('contactUsModal').classList.add('hidden');
-      });
-
-      document.getElementById('commissionInfoBtn').addEventListener('click', () => {
-        document.getElementById('commissionInfoModal').classList.remove('hidden');
-      });
-
-      document.getElementById('closeCommissionInfo').addEventListener('click', () => {
-        document.getElementById('commissionInfoModal').classList.add('hidden');
-      });
-
-      document.getElementById('settingsDropdown').addEventListener('click', (e) => {
-        e.preventDefault();
-        const menu = document.getElementById('settingsMenu');
-        menu.classList.toggle('hidden');
-      });
-
-      document.getElementById('changePasswordBtn').addEventListener('click', () => {
-        document.getElementById('changePasswordModal').classList.remove('hidden');
-      });
-
-      document.getElementById('closeChangePassword').addEventListener('click', () => {
-        document.getElementById('changePasswordModal').classList.add('hidden');
-      });
-
-      document.getElementById('deleteAccountBtn').addEventListener('click', () => {
-        document.getElementById('deleteAccountModal').classList.remove('hidden');
-      });
-
-      document.getElementById('closeDeleteAccount').addEventListener('click', () => {
-        document.getElementById('deleteAccountModal').classList.add('hidden');
-      });
-
-      document.getElementById('logoutBtn').addEventListener('click', () => {
-        logout();
-        showNotification('Logged out successfully', 'green');
-      });
-
-      document.getElementById('closeStaticPage').addEventListener('click', () => {
-        document.getElementById('staticPageModal').classList.add('hidden');
-      });
-
-      // Tab Switching
-      const tabs = document.querySelectorAll('#dashboardSection button[id$="Tab"]');
-      tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.forEach(t => {
-            document.getElementById(t.id.replace('Tab', '')).classList.add('hidden');
-            t.classList.remove('bg-blue-500', 'text-white');
-            t.classList.add('bg-gray-500');
-          });
-          const target = tab.id.replace('Tab', '');
-          document.getElementById(target).classList.remove('hidden');
-          tab.classList.remove('bg-gray-500');
-          tab.classList.add('bg-blue-500', 'text-white');
-        });
-      });
-
       // Initialization
       applyTheme();
       if (jwtToken) {
         document.getElementById('loadingOverlay').classList.remove('hidden');
-        validateJwt().then(valid => {
-          if (valid) {
-            document.getElementById('authSection').classList.add('hidden');
-            document.getElementById('dashboardSection').classList.remove('hidden');
-            document.getElementById('contactUsBtn').classList.remove('hidden');
-            document.getElementById('settingsDropdown').classList.remove('hidden');
-            document.getElementById('welcomeMessage').classList.remove('hidden');
-            initializeWebSocket();
-            fetchDashboardData().then(() => {
-              document.getElementById('loadingOverlay').classList.add('hidden');
-              startSessionTimer();
-              fetchSettings();
-            });
-          } else {
-            logout();
-            document.getElementById('loadingOverlay').classList.add('hidden');
-          }
-        });
+        const valid = await validateJwt();
+        if (valid) {
+          document.getElementById('authSection').classList.add('hidden');
+          document.getElementById('dashboardSection').classList.remove('hidden');
+          document.getElementById('contactUsBtn').classList.remove('hidden');
+          document.getElementById('settingsDropdown').classList.remove('hidden');
+          document.getElementById('welcomeMessage').classList.remove('hidden');
+          initializeWebSocket();
+          await fetchDashboardData();
+          startSessionTimer();
+          fetchSettings();
+        } else {
+          logout();
+        }
+        document.getElementById('loadingOverlay').classList.add('hidden');
       } else {
         showLoginForm();
       }
-
-      // Close modals on outside click
-      document.addEventListener('click', (e) => {
-        const modals = document.querySelectorAll('.modal');
-        modals.forEach(modal => {
-          if (!modal.contains(e.target) && !document.getElementById('settingsDropdown').contains(e.target)) {
-            modal.classList.add('hidden');
-            document.getElementById('settingsMenu').classList.add('hidden');
-          }
-        });
-      });
     });
   </script>
 </body>
