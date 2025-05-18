@@ -524,1072 +524,1111 @@
   <div id="notificationContainer" class="fixed top-4 right-4 space-y-2 max-w-xs"></div>
 
   <script>
-    // Constants
-    const API_BASE = 'https://affiliate-botblitz.onrender.com/api/affiliate';
-    const WS_URL = 'wss://affiliate-botblitz.onrender.com/ws/affiliate';
-    const RECAPTCHA_SITE_KEY = '6LcJnj0rAAAAANGq6tGazaBo5aPBcUr_IrUwdbi7';
-    const SESSION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
-    const SESSION_GRACE = 4 * 60 * 1000; // 4 minutes
-    const OTP_DURATION = 5 * 60 * 1000; // 5 minutes
-    const RATE_LIMIT_DURATION = 10 * 60 * 1000; // 10 minutes
-    const OTP_RATE_LIMIT_DURATION = 20 * 60 * 1000; // 20 minutes
-    const OTP_BLOCK_DURATION = 30 * 60 * 1000; // 30 minutes
-    const ITEMS_PER_PAGE = 10;
+    document.addEventListener('DOMContentLoaded', () => {
+      // Constants
+      const API_BASE = 'https://affiliate-botblitz.onrender.com/api/affiliate';
+      const WS_URL = 'wss://affiliate-botblitz.onrender.com/ws/affiliate';
+      const RECAPTCHA_SITE_KEY = '6LcJnj0rAAAAANGq6tGazaBo5aPBcUr_IrUwdbi7';
+      const SESSION_TIMEOUT = 10 * 60 * 1000;
+      const SESSION_GRACE = 4 * 60 * 1000;
+      const OTP_DURATION = 5 * 60 * 1000;
+      const RATE_LIMIT_DURATION = 10 * 60 * 1000;
+      const OTP_RATE_LIMIT_DURATION = 20 * 60 * 1000;
+      const OTP_BLOCK_DURATION = 30 * 60 * 1000;
+      const ITEMS_PER_PAGE = 10;
 
-    // State
-    let jwtToken = getCookie('jwt');
-    let ws = null;
-    let userData = null;
-    let notificationsQueue = [];
-    let activeNotifications = 0;
-    let sessionTimer = null;
-    let sessionGraceTimer = null;
-    let otpTimer = null;
-    let otpResendTimer = null;
-    let otpBlockTimer = null;
-    let currentTheme = localStorage.getItem('theme') || 'light';
-    let otpContext = null;
-    let urgentPopupDismissed = localStorage.getItem('urgentPopupDismissed') || false;
-    let withdrawalPage = 1;
-    let rewardsPage = 1;
-    let notificationsPage = 1;
-    let allWithdrawals = [];
-    let allRewards = [];
-    let allNotifications = [];
+      // State
+      let jwtToken = getCookie('jwt');
+      let ws = null;
+      let userData = null;
+      let notificationsQueue = [];
+      let activeNotifications = 0;
+      let sessionTimer = null;
+      let sessionGraceTimer = null;
+      let otpTimer = null;
+      let otpResendTimer = null;
+      let otpBlockTimer = null;
+      let currentTheme = localStorage.getItem('theme') || 'light';
+      let otpContext = null;
+      let urgentPopupDismissed = localStorage.getItem('urgentPopupDismissed') || false;
+      let withdrawalPage = 1;
+      let rewardsPage = 1;
+      let notificationsPage = 1;
+      let allWithdrawals = [];
+      let allRewards = [];
+      let allNotifications = [];
 
-    // Utility Functions
-    function getCookie(name) {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop().split(';').shift();
-      return null;
-    }
+      // Utility Functions
+      function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+      }
 
-    function setCookie(name, value, maxAge) {
-      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; httpOnly`;
-    }
+      function setCookie(name, value, maxAge) {
+        document.cookie = `${name}=${value}; max-age=${maxAge}; path=/; secure; httpOnly`;
+      }
 
-    function applyTheme() {
-      const elements = document.querySelectorAll('.theme-light, .theme-dark');
-      elements.forEach(el => {
-        if (currentTheme === 'light') {
-          el.classList.remove('theme-dark', 'bg-gray-800', 'text-gray-100', 'bg-gray-900', 'bg-gray-700', 'prose-invert', 'bg-red-900');
-          el.classList.add('theme-light', el.classList.contains('bg-gray-800') ? 'bg-white' : '', el.classList.contains('text-gray-100') ? 'text-black' : '', el.classList.contains('bg-gray-900') ? 'bg-white' : '', el.classList.contains('bg-gray-700') ? 'bg-gray-200' : '', el.classList.contains('prose-invert') ? 'prose' : '', el.classList.contains('bg-red-900') ? 'bg-red-100' : '');
+      function applyTheme() {
+        const elements = document.querySelectorAll('.theme-light, .theme-dark');
+        elements.forEach(el => {
+          if (currentTheme === 'light') {
+            el.classList.remove('theme-dark', 'bg-gray-800', 'text-gray-100', 'bg-gray-900', 'bg-gray-700', 'prose-invert', 'bg-red-900');
+            el.classList.add('theme-light', el.classList.contains('bg-gray-800') ? 'bg-white' : '', el.classList.contains('text-gray-100') ? 'text-black' : '', el.classList.contains('bg-gray-900') ? 'bg-white' : '', el.classList.contains('bg-gray-700') ? 'bg-gray-200' : '', el.classList.contains('prose-invert') ? 'prose' : '', el.classList.contains('bg-red-900') ? 'bg-red-100' : '');
+          } else {
+            el.classList.remove('theme-light', 'bg-white', 'text-black', 'bg-gray-200', 'prose', 'bg-red-100');
+            el.classList.add('theme-dark', el.classList.contains('bg-white') ? 'bg-gray-800' : '', el.classList.contains('text-black') ? 'text-gray-100' : '', el.classList.contains('bg-gray-200') ? 'bg-gray-700' : '', el.classList.contains('prose') ? 'prose-invert' : '', el.classList.contains('bg-red-100') ? 'bg-red-900' : '');
+          }
+        });
+        document.getElementById('sunIcon').classList.toggle('hidden', currentTheme !== 'light');
+        document.getElementById('moonIcon').classList.toggle('hidden', currentTheme === 'light');
+      }
+
+      function showNotification(message, color, isUrgent = false, persist = false) {
+        const id = `NOTIF${Date.now()}`;
+        const notification = { id, message, color, isUrgent, persist, timestamp: new Date().toISOString() };
+        if (persist) {
+          if (urgentPopupDismissed) return;
+          notificationsQueue.unshift(notification);
         } else {
-          el.classList.remove('theme-light', 'bg-white', 'text-black', 'bg-gray-200', 'prose', 'bg-red-100');
-          el.classList.add('theme-dark', el.classList.contains('bg-white') ? 'bg-gray-800' : '', el.classList.contains('text-black') ? 'text-gray-100' : '', el.classList.contains('bg-gray-200') ? 'bg-gray-700' : '', el.classList.contains('prose') ? 'prose-invert' : '', el.classList.contains('bg-red-100') ? 'bg-red-900' : '');
+          notificationsQueue.push(notification);
         }
-      });
-      document.getElementById('sunIcon').classList.toggle('hidden', currentTheme !== 'light');
-      document.getElementById('moonIcon').classList.toggle('hidden', currentTheme === 'light');
-    }
-
-    function showNotification(message, color, isUrgent = false, persist = false) {
-      const id = `NOTIF${Date.now()}`;
-      const notification = { id, message, color, isUrgent, persist, timestamp: new Date().toISOString() };
-      if (persist) {
-        if (urgentPopupDismissed) return;
-        notificationsQueue.unshift(notification); // Add to the front for persistent notifications
-      } else {
-        notificationsQueue.push(notification);
-      }
-      displayNextNotification();
-    }
-
-    function displayNextNotification() {
-      if (activeNotifications >= 3 || notificationsQueue.length === 0) return;
-      const notif = notificationsQueue.shift();
-      activeNotifications++;
-      const div = document.createElement('div');
-      div.className = `bg-white p-4 rounded shadow slide-in border-l-4 ${notif.color === 'green' ? 'border-green-500' : notif.color === 'red' ? 'border-red-500' : 'border-blue-500'} theme-light ${notif.isUrgent ? 'border-2 border-red-500 bg-red-100' : ''}`;
-      div.innerHTML = `
-        <div class="flex justify-between items-center">
-          <p>${notif.message}</p>
-          <button onclick="dismissNotification('${notif.id}', this.parentElement.parentElement, ${notif.persist})" class="text-gray-500 hover:text-gray-700 focus:ring-2 focus:ring-blue-500">X</button>
-        </div>
-      `;
-      document.getElementById('notificationContainer').appendChild(div);
-      if (!notif.persist) {
-        setTimeout(() => dismissNotification(notif.id, div, notif.persist), 30000);
-      }
-    }
-
-    async function dismissNotification(id, element, persist) {
-      element.classList.add('fade-out');
-      await new Promise(resolve => setTimeout(resolve, 300));
-      element.remove();
-      activeNotifications--;
-      if (persist) {
-        localStorage.setItem('urgentPopupDismissed', 'true');
-        urgentPopupDismissed = true;
-      } else {
         displayNextNotification();
-        if (jwtToken) {
-          await fetch(`${API_BASE}/mark-notification`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
-            body: JSON.stringify({ notificationId: id })
-          });
+      }
+
+      function displayNextNotification() {
+        if (activeNotifications >= 3 || notificationsQueue.length === 0) return;
+        const notif = notificationsQueue.shift();
+        activeNotifications++;
+        const div = document.createElement('div');
+        div.className = `bg-white p-4 rounded shadow slide-in border-l-4 ${notif.color === 'green' ? 'border-green-500' : notif.color === 'red' ? 'border-red-500' : 'border-blue-500'} theme-light ${notif.isUrgent ? 'border-2 border-red-500 bg-red-100' : ''}`;
+        div.innerHTML = `
+          <div class="flex justify-between items-center">
+            <p>${notif.message}</p>
+            <button onclick="dismissNotification('${notif.id}', this.parentElement.parentElement, ${notif.persist})" class="text-gray-500 hover:text-gray-700 focus:ring-2 focus:ring-blue-500">X</button>
+          </div>
+        `;
+        document.getElementById('notificationContainer').appendChild(div);
+        if (!notif.persist) {
+          setTimeout(() => dismissNotification(notif.id, div, notif.persist), 30000);
         }
       }
-    }
 
-    async function validateJwt() {
-      if (!jwtToken) return false;
-      const res = await fetch(`${API_BASE}/validate`, {
-        headers: { 'Authorization': `Bearer ${jwtToken}` }
-      });
-      if (res.ok) {
+      async function dismissNotification(id, element, persist) {
+        element.classList.add('fade-out');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        element.remove();
+        activeNotifications--;
+        if (persist) {
+          localStorage.setItem('urgentPopupDismissed', 'true');
+          urgentPopupDismissed = true;
+        } else {
+          displayNextNotification();
+          if (jwtToken) {
+            await fetch(`${API_BASE}/mark-notification`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+              body: JSON.stringify({ notificationId: id })
+            });
+          }
+        }
+      }
+
+      async function validateJwt() {
+        if (!jwtToken) return false;
+        const res = await fetch(`${API_BASE}/validate`, {
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          userData = data.data;
+          return true;
+        }
+        return false;
+      }
+
+      function initializeWebSocket() {
+        if (!jwtToken) return;
+        ws = new WebSocket(`${WS_URL}?token=${jwtToken}`);
+        ws.onmessage = async (event) => {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'update') {
+            await fetchDashboardData();
+          } else if (msg.type === 'notification') {
+            showNotification(msg.message, msg.color || 'blue', msg.urgent || false);
+          } else if (msg.type === 'logout') {
+            logout();
+            showNotification('Session expired, please login', 'red');
+          } else if (msg.type === 'username_check') {
+            const statusEl = document.getElementById('usernameStatus');
+            statusEl.textContent = msg.message;
+            statusEl.className = `text-sm mt-1 ${msg.available ? 'text-green-500' : 'text-red-500'}`;
+          }
+        };
+        ws.onclose = () => {
+          ws = null;
+        };
+      }
+
+      function startSessionTimer() {
+        clearTimeout(sessionTimer);
+        clearTimeout(sessionGraceTimer);
+        sessionTimer = setTimeout(() => {
+          document.getElementById('sessionTimeoutModal').classList.remove('hidden');
+          sessionGraceTimer = setTimeout(() => {
+            logout();
+            showNotification('Session expired', 'red');
+          }, SESSION_GRACE);
+        }, SESSION_TIMEOUT);
+      }
+
+      function formatTime(ms) {
+        const minutes = Math.floor(ms / 60000);
+        const seconds = Math.floor((ms % 60000) / 1000).toString().padStart(2, '0');
+        return `${minutes}:${seconds}`;
+      }
+
+      function formatCurrency(value) {
+        return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function getDaysUntilNextMonth() {
+        const today = new Date();
+        const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        const diffTime = nextMonth - today;
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      function paginateData(data, page, itemsPerPage) {
+        const start = (page - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        return data.slice(start, end);
+      }
+
+      async function fetchDashboardData() {
+        const res = await fetch(`${API_BASE}/data`, {
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
         const data = await res.json();
-        userData = data.data;
-        return true;
-      }
-      return false;
-    }
+        if (data.success) {
+          userData = data.data.user;
+          document.getElementById('welcomeMessage').textContent = `Welcome ${userData.name}, Your username is ${userData.username}`;
+          document.getElementById('dashboardWelcome').textContent = `Welcome ${userData.name}, Your username is ${userData.username}`;
+          document.getElementById('affiliateLink').value = userData.refCode ? `https://botblitz.store?ref=${userData.refCode}` : 'Link unavailable';
+          document.getElementById('linkClicks').textContent = userData.linkClicks || 0;
+          document.getElementById('totalSales').textContent = userData.totalSales || 0;
+          document.getElementById('monthlySales').textContent = userData.totalSalesMonthly || 0;
+          const daysUntilReset = getDaysUntilNextMonth();
+          document.getElementById('monthlyReset').textContent = `Resets in ${daysUntilReset} days`;
+          document.getElementById('currentBalance').textContent = formatCurrency(userData.currentBalance || 0);
+          document.getElementById('withdrawnTotal').textContent = formatCurrency(userData.withdrawnTotal || 0);
+          document.getElementById('withdrawalAmount').max = userData.currentBalance || 0;
+          document.getElementById('requestWithdrawal').classList.toggle('opacity-50 cursor-not-allowed', (userData.currentBalance || 0) < 1);
 
-    function initializeWebSocket() {
-      if (!jwtToken) return;
-      ws = new WebSocket(`${WS_URL}?token=${jwtToken}`);
-      ws.onmessage = async (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'update') {
-          await fetchDashboardData();
-        } else if (msg.type === 'notification') {
-          showNotification(msg.message, msg.color || 'blue', msg.urgent || false);
-        } else if (msg.type === 'logout') {
-          logout();
-          showNotification('Session expired, please login', 'red');
-        } else if (msg.type === 'username_check') {
-          const statusEl = document.getElementById('usernameStatus');
-          statusEl.textContent = msg.message;
-          statusEl.className = `text-sm mt-1 ${msg.available ? 'text-green-500' : 'text-red-500'}`;
+          allWithdrawals = data.data.withdrawals || [];
+          allRewards = data.data.rewards || [];
+          allNotifications = data.data.notifications || [];
+
+          withdrawalPage = 1;
+          updateWithdrawalTable();
+
+          rewardsPage = 1;
+          updateRewardsTable();
+
+          const leaderboardTable = document.getElementById('leaderboardTable');
+          leaderboardTable.innerHTML = '';
+          (data.data.leaderboard || []).slice(0, 10).forEach((a, i) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td class="p-2">${i + 1}</td>
+              <td class="p-2">${a.name}</td>
+              <td class="p-2">${a.totalSalesMonthly}</td>
+              <td class="p-2">${a.momentum || '-'}</td>
+            `;
+            leaderboardTable.appendChild(row);
+          });
+
+          notificationsPage = 1;
+          updateNotificationsTable();
+
+          const newsList = document.getElementById('newsList');
+          newsList.innerHTML = '';
+          (data.data.news || []).slice(0, 10).forEach(n => {
+            const div = document.createElement('div');
+            const isRead = localStorage.getItem(`news-${n.id}`);
+            div.className = 'bg-white p-4 rounded theme-light';
+            div.innerHTML = `
+              <div class="flex justify-between items-center">
+                <div>
+                  <p class="text-sm text-gray-500">${new Date(n.timestamp).toLocaleString()}</p>
+                  <p>${n.message}</p>
+                </div>
+                ${isRead ? '' : '<span class="bg-blue-500 text-white px-2 rounded">New</span>'}
+              </div>
+            `;
+            div.addEventListener('click', () => {
+              localStorage.setItem(`news-${n.id}`, 'read');
+              div.querySelector('span')?.remove();
+            });
+            newsList.appendChild(div);
+          });
+
+          const forumsList = document.getElementById('forumsList');
+          forumsList.innerHTML = '';
+          (data.data.forums || []).forEach(f => {
+            const div = document.createElement('div');
+            div.className = 'bg-white p-4 rounded theme-light cursor-pointer';
+            div.innerHTML = `
+              <div class="flex items-center">
+                <img src="/public/assets/${f.icon}" alt="${f.name}" class="w-12 h-12 mr-4" onerror="this.onerror=null; this.remove();">
+                <div>
+                  <p class="text-base font-medium">${f.name}</p>
+                  <p class="text-sm text-gray-500">${f.description}</p>
+                </div>
+              </div>
+            `;
+            div.addEventListener('click', () => window.open(f.link, '_blank'));
+            forumsList.appendChild(div);
+          });
+
+          const commissionRate = data.data.commissionRate || 0.2;
+          document.getElementById('commissionText').textContent = `Commission = Sale Amount × ${(commissionRate * 100).toFixed(0)}%`;
+          document.getElementById('commissionExample').textContent = `Sale = 1000 KES, Rate = ${(commissionRate * 100).toFixed(0)}%, Commission = ${(1000 * commissionRate).toFixed(0)} KES`;
+        } else {
+          showNotification('Failed to load dashboard data', 'red');
+          document.getElementById('affiliateLink').value = 'Link unavailable';
         }
-      };
-      ws.onclose = () => {
-        ws = null;
-      };
-    }
+      }
 
-    function startSessionTimer() {
-      clearTimeout(sessionTimer);
-      clearTimeout(sessionGraceTimer);
-      sessionTimer = setTimeout(() => {
-        document.getElementById('sessionTimeoutModal').classList.remove('hidden');
-        sessionGraceTimer = setTimeout(() => {
-          logout();
-          showNotification('Session expired', 'red');
-        }, SESSION_GRACE);
-      }, SESSION_TIMEOUT);
-    }
-
-    function formatTime(ms) {
-      const minutes = Math.floor(ms / 60000);
-      const seconds = Math.floor((ms % 60000) / 1000).toString().padStart(2, '0');
-      return `${minutes}:${seconds}`;
-    }
-
-    function formatCurrency(value) {
-      return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-
-    function getDaysUntilNextMonth() {
-      const today = new Date();
-      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-      const diffTime = nextMonth - today;
-      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    }
-
-    function paginateData(data, page, itemsPerPage) {
-      const start = (page - 1) * itemsPerPage;
-      const end = start + itemsPerPage;
-      return data.slice(start, end);
-    }
-
-    async function fetchDashboardData() {
-      const res = await fetch(`${API_BASE}/data`, {
-        headers: { 'Authorization': `Bearer ${jwtToken}` }
-      });
-      const data = await res.json();
-      if (data.success) {
-        userData = data.data.user;
-        document.getElementById('welcomeMessage').textContent = `Welcome ${userData.name}, Your username is ${userData.username}`;
-        document.getElementById('dashboardWelcome').textContent = `Welcome ${userData.name}, Your username is ${userData.username}`;
-        document.getElementById('affiliateLink').value = userData.refCode ? `https://botblitz.store?ref=${userData.refCode}` : 'Link unavailable';
-        document.getElementById('linkClicks').textContent = userData.linkClicks || 0;
-        document.getElementById('totalSales').textContent = userData.totalSales || 0;
-        document.getElementById('monthlySales').textContent = userData.totalSalesMonthly || 0;
-        const daysUntilReset = getDaysUntilNextMonth();
-        document.getElementById('monthlyReset').textContent = `Resets in ${daysUntilReset} days`;
-        document.getElementById('currentBalance').textContent = formatCurrency(userData.currentBalance || 0);
-        document.getElementById('withdrawnTotal').textContent = formatCurrency(userData.withdrawnTotal || 0);
-        document.getElementById('withdrawalAmount').max = userData.currentBalance || 0;
-        document.getElementById('requestWithdrawal').classList.toggle('opacity-50 cursor-not-allowed', (userData.currentBalance || 0) < 1);
-
-        // Store full datasets for pagination
-        allWithdrawals = data.data.withdrawals || [];
-        allRewards = data.data.rewards || [];
-        allNotifications = data.data.notifications || [];
-
-        // Withdrawal History with Pagination
-        withdrawalPage = 1;
-        updateWithdrawalTable();
-
-        // Rewards History with Pagination
-        rewardsPage = 1;
-        updateRewardsTable();
-
-        // Leaderboard
-        const leaderboardTable = document.getElementById('leaderboardTable');
-        leaderboardTable.innerHTML = '';
-        (data.data.leaderboard || []).slice(0, 10).forEach((a, i) => {
+      function updateWithdrawalTable() {
+        const withdrawalTable = document.getElementById('withdrawalHistoryTable');
+        withdrawalTable.innerHTML = '';
+        const paginatedWithdrawals = paginateData(allWithdrawals, withdrawalPage, ITEMS_PER_PAGE);
+        paginatedWithdrawals.forEach(w => {
           const row = document.createElement('tr');
           row.innerHTML = `
-            <td class="p-2">${i + 1}</td>
-            <td class="p-2">${a.name}</td>
-            <td class="p-2">${a.totalSalesMonthly}</td>
-            <td class="p-2">${a.momentum || '-'}</td>
+            <td class="p-2">${new Date(w.timestamp).toLocaleString()}</td>
+            <td class="p-2">${formatCurrency(w.data.amount)}</td>
+            <td class="p-2">${w.data.mpesaNumber}</td>
+            <td class="p-2">${w.data.mpesaName}</td>
+            <td class="p-2">${w.status}</td>
+            <td class="p-2">${w.data.mpesaRef || '-'}</td>
           `;
-          leaderboardTable.appendChild(row);
+          withdrawalTable.appendChild(row);
         });
+        document.getElementById('withdrawalPageNumber').textContent = `Page ${withdrawalPage}`;
+        document.getElementById('withdrawalPrevPage').disabled = withdrawalPage === 1;
+        document.getElementById('withdrawalNextPage').disabled = withdrawalPage * ITEMS_PER_PAGE >= allWithdrawals.length;
+      }
 
-        // Notifications History with Pagination
-        notificationsPage = 1;
-        updateNotificationsTable();
-
-        // News
-        const newsList = document.getElementById('newsList');
-        newsList.innerHTML = '';
-        (data.data.news || []).slice(0, 10).forEach(n => {
-          const div = document.createElement('div');
-          const isRead = localStorage.getItem(`news-${n.id}`);
-          div.className = 'bg-white p-4 rounded theme-light';
-          div.innerHTML = `
-            <div class="flex justify-between items-center">
-              <div>
-                <p class="text-sm text-gray-500">${new Date(n.timestamp).toLocaleString()}</p>
-                <p>${n.message}</p>
-              </div>
-              ${isRead ? '' : '<span class="bg-blue-500 text-white px-2 rounded">New</span>'}
-            </div>
+      function updateRewardsTable() {
+        const rewardsTable = document.getElementById('rewardsHistoryTable');
+        rewardsTable.innerHTML = '';
+        const paginatedRewards = paginateData(allRewards, rewardsPage, ITEMS_PER_PAGE);
+        paginatedRewards.forEach(r => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2">${new Date(r.timestamp).toLocaleString()}</td>
+            <td class="p-2">${r.data.type}</td>
+            <td class="p-2">${formatCurrency(r.data.amount)}</td>
+            <td class="p-2">${r.data.description}</td>
           `;
-          div.addEventListener('click', () => {
-            localStorage.setItem(`news-${n.id}`, 'read');
-            div.querySelector('span')?.remove();
+          rewardsTable.appendChild(row);
+        });
+        document.getElementById('rewardsPageNumber').textContent = `Page ${rewardsPage}`;
+        document.getElementById('rewardsPrevPage').disabled = rewardsPage === 1;
+        document.getElementById('rewardsNextPage').disabled = rewardsPage * ITEMS_PER_PAGE >= allRewards.length;
+      }
+
+      function updateNotificationsTable() {
+        const notificationsTable = document.getElementById('notificationsHistoryTable');
+        notificationsTable.innerHTML = '';
+        const paginatedNotifications = paginateData(allNotifications, notificationsPage, ITEMS_PER_PAGE);
+        paginatedNotifications.forEach(n => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2">${new Date(n.timestamp).toLocaleString()}</td>
+            <td class="p-2">${n.data.message}</td>
+            <td class="p-2">${n.read ? 'Read' : 'Unread'}</td>
+          `;
+          notificationsTable.appendChild(row);
+          if (!n.read) showNotification(n.data.message, n.data.color || 'blue');
+        });
+        document.getElementById('notificationsPageNumber').textContent = `Page ${notificationsPage}`;
+        document.getElementById('notificationsPrevPage').disabled = notificationsPage === 1;
+        document.getElementById('notificationsNextPage').disabled = notificationsPage * ITEMS_PER_PAGE >= allNotifications.length;
+      }
+
+      async function fetchSettings() {
+        const res = await fetch(`${API_BASE}/settings`);
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('copyrightText').textContent = data.data.copyrightText || '© 2025 Deriv Bot Store Affiliates';
+          document.getElementById('whatsappLink').href = data.data.whatsappLink || 'https://wa.link/4wppln';
+          document.getElementById('emailLink').href = `mailto:${data.data.supportEmail || 'derivbotstore@gmail.com'}`;
+          const staticLinks = document.getElementById('staticLinks');
+          staticLinks.innerHTML = '';
+          (data.data.staticPages || []).forEach(page => {
+            const a = document.createElement('a');
+            a.href = `/affiliate-${page.slug}`;
+            a.className = 'text-blue-500 hover:underline mx-2 focus:ring-2 focus:ring-blue-500';
+            a.textContent = page.title;
+            a.addEventListener('click', async (e) => {
+              e.preventDefault();
+              const res = await fetch(`${API_BASE}/static-page/${page.slug}`);
+              const pageData = await res.json();
+              if (pageData.success) {
+                document.getElementById('staticPageTitle').textContent = pageData.data.title;
+                document.getElementById('staticPageContent').innerHTML = pageData.data.content;
+                document.getElementById('staticPageModal').classList.remove('hidden');
+                applyTheme();
+              }
+            });
+            staticLinks.appendChild(a);
           });
-          newsList.appendChild(div);
-        });
-
-        // Forums
-        const forumsList = document.getElementById('forumsList');
-        forumsList.innerHTML = '';
-        (data.data.forums || []).forEach(f => {
-          const div = document.createElement('div');
-          div.className = 'bg-white p-4 rounded theme-light cursor-pointer';
-          div.innerHTML = `
-            <div class="flex items-center">
-              <img src="/public/assets/${f.icon}" alt="${f.name}" class="w-12 h-12 mr-4" onerror="this.onerror=null; this.remove();">
-              <div>
-                <p class="text-base font-medium">${f.name}</p>
-                <p class="text-sm text-gray-500">${f.description}</p>
-              </div>
-            </div>
-          `;
-          div.addEventListener('click', () => window.open(f.link, '_blank'));
-          forumsList.appendChild(div);
-        });
-
-        // Commission Info
-        const commissionRate = data.data.commissionRate || 0.2; // Fallback to 20%
-        document.getElementById('commissionText').textContent = `Commission = Sale Amount × ${(commissionRate * 100).toFixed(0)}%`;
-        document.getElementById('commissionExample').textContent = `Sale = 1000 KES, Rate = ${(commissionRate * 100).toFixed(0)}%, Commission = ${(1000 * commissionRate).toFixed(0)} KES`;
-      } else {
-        showNotification('Failed to load dashboard data', 'red');
-        document.getElementById('affiliateLink').value = 'Link unavailable';
+        }
       }
-    }
 
-    function updateWithdrawalTable() {
-      const withdrawalTable = document.getElementById('withdrawalHistoryTable');
-      withdrawalTable.innerHTML = '';
-      const paginatedWithdrawals = paginateData(allWithdrawals, withdrawalPage, ITEMS_PER_PAGE);
-      paginatedWithdrawals.forEach(w => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">${new Date(w.timestamp).toLocaleString()}</td>
-          <td class="p-2">${formatCurrency(w.data.amount)}</td>
-          <td class="p-2">${w.data.mpesaNumber}</td>
-          <td class="p-2">${w.data.mpesaName}</td>
-          <td class="p-2">${w.status}</td>
-          <td class="p-2">${w.data.mpesaRef || '-'}</td>
-        `;
-        withdrawalTable.appendChild(row);
-      });
-      document.getElementById('withdrawalPageNumber').textContent = `Page ${withdrawalPage}`;
-      document.getElementById('withdrawalPrevPage').disabled = withdrawalPage === 1;
-      document.getElementById('withdrawalNextPage').disabled = withdrawalPage * ITEMS_PER_PAGE >= allWithdrawals.length;
-    }
+      function logout() {
+        setCookie('jwt', '', 0);
+        jwtToken = null;
+        userData = null;
+        if (ws) ws.close();
+        ws = null;
+        clearTimeout(sessionTimer);
+        clearTimeout(sessionGraceTimer);
+        document.getElementById('authSection').classList.remove('hidden');
+        document.getElementById('dashboardSection').classList.add('hidden');
+        document.getElementById('contactUsBtn').classList.add('hidden');
+        document.getElementById('settingsDropdown').classList.add('hidden');
+        document.getElementById('welcomeMessage').classList.add('hidden');
+        document.getElementById('loginForm').classList.remove('hidden');
+        document.getElementById('signupForm').classList.add('hidden');
+        document.getElementById('forgotPasswordForm').classList.add('hidden');
+        document.getElementById('otpForm').classList.add('hidden');
+        document.getElementById('setNewPasswordForm').classList.add('hidden');
+      }
 
-    function updateRewardsTable() {
-      const rewardsTable = document.getElementById('rewardsHistoryTable');
-      rewardsTable.innerHTML = '';
-      const paginatedRewards = paginateData(allRewards, rewardsPage, ITEMS_PER_PAGE);
-      paginatedRewards.forEach(r => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">${new Date(r.timestamp).toLocaleString()}</td>
-          <td class="p-2">${r.data.type}</td>
-          <td class="p-2">${formatCurrency(r.data.amount)}</td>
-          <td class="p-2">${r.data.description}</td>
-        `;
-        rewardsTable.appendChild(row);
-      });
-      document.getElementById('rewardsPageNumber').textContent = `Page ${rewardsPage}`;
-      document.getElementById('rewardsPrevPage').disabled = rewardsPage === 1;
-      document.getElementById('rewardsNextPage').disabled = rewardsPage * ITEMS_PER_PAGE >= allRewards.length;
-    }
+      function toggleButtonLoading(buttonId, spinnerId, textId, isLoading) {
+        const button = document.getElementById(buttonId);
+        const spinner = document.getElementById(spinnerId);
+        const text = document.getElementById(textId);
+        if (isLoading) {
+          button.classList.add('opacity-50', 'cursor-not-allowed');
+          spinner.classList.remove('hidden');
+          text.classList.add('hidden');
+        } else {
+          button.classList.remove('opacity-50', 'cursor-not-allowed');
+          spinner.classList.add('hidden');
+          text.classList.remove('hidden');
+        }
+      }
 
-    function updateNotificationsTable() {
-      const notificationsTable = document.getElementById('notificationsHistoryTable');
-      notificationsTable.innerHTML = '';
-      const paginatedNotifications = paginateData(allNotifications, notificationsPage, ITEMS_PER_PAGE);
-      paginatedNotifications.forEach(n => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="p-2">${new Date(n.timestamp).toLocaleString()}</td>
-          <td class="p-2">${n.data.message}</td>
-          <td class="p-2">${n.read ? 'Read' : 'Unread'}</td>
-        `;
-        notificationsTable.appendChild(row);
-        if (!n.read) showNotification(n.data.message, n.data.color || 'blue');
-      });
-      document.getElementById('notificationsPageNumber').textContent = `Page ${notificationsPage}`;
-      document.getElementById('notificationsPrevPage').disabled = notificationsPage === 1;
-      document.getElementById('notificationsNextPage').disabled = notificationsPage * ITEMS_PER_PAGE >= allNotifications.length;
-    }
+      // Form Toggle Functions
+      function showLoginForm() {
+        document.getElementById('loginForm').classList.remove('hidden');
+        document.getElementById('signupForm').classList.add('hidden');
+        document.getElementById('forgotPasswordForm').classList.add('hidden');
+        document.getElementById('otpForm').classList.add('hidden');
+        document.getElementById('setNewPasswordForm').classList.add('hidden');
+      }
 
-    async function fetchSettings() {
-      const res = await fetch(`${API_BASE}/settings`);
-      const data = await res.json();
-      if (data.success) {
-        document.getElementById('copyrightText').textContent = data.data.copyrightText || '© 2025 Deriv Bot Store Affiliates';
-        document.getElementById('whatsappLink').href = data.data.whatsappLink || 'https://wa.link/4wppln';
-        document.getElementById('emailLink').href = `mailto:${data.data.supportEmail || 'derivbotstore@gmail.com'}`;
-        const staticLinks = document.getElementById('staticLinks');
-        staticLinks.innerHTML = '';
-        (data.data.staticPages || []).forEach(page => {
-          const a = document.createElement('a');
-          a.href = `/affiliate-${page.slug}`;
-          a.className = 'text-blue-500 hover:underline mx-2 focus:ring-2 focus:ring-blue-500';
-          a.textContent = page.title;
-          a.addEventListener('click', async (e) => {
-            e.preventDefault();
-            const res = await fetch(`${API_BASE}/static-page/${page.slug}`);
-            const pageData = await res.json();
-            if (pageData.success) {
-              document.getElementById('staticPageTitle').textContent = pageData.data.title;
-              document.getElementById('staticPageContent').innerHTML = pageData.data.content;
-              document.getElementById('staticPageModal').classList.remove('hidden');
-              applyTheme();
-            }
+      function showSignupForm() {
+        document.getElementById('signupForm').classList.remove('hidden');
+        document.getElementById('loginForm').classList.add('hidden');
+        document.getElementById('forgotPasswordForm').classList.add('hidden');
+        document.getElementById('otpForm').classList.add('hidden');
+        document.getElementById('setNewPasswordForm').classList.add('hidden');
+      }
+
+      function showForgotPasswordForm() {
+        document.getElementById('forgotPasswordForm').classList.remove('hidden');
+        document.getElementById('loginForm').classList.add('hidden');
+        document.getElementById('signupForm').classList.add('hidden');
+        document.getElementById('otpForm').classList.add('hidden');
+        document.getElementById('setNewPasswordForm').classList.add('hidden');
+      }
+
+      // Event Listeners
+      document.getElementById('themeToggle').addEventListener('click', async () => {
+        currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+        localStorage.setItem('theme', currentTheme);
+        applyTheme();
+        if (jwtToken) {
+          await fetch(`${API_BASE}/update-theme`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+            body: JSON.stringify({ theme: currentTheme })
           });
-          staticLinks.appendChild(a);
+        }
+      });
+
+      document.getElementById('loginToggle').addEventListener('click', (e) => {
+        e.preventDefault();
+        showLoginForm();
+      });
+
+      document.getElementById('signupToggle').addEventListener('click', (e) => {
+        e.preventDefault();
+        showSignupForm();
+      });
+
+      document.getElementById('forgotPasswordToggle').addEventListener('click', (e) => {
+        e.preventDefault();
+        showForgotPasswordForm();
+      });
+
+      document.getElementById('showLogin').addEventListener('click', (e) => {
+        e.preventDefault();
+        showLoginForm();
+      });
+
+      document.getElementById('showForgotPassword').addEventListener('click', (e) => {
+        e.preventDefault();
+        showForgotPasswordForm();
+      });
+
+      document.getElementById('signupUsername').addEventListener('input', () => {
+        const username = document.getElementById('signupUsername').value;
+        if (username.length >= 5 && ws) {
+          ws.send(JSON.stringify({ type: 'username_check', username }));
+        } else {
+          document.getElementById('usernameStatus').textContent = username.length > 0 ? 'Username must be at least 5 characters' : '';
+          document.getElementById('usernameStatus').className = 'text-sm mt-1 text-red-500';
+        }
+      });
+
+      document.getElementById('signupPasswordToggle').addEventListener('click', () => {
+        const input = document.getElementById('signupPassword');
+        const toggle = document.getElementById('signupPasswordToggle');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      });
+
+      document.getElementById('loginPasswordToggle').addEventListener('click', () => {
+        const input = document.getElementById('loginPassword');
+        const toggle = document.getElementById('loginPasswordToggle');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      });
+
+      document.getElementById('newPasswordToggle').addEventListener('click', () => {
+        const input = document.getElementById('newPassword');
+        const toggle = document.getElementById('newPasswordToggle');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      });
+
+      document.getElementById('confirmPasswordToggle').addEventListener('click', () => {
+        const input = document.getElementById('confirmPassword');
+        const toggle = document.getElementById('confirmPasswordToggle');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      });
+
+      document.getElementById('signupSubmit').addEventListener('click', async () => {
+        const name = document.getElementById('signupName').value.trim();
+        const username = document.getElementById('signupUsername').value.trim();
+        const email = document.getElementById('signupEmail').value.trim();
+        const password = document.getElementById('signupPassword').value;
+        const terms = document.getElementById('signupTerms').checked;
+        const recaptcha = document.getElementById('signupRecaptcha').checked;
+
+        if (!name) {
+          showNotification('Please enter your full name', 'red');
+          return;
+        }
+        if (!name.match(/^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/)) {
+          showNotification('Full name must contain at least two words', 'red');
+          return;
+        }
+        if (!username) {
+          showNotification('Please enter a username', 'red');
+          return;
+        }
+        if (!username.match(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{5,}$/)) {
+          showNotification('Username must be at least 5 characters with 1 letter and 1 number', 'red');
+          return;
+        }
+        if (!email) {
+          showNotification('Please enter your email', 'red');
+          return;
+        }
+        if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+          showNotification('Invalid email format', 'red');
+          return;
+        }
+        if (!password) {
+          showNotification('Please enter a password', 'red');
+          return;
+        }
+        if (!password.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
+          showNotification('Password must be at least 8 characters with 1 letter and 1 number', 'red');
+          return;
+        }
+        if (!terms) {
+          showNotification('You must agree to the Terms & Conditions', 'red');
+          return;
+        }
+        if (!recaptcha) {
+          showNotification('Please complete the reCAPTCHA', 'red');
+          return;
+        }
+
+        toggleButtonLoading('signupSubmit', 'signupSubmitSpinner', 'signupSubmitText', true);
+        const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
+        const res = await fetch(`${API_BASE}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, username, email, password, termsAccepted: true, recaptchaToken })
         });
+        const data = await res.json();
+        toggleButtonLoading('signupSubmit', 'signupSubmitSpinner', 'signupSubmitText', false);
+
+        if (data.success) {
+          document.getElementById('signupForm').classList.add('hidden');
+          document.getElementById('otpForm').classList.remove('hidden');
+          document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
+          otpContext = { type: 'signup', email };
+          startOtpTimer();
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
+
+      document.getElementById('loginSubmit').addEventListener('click', async () => {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const recaptcha = document.getElementById('loginRecaptcha').checked;
+
+        if (!email) {
+          showNotification('Please enter your email', 'red');
+          return;
+        }
+        if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+          showNotification('Invalid email format', 'red');
+          return;
+        }
+        if (!password) {
+          showNotification('Please enter your password', 'red');
+          return;
+        }
+        if (!recaptcha) {
+          showNotification('Please complete the reCAPTCHA', 'red');
+          return;
+        }
+
+        toggleButtonLoading('loginSubmit', 'loginSubmitSpinner', 'loginSubmitText', true);
+        const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
+        const res = await fetch(`${API_BASE}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, recaptchaToken })
+        });
+        const data = await res.json();
+        toggleButtonLoading('loginSubmit', 'loginSubmitSpinner', 'loginSubmitText', false);
+
+        if (data.success) {
+          document.getElementById('loginForm').classList.add('hidden');
+          document.getElementById('otpForm').classList.remove('hidden');
+          document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
+          otpContext = { type: 'login', email };
+          startOtpTimer();
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
+
+      document.getElementById('forgotSubmit').addEventListener('click', async () => {
+        const email = document.getElementById('forgotEmail').value.trim();
+        const recaptcha = document.getElementById('forgotRecaptcha').checked;
+
+        if (!email) {
+          showNotification('Please enter your email', 'red');
+          return;
+        }
+        if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+          showNotification('Invalid email format', 'red');
+          return;
+        }
+        if (!recaptcha) {
+          showNotification('Please complete the reCAPTCHA', 'red');
+          return;
+        }
+
+        toggleButtonLoading('forgotSubmit', 'forgotSubmitSpinner', 'forgotSubmitText', true);
+        const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
+        const res = await fetch(`${API_BASE}/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, recaptchaToken })
+        });
+        const data = await res.json();
+        toggleButtonLoading('forgotSubmit', 'forgotSubmitSpinner', 'forgotSubmitText', false);
+
+        if (data.success) {
+          document.getElementById('forgotPasswordForm').classList.add('hidden');
+          document.getElementById('otpForm').classList.remove('hidden');
+          document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
+          otpContext = { type: 'reset', email };
+          startOtpTimer();
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
+
+      function startOtpTimer() {
+        clearInterval(otpTimer);
+        clearInterval(otpResendTimer);
+        clearInterval(otpBlockTimer);
+        let timeLeft = OTP_DURATION;
+        document.getElementById('otpCountdown').textContent = `Expires in ${formatTime(timeLeft)}`;
+        document.getElementById('otpResend').textContent = `Resend code in ${formatTime(timeLeft)}`;
+        otpTimer = setInterval(() => {
+          timeLeft -= 1000;
+          if (timeLeft <= 0) {
+            clearInterval(otpTimer);
+            document.getElementById('otpCountdown').textContent = 'Code expired';
+            document.getElementById('otpVerify').disabled = true;
+            return;
+          }
+          document.getElementById('otpCountdown').textContent = `Expires in ${formatTime(timeLeft)}`;
+        }, 1000);
+
+        otpResendTimer = setInterval(() => {
+          timeLeft -= 1000;
+          if (timeLeft <= 0) {
+            clearInterval(otpResendTimer);
+            document.getElementById('otpResend').classList.remove('opacity-50', 'cursor-not-allowed');
+            document.getElementById('otpResend').disabled = false;
+            document.getElementById('otpResend').textContent = 'Resend Code';
+            return;
+          }
+          document.getElementById('otpResend').textContent = `Resend code in ${formatTime(timeLeft)}`;
+        }, 1000);
       }
-    }
 
-    function logout() {
-      setCookie('jwt', '', 0);
-      jwtToken = null;
-      userData = null;
-      if (ws) ws.close();
-      ws = null;
-      clearTimeout(sessionTimer);
-      clearTimeout(sessionGraceTimer);
-      document.getElementById('authSection').classList.remove('hidden');
-      document.getElementById('dashboardSection').classList.add('hidden');
-      document.getElementById('contactUsBtn').classList.add('hidden');
-      document.getElementById('settingsDropdown').classList.add('hidden');
-      document.getElementById('welcomeMessage').classList.add('hidden');
-      document.getElementById('loginForm').classList.remove('hidden');
-      document.getElementById('signupForm').classList.add('hidden');
-      document.getElementById('forgotPasswordForm').classList.add('hidden');
-      document.getElementById('otpForm').classList.add('hidden');
-      document.getElementById('setNewPasswordForm').classList.add('hidden');
-    }
+      document.getElementById('otpResend').addEventListener('click', async () => {
+        if (otpBlockTimer) return;
+        if (otpResendTimer) return;
+        const email = otpContext.email;
+        toggleButtonLoading('otpResend', '', 'otpResend', true);
+        const res = await fetch(`${API_BASE}/resend-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        toggleButtonLoading('otpResend', '', 'otpResend', false);
+        if (data.success) {
+          startOtpTimer();
+          showNotification('New OTP sent to your email', 'green');
+        } else {
+          showNotification(data.error, 'red');
+          otpBlockTimer = setTimeout(() => {
+            clearInterval(otpBlockTimer);
+            otpBlockTimer = null;
+          }, OTP_BLOCK_DURATION);
+        }
+      });
 
-    function toggleButtonLoading(buttonId, spinnerId, textId, isLoading) {
-      const button = document.getElementById(buttonId);
-      const spinner = document.getElementById(spinnerId);
-      const text = document.getElementById(textId);
-      if (isLoading) {
-        button.classList.add('opacity-50', 'cursor-not-allowed');
-        spinner.classList.remove('hidden');
-        text.classList.add('hidden');
-      } else {
-        button.classList.remove('opacity-50', 'cursor-not-allowed');
-        spinner.classList.add('hidden');
-        text.classList.remove('hidden');
-      }
-    }
+      document.getElementById('otpVerify').addEventListener('click', async () => {
+        const otp = document.getElementById('otpInput').value.trim();
+        if (!otp.match(/^\d{6}$/)) {
+          showNotification('OTP must be a 6-digit code', 'red');
+          return;
+        }
+        toggleButtonLoading('otpVerify', 'otpVerifySpinner', 'otpVerifyText', true);
+        const res = await fetch(`${API_BASE}/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: otpContext.email, otp, type: otpContext.type })
+        });
+        const data = await res.json();
+        toggleButtonLoading('otpVerify', 'otpVerifySpinner', 'otpVerifyText', false);
+        if (data.success) {
+          if (otpContext.type === 'signup') {
+            document.getElementById('otpForm').classList.add('hidden');
+            document.getElementById('setNewPasswordForm').classList.remove('hidden');
+            document.getElementById('otpTitle').textContent = 'Set Your Password';
+            document.getElementById('otpMessage').textContent = 'Please set a new password for your account.';
+          } else if (otpContext.type === 'login') {
+            jwtToken = data.data.token;
+            setCookie('jwt', jwtToken, 30 * 24 * 60 * 60);
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            document.getElementById('contactUsBtn').classList.remove('hidden');
+            document.getElementById('settingsDropdown').classList.remove('hidden');
+            document.getElementById('welcomeMessage').classList.remove('hidden');
+            initializeWebSocket();
+            await fetchDashboardData();
+            startSessionTimer();
+            fetchSettings();
+          } else if (otpContext.type === 'reset') {
+            document.getElementById('otpForm').classList.add('hidden');
+            document.getElementById('setNewPasswordForm').classList.remove('hidden');
+            document.getElementById('otpTitle').textContent = 'Reset Your Password';
+            document.getElementById('otpMessage').textContent = 'Please set a new password.';
+          }
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
 
-    // Event Listeners
-    document.getElementById('themeToggle').addEventListener('click', async () => {
-      currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-      localStorage.setItem('theme', currentTheme);
+      document.getElementById('setNewPasswordSubmit').addEventListener('click', async () => {
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+
+        if (!newPassword || !confirmPassword) {
+          showNotification('Please fill in both password fields', 'red');
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          showNotification('Passwords do not match', 'red');
+          return;
+        }
+        if (!newPassword.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
+          showNotification('Password must be at least 8 characters with 1 letter and 1 number', 'red');
+          return;
+        }
+
+        toggleButtonLoading('setNewPasswordSubmit', 'setNewPasswordSubmitSpinner', 'setNewPasswordSubmitText', true);
+        const res = await fetch(`${API_BASE}/set-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: otpContext.email, newPassword })
+        });
+        const data = await res.json();
+        toggleButtonLoading('setNewPasswordSubmit', 'setNewPasswordSubmitSpinner', 'setNewPasswordSubmitText', false);
+
+        if (data.success) {
+          if (otpContext.type === 'signup') {
+            showNotification('Account created successfully! Please log in.', 'green');
+            showLoginForm();
+          } else if (otpContext.type === 'reset') {
+            showNotification('Password reset successfully! Please log in.', 'green');
+            showLoginForm();
+          }
+          document.getElementById('setNewPasswordForm').classList.add('hidden');
+          document.getElementById('loginForm').classList.remove('hidden');
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
+
+      document.getElementById('currentPasswordToggle').addEventListener('click', () => {
+        const input = document.getElementById('currentPassword');
+        const toggle = document.getElementById('currentPasswordToggle');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      });
+
+      document.getElementById('changeNewPasswordToggle').addEventListener('click', () => {
+        const input = document.getElementById('changeNewPassword');
+        const toggle = document.getElementById('changeNewPasswordToggle');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      });
+
+      document.getElementById('changeConfirmPasswordToggle').addEventListener('click', () => {
+        const input = document.getElementById('changeConfirmPassword');
+        const toggle = document.getElementById('changeConfirmPasswordToggle');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      });
+
+      document.getElementById('changePasswordSubmit').addEventListener('click', async () => {
+        const currentPassword = document.getElementById('currentPassword').value;
+        const newPassword = document.getElementById('changeNewPassword').value;
+        const confirmPassword = document.getElementById('changeConfirmPassword').value;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+          showNotification('Please fill in all password fields', 'red');
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          showNotification('New passwords do not match', 'red');
+          return;
+        }
+        if (!newPassword.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
+          showNotification('New password must be at least 8 characters with 1 letter and 1 number', 'red');
+          return;
+        }
+
+        toggleButtonLoading('changePasswordSubmit', 'changePasswordSubmitSpinner', 'changePasswordSubmitText', true);
+        const res = await fetch(`${API_BASE}/change-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+          body: JSON.stringify({ currentPassword, newPassword })
+        });
+        const data = await res.json();
+        toggleButtonLoading('changePasswordSubmit', 'changePasswordSubmitSpinner', 'changePasswordSubmitText', false);
+
+        if (data.success) {
+          showNotification('Password changed successfully!', 'green');
+          document.getElementById('changePasswordModal').classList.add('hidden');
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
+
+      document.getElementById('confirmDelete').addEventListener('click', async () => {
+        toggleButtonLoading('confirmDelete', 'confirmDeleteSpinner', 'confirmDeleteText', true);
+        const res = await fetch(`${API_BASE}/delete-account`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        const data = await res.json();
+        toggleButtonLoading('confirmDelete', 'confirmDeleteSpinner', 'confirmDeleteText', false);
+
+        if (data.success) {
+          showNotification('Account deleted successfully!', 'green');
+          logout();
+          document.getElementById('deleteAccountModal').classList.add('hidden');
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
+
+      document.getElementById('sessionYes').addEventListener('click', async () => {
+        const password = document.getElementById('sessionPassword').value;
+
+        if (!password) {
+          showNotification('Please enter your password', 'red');
+          return;
+        }
+
+        toggleButtonLoading('sessionYes', 'sessionYesSpinner', 'sessionYesText', true);
+        const res = await fetch(`${API_BASE}/verify-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+          body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+        toggleButtonLoading('sessionYes', 'sessionYesSpinner', 'sessionYesText', false);
+
+        if (data.success) {
+          document.getElementById('sessionTimeoutModal').classList.add('hidden');
+          startSessionTimer();
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
+
+      document.getElementById('sessionNo').addEventListener('click', () => {
+        logout();
+        document.getElementById('sessionTimeoutModal').classList.add('hidden');
+        showNotification('Session ended', 'red');
+      });
+
+      document.getElementById('copyLink').addEventListener('click', () => {
+        const link = document.getElementById('affiliateLink');
+        link.select();
+        document.execCommand('copy');
+        showNotification('Link copied to clipboard!', 'green');
+      });
+
+      document.getElementById('requestWithdrawal').addEventListener('click', async () => {
+        const amount = parseFloat(document.getElementById('withdrawalAmount').value);
+        const mpesaNumber = document.getElementById('withdrawalMpesaNumber').value.trim();
+        const mpesaName = document.getElementById('withdrawalMpesaName').value.trim();
+
+        if (isNaN(amount) || amount <= 0) {
+          showNotification('Please enter a valid amount', 'red');
+          return;
+        }
+        if (amount > userData.currentBalance) {
+          showNotification('Insufficient balance', 'red');
+          return;
+        }
+        if (!mpesaNumber.match(/^0[17]\d{8}$/)) {
+          showNotification('Invalid MPESA number (must start with 07 or 01 and be 10 digits)', 'red');
+          return;
+        }
+        if (!mpesaName.match(/^[a-zA-Z\s]+$/)) {
+          showNotification('MPESA name must contain only letters and spaces', 'red');
+          return;
+        }
+
+        toggleButtonLoading('requestWithdrawal', 'requestWithdrawalSpinner', 'requestWithdrawalText', true);
+        const res = await fetch(`${API_BASE}/withdraw`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+          body: JSON.stringify({ amount, mpesaNumber, mpesaName })
+        });
+        const data = await res.json();
+        toggleButtonLoading('requestWithdrawal', 'requestWithdrawalSpinner', 'requestWithdrawalText', false);
+
+        if (data.success) {
+          showNotification('Withdrawal request submitted!', 'green');
+          await fetchDashboardData();
+        } else {
+          showNotification(data.error, 'red');
+        }
+      });
+
+      document.getElementById('editMpesaDetails').addEventListener('click', () => {
+        document.getElementById('withdrawalMpesaNumber').disabled = false;
+        document.getElementById('withdrawalMpesaName').disabled = false;
+        document.getElementById('reuseDetails').checked = false;
+      });
+
+      document.getElementById('reuseDetails').addEventListener('change', () => {
+        const checked = document.getElementById('reuseDetails').checked;
+        if (checked && userData.mpesaNumber && userData.mpesaName) {
+          document.getElementById('withdrawalMpesaNumber').value = userData.mpesaNumber;
+          document.getElementById('withdrawalMpesaName').value = userData.mpesaName;
+          document.getElementById('withdrawalMpesaNumber').disabled = true;
+          document.getElementById('withdrawalMpesaName').disabled = true;
+        } else {
+          document.getElementById('withdrawalMpesaNumber').disabled = false;
+          document.getElementById('withdrawalMpesaName').disabled = false;
+        }
+      });
+
+      document.getElementById('withdrawalPrevPage').addEventListener('click', () => {
+        if (withdrawalPage > 1) {
+          withdrawalPage--;
+          updateWithdrawalTable();
+        }
+      });
+
+      document.getElementById('withdrawalNextPage').addEventListener('click', () => {
+        if (withdrawalPage * ITEMS_PER_PAGE < allWithdrawals.length) {
+          withdrawalPage++;
+          updateWithdrawalTable();
+        }
+      });
+
+      document.getElementById('rewardsPrevPage').addEventListener('click', () => {
+        if (rewardsPage > 1) {
+          rewardsPage--;
+          updateRewardsTable();
+        }
+      });
+
+      document.getElementById('rewardsNextPage').addEventListener('click', () => {
+        if (rewardsPage * ITEMS_PER_PAGE < allRewards.length) {
+          rewardsPage++;
+          updateRewardsTable();
+        }
+      });
+
+      document.getElementById('notificationsPrevPage').addEventListener('click', () => {
+        if (notificationsPage > 1) {
+          notificationsPage--;
+          updateNotificationsTable();
+        }
+      });
+
+      document.getElementById('notificationsNextPage').addEventListener('click', () => {
+        if (notificationsPage * ITEMS_PER_PAGE < allNotifications.length) {
+          notificationsPage++;
+          updateNotificationsTable();
+        }
+      });
+
+      document.getElementById('contactUsBtn').addEventListener('click', () => {
+        document.getElementById('contactUsModal').classList.remove('hidden');
+      });
+
+      document.getElementById('closeContactUs').addEventListener('click', () => {
+        document.getElementById('contactUsModal').classList.add('hidden');
+      });
+
+      document.getElementById('commissionInfoBtn').addEventListener('click', () => {
+        document.getElementById('commissionInfoModal').classList.remove('hidden');
+      });
+
+      document.getElementById('closeCommissionInfo').addEventListener('click', () => {
+        document.getElementById('commissionInfoModal').classList.add('hidden');
+      });
+
+      document.getElementById('settingsDropdown').addEventListener('click', (e) => {
+        e.preventDefault();
+        const menu = document.getElementById('settingsMenu');
+        menu.classList.toggle('hidden');
+      });
+
+      document.getElementById('changePasswordBtn').addEventListener('click', () => {
+        document.getElementById('changePasswordModal').classList.remove('hidden');
+      });
+
+      document.getElementById('closeChangePassword').addEventListener('click', () => {
+        document.getElementById('changePasswordModal').classList.add('hidden');
+      });
+
+      document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+        document.getElementById('deleteAccountModal').classList.remove('hidden');
+      });
+
+      document.getElementById('closeDeleteAccount').addEventListener('click', () => {
+        document.getElementById('deleteAccountModal').classList.add('hidden');
+      });
+
+      document.getElementById('logoutBtn').addEventListener('click', () => {
+        logout();
+        showNotification('Logged out successfully', 'green');
+      });
+
+      document.getElementById('closeStaticPage').addEventListener('click', () => {
+        document.getElementById('staticPageModal').classList.add('hidden');
+      });
+
+      // Tab Switching
+      const tabs = document.querySelectorAll('#dashboardSection button[id$="Tab"]');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => {
+            document.getElementById(t.id.replace('Tab', '')).classList.add('hidden');
+            t.classList.remove('bg-blue-500', 'text-white');
+            t.classList.add('bg-gray-500');
+          });
+          const target = tab.id.replace('Tab', '');
+          document.getElementById(target).classList.remove('hidden');
+          tab.classList.remove('bg-gray-500');
+          tab.classList.add('bg-blue-500', 'text-white');
+        });
+      });
+
+      // Initialization
       applyTheme();
       if (jwtToken) {
-        await fetch(`${API_BASE}/update-theme`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
-          body: JSON.stringify({ theme: currentTheme })
+        document.getElementById('loadingOverlay').classList.remove('hidden');
+        validateJwt().then(valid => {
+          if (valid) {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            document.getElementById('contactUsBtn').classList.remove('hidden');
+            document.getElementById('settingsDropdown').classList.remove('hidden');
+            document.getElementById('welcomeMessage').classList.remove('hidden');
+            initializeWebSocket();
+            fetchDashboardData().then(() => {
+              document.getElementById('loadingOverlay').classList.add('hidden');
+              startSessionTimer();
+              fetchSettings();
+            });
+          } else {
+            logout();
+            document.getElementById('loadingOverlay').classList.add('hidden');
+          }
         });
-      }
-    });
-
-    document.getElementById('loginToggle').addEventListener('click', () => {
-      document.getElementById('loginForm').classList.remove('hidden');
-      document.getElementById('signupForm').classList.add('hidden');
-      document.getElementById('forgotPasswordForm').classList.add('hidden');
-    });
-
-    document.getElementById('signupToggle').addEventListener('click', () => {
-      document.getElementById('signupForm').classList.remove('hidden');
-      document.getElementById('loginForm').classList.add('hidden');
-      document.getElementById('forgotPasswordForm').classList.add('hidden');
-    });
-
-    document.getElementById('forgotPasswordToggle').addEventListener('click', () => {
-      document.getElementById('forgotPasswordForm').classList.remove('hidden');
-      document.getElementById('loginForm').classList.add('hidden');
-      document.getElementById('signupForm').classList.add('hidden');
-    });
-
-    document.getElementById('showLogin').addEventListener('click', (e) => {
-      e.preventDefault();
-      document.getElementById('loginToggle').click();
-    });
-
-    document.getElementById('showForgotPassword').addEventListener('click', (e) => {
-      e.preventDefault();
-      document.getElementById('forgotPasswordToggle').click();
-    });
-
-    document.getElementById('signupUsername').addEventListener('input', () => {
-      const username = document.getElementById('signupUsername').value;
-      if (username.length >= 5 && ws) {
-        ws.send(JSON.stringify({ type: 'username_check', username }));
       } else {
-        document.getElementById('usernameStatus').textContent = username.length > 0 ? 'Username must be at least 5 characters' : '';
-        document.getElementById('usernameStatus').className = 'text-sm mt-1 text-red-500';
-      }
-    });
-
-    document.getElementById('signupPasswordToggle').addEventListener('click', () => {
-      const input = document.getElementById('signupPassword');
-      const toggle = document.getElementById('signupPasswordToggle');
-      input.type = input.type === 'password' ? 'text' : 'password';
-      toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
-    });
-
-    document.getElementById('loginPasswordToggle').addEventListener('click', () => {
-      const input = document.getElementById('loginPassword');
-      const toggle = document.getElementById('loginPasswordToggle');
-      input.type = input.type === 'password' ? 'text' : 'password';
-      toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
-    });
-
-    document.getElementById('newPasswordToggle').addEventListener('click', () => {
-      const input = document.getElementById('newPassword');
-      const toggle = document.getElementById('newPasswordToggle');
-      input.type = input.type === 'password' ? 'text' : 'password';
-      toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
-    });
-
-    document.getElementById('confirmPasswordToggle').addEventListener('click', () => {
-      const input = document.getElementById('confirmPassword');
-      const toggle = document.getElementById('confirmPasswordToggle');
-      input.type = input.type === 'password' ? 'text' : 'password';
-      toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
-    });
-
-    document.getElementById('signupSubmit').addEventListener('click', async () => {
-      const name = document.getElementById('signupName').value.trim();
-      const username = document.getElementById('signupUsername').value.trim();
-      const email = document.getElementById('signupEmail').value.trim();
-      const password = document.getElementById('signupPassword').value;
-      const terms = document.getElementById('signupTerms').checked;
-      const recaptcha = document.getElementById('signupRecaptcha').checked;
-
-      // Client-side validation
-      if (!name) {
-        showNotification('Please enter your full name', 'red');
-        return;
-      }
-      if (!name.match(/^[a-zA-Z\s]+\s+[a-zA-Z\s]+$/)) {
-        showNotification('Full name must contain at least two words', 'red');
-        return;
-      }
-      if (!username) {
-        showNotification('Please enter a username', 'red');
-        return;
-      }
-      if (!username.match(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d]{5,}$/)) {
-        showNotification('Username must be at least 5 characters with 1 letter and 1 number', 'red');
-        return;
-      }
-      if (!email) {
-        showNotification('Please enter your email', 'red');
-        return;
-      }
-      if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-        showNotification('Invalid email format', 'red');
-        return;
-      }
-      if (!password) {
-        showNotification('Please enter a password', 'red');
-        return;
-      }
-      if (!password.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
-        showNotification('Password must be at least 8 characters with 1 letter and 1 number', 'red');
-        return;
-      }
-      if (!terms) {
-        showNotification('You must agree to the Terms & Conditions', 'red');
-        return;
-      }
-      if (!recaptcha) {
-        showNotification('Please complete the reCAPTCHA', 'red');
-        return;
+        showLoginForm();
       }
 
-      toggleButtonLoading('signupSubmit', 'signupSubmitSpinner', 'signupSubmitText', true);
-      const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
-      const res = await fetch(`${API_BASE}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, username, email, password, termsAccepted: true, recaptchaToken })
+      // Close modals on outside click
+      document.addEventListener('click', (e) => {
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(modal => {
+          if (!modal.contains(e.target) && !document.getElementById('settingsDropdown').contains(e.target)) {
+            modal.classList.add('hidden');
+            document.getElementById('settingsMenu').classList.add('hidden');
+          }
+        });
       });
-      const data = await res.json();
-      toggleButtonLoading('signupSubmit', 'signupSubmitSpinner', 'signupSubmitText', false);
-
-      if (data.success) {
-        document.getElementById('signupForm').classList.add('hidden');
-        document.getElementById('otpForm').classList.remove('hidden');
-        document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
-        otpContext = { type: 'signup', email };
-        startOtpTimer();
-      } else {
-        showNotification(data.error, 'red');
-      }
     });
-
-    document.getElementById('loginSubmit').addEventListener('click', async () => {
-      const email = document.getElementById('loginEmail').value.trim();
-      const password = document.getElementById('loginPassword').value;
-      const recaptcha = document.getElementById('loginRecaptcha').checked;
-
-      if (!email) {
-        showNotification('Please enter your email', 'red');
-        return;
-      }
-      if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-        showNotification('Invalid email format', 'red');
-        return;
-      }
-      if (!password) {
-        showNotification('Please enter your password', 'red');
-        return;
-      }
-      if (!recaptcha) {
-        showNotification('Please complete the reCAPTCHA', 'red');
-        return;
-      }
-
-      toggleButtonLoading('loginSubmit', 'loginSubmitSpinner', 'loginSubmitText', true);
-      const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
-      const res = await fetch(`${API_BASE}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, recaptchaToken })
-      });
-      const data = await res.json();
-      toggleButtonLoading('loginSubmit', 'loginSubmitSpinner', 'loginSubmitText', false);
-
-      if (data.success) {
-        document.getElementById('loginForm').classList.add('hidden');
-        document.getElementById('otpForm').classList.remove('hidden');
-        document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
-        otpContext = { type: 'login', email };
-        startOtpTimer();
-      } else {
-        showNotification(data.error, 'red');
-      }
-    });
-
-    document.getElementById('forgotSubmit').addEventListener('click', async () => {
-      const email = document.getElementById('forgotEmail').value.trim();
-      const recaptcha = document.getElementById('forgotRecaptcha').checked;
-
-      if (!email) {
-        showNotification('Please enter your email', 'red');
-        return;
-      }
-      if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-        showNotification('Invalid email format', 'red');
-        return;
-      }
-      if (!recaptcha) {
-        showNotification('Please complete the reCAPTCHA', 'red');
-        return;
-      }
-
-      toggleButtonLoading('forgotSubmit', 'forgotSubmitSpinner', 'forgotSubmitText', true);
-      const recaptchaToken = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
-      const res = await fetch(`${API_BASE}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, recaptchaToken })
-      });
-      const data = await res.json();
-      toggleButtonLoading('forgotSubmit', 'forgotSubmitSpinner', 'forgotSubmitText', false);
-
-      if (data.success) {
-        document.getElementById('forgotPasswordForm').classList.add('hidden');
-        document.getElementById('otpForm').classList.remove('hidden');
-        document.getElementById('otpMessage').textContent = `A one-time password has been sent to ${email}. It expires in 5 minutes.`;
-        otpContext = { type: 'reset', email };
-        startOtpTimer();
-      } else {
-        showNotification(data.error, 'red');
-      }
-    });
-
-    function startOtpTimer() {
-      clearInterval(otpTimer);
-      clearInterval(otpResendTimer);
-      clearInterval(otpBlockTimer);
-      let timeLeft = OTP_DURATION;
-      document.getElementById('otpCountdown').textContent = `Expires in ${formatTime(timeLeft)}`;
-      document.getElementById('otpResend').textContent = `Resend code in ${formatTime(timeLeft)}`;
-      otpTimer = setInterval(() => {
-  timeLeft -= 1000;
-  if (timeLeft <= 0) {
-    clearInterval(otpTimer);
-    document.getElementById('otpCountdown').textContent = 'Code expired';
-    document.getElementById('otpVerify').disabled = true;
-    return;
-  }
-  document.getElementById('otpCountdown').textContent = `Expires in ${formatTime(timeLeft)}`;
-}, 1000);
-
-otpResendTimer = setInterval(() => {
-  timeLeft -= 1000;
-  if (timeLeft <= 0) {
-    clearInterval(otpResendTimer);
-    document.getElementById('otpResend').classList.remove('opacity-50', 'cursor-not-allowed');
-    document.getElementById('otpResend').disabled = false;
-    document.getElementById('otpResend').textContent = 'Resend Code';
-    return;
-  }
-  document.getElementById('otpResend').textContent = `Resend code in ${formatTime(timeLeft)}`;
-}, 1000);
-
-document.getElementById('otpResend').addEventListener('click', async () => {
-  if (otpBlockTimer) return;
-  if (otpResendTimer) return;
-  const email = otpContext.email;
-  toggleButtonLoading('otpResend', '', 'otpResend', true);
-  const res = await fetch(`${API_BASE}/resend-otp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email })
-  });
-  const data = await res.json();
-  toggleButtonLoading('otpResend', '', 'otpResend', false);
-  if (data.success) {
-    startOtpTimer();
-    showNotification('New OTP sent to your email', 'green');
-  } else {
-    showNotification(data.error, 'red');
-    otpBlockTimer = setTimeout(() => {
-      clearInterval(otpBlockTimer);
-      otpBlockTimer = null;
-    }, OTP_BLOCK_DURATION);
-  }
-});
-
-document.getElementById('otpVerify').addEventListener('click', async () => {
-  const otp = document.getElementById('otpInput').value.trim();
-  if (!otp.match(/^\d{6}$/)) {
-    showNotification('OTP must be a 6-digit code', 'red');
-    return;
-  }
-  toggleButtonLoading('otpVerify', 'otpVerifySpinner', 'otpVerifyText', true);
-  const res = await fetch(`${API_BASE}/verify-otp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: otpContext.email, otp, type: otpContext.type })
-  });
-  const data = await res.json();
-  toggleButtonLoading('otpVerify', 'otpVerifySpinner', 'otpVerifyText', false);
-  if (data.success) {
-    if (otpContext.type === 'signup') {
-      document.getElementById('otpForm').classList.add('hidden');
-      document.getElementById('setNewPasswordForm').classList.remove('hidden');
-      document.getElementById('otpTitle').textContent = 'Set Your Password';
-      document.getElementById('otpMessage').textContent = 'Please set a new password for your account.';
-    } else if (otpContext.type === 'login') {
-      jwtToken = data.data.token;
-      setCookie('jwt', jwtToken, 30 * 24 * 60 * 60); // 30 days
-      document.getElementById('authSection').classList.add('hidden');
-      document.getElementById('dashboardSection').classList.remove('hidden');
-      document.getElementById('contactUsBtn').classList.remove('hidden');
-      document.getElementById('settingsDropdown').classList.remove('hidden');
-      document.getElementById('welcomeMessage').classList.remove('hidden');
-      initializeWebSocket();
-      await fetchDashboardData();
-      startSessionTimer();
-      fetchSettings();
-    } else if (otpContext.type === 'reset') {
-      document.getElementById('otpForm').classList.add('hidden');
-      document.getElementById('setNewPasswordForm').classList.remove('hidden');
-      document.getElementById('otpTitle').textContent = 'Reset Your Password';
-      document.getElementById('otpMessage').textContent = 'Please set a new password.';
-    }
-  } else {
-    showNotification(data.error, 'red');
-  }
-});
-
-document.getElementById('setNewPasswordSubmit').addEventListener('click', async () => {
-  const newPassword = document.getElementById('newPassword').value;
-  const confirmPassword = document.getElementById('confirmPassword').value;
-
-  if (!newPassword || !confirmPassword) {
-    showNotification('Please fill in both password fields', 'red');
-    return;
-  }
-  if (newPassword !== confirmPassword) {
-    showNotification('Passwords do not match', 'red');
-    return;
-  }
-  if (!newPassword.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
-    showNotification('Password must be at least 8 characters with 1 letter and 1 number', 'red');
-    return;
-  }
-
-  toggleButtonLoading('setNewPasswordSubmit', 'setNewPasswordSubmitSpinner', 'setNewPasswordSubmitText', true);
-  const res = await fetch(`${API_BASE}/set-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: otpContext.email, newPassword })
-  });
-  const data = await res.json();
-  toggleButtonLoading('setNewPasswordSubmit', 'setNewPasswordSubmitSpinner', 'setNewPasswordSubmitText', false);
-
-  if (data.success) {
-    document.getElementById('setNewPasswordForm').classList.add('hidden');
-    if (otpContext.type === 'signup') {
-      showNotification('Account created successfully. Please login.', 'green');
-      document.getElementById('loginForm').classList.remove('hidden');
-    } else if (otpContext.type === 'reset') {
-      showNotification('Password reset successfully. Please login.', 'green');
-      document.getElementById('loginForm').classList.remove('hidden');
-    }
-    otpContext = null;
-  } else {
-    showNotification(data.error, 'red');
-  }
-});
-
-document.getElementById('contactUsBtn').addEventListener('click', () => {
-  document.getElementById('contactUsModal').classList.remove('hidden');
-});
-
-document.getElementById('closeContactUs').addEventListener('click', () => {
-  document.getElementById('contactUsModal').classList.add('hidden');
-});
-
-document.getElementById('commissionInfoBtn').addEventListener('click', () => {
-  document.getElementById('commissionInfoModal').classList.remove('hidden');
-});
-
-document.getElementById('closeCommissionInfo').addEventListener('click', () => {
-  document.getElementById('commissionInfoModal').classList.add('hidden');
-});
-
-document.getElementById('changePasswordBtn').addEventListener('click', () => {
-  document.getElementById('changePasswordModal').classList.remove('hidden');
-});
-
-document.getElementById('currentPasswordToggle').addEventListener('click', () => {
-  const input = document.getElementById('currentPassword');
-  const toggle = document.getElementById('currentPasswordToggle');
-  input.type = input.type === 'password' ? 'text' : 'password';
-  toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
-});
-
-document.getElementById('changeNewPasswordToggle').addEventListener('click', () => {
-  const input = document.getElementById('changeNewPassword');
-  const toggle = document.getElementById('changeNewPasswordToggle');
-  input.type = input.type === 'password' ? 'text' : 'password';
-  toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
-});
-
-document.getElementById('changeConfirmPasswordToggle').addEventListener('click', () => {
-  const input = document.getElementById('changeConfirmPassword');
-  const toggle = document.getElementById('changeConfirmPasswordToggle');
-  input.type = input.type === 'password' ? 'text' : 'password';
-  toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
-});
-
-document.getElementById('changePasswordSubmit').addEventListener('click', async () => {
-  const currentPassword = document.getElementById('currentPassword').value;
-  const newPassword = document.getElementById('changeNewPassword').value;
-  const confirmPassword = document.getElementById('changeConfirmPassword').value;
-
-  if (!currentPassword || !newPassword || !confirmPassword) {
-    showNotification('Please fill in all fields', 'red');
-    return;
-  }
-  if (newPassword !== confirmPassword) {
-    showNotification('New passwords do not match', 'red');
-    return;
-  }
-  if (!newPassword.match(/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/)) {
-    showNotification('New password must be at least 8 characters with 1 letter and 1 number', 'red');
-    return;
-  }
-
-  toggleButtonLoading('changePasswordSubmit', 'changePasswordSubmitSpinner', 'changePasswordSubmitText', true);
-  const res = await fetch(`${API_BASE}/change-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
-    body: JSON.stringify({ currentPassword, newPassword })
-  });
-  const data = await res.json();
-  toggleButtonLoading('changePasswordSubmit', 'changePasswordSubmitSpinner', 'changePasswordSubmitText', false);
-
-  if (data.success) {
-    document.getElementById('changePasswordModal').classList.add('hidden');
-    showNotification('Password changed successfully', 'green');
-  } else {
-    showNotification(data.error, 'red');
-  }
-});
-
-document.getElementById('closeChangePassword').addEventListener('click', () => {
-  document.getElementById('changePasswordModal').classList.add('hidden');
-});
-
-document.getElementById('deleteAccountBtn').addEventListener('click', () => {
-  document.getElementById('deleteAccountModal').classList.remove('hidden');
-});
-
-document.getElementById('confirmDelete').addEventListener('click', async () => {
-  toggleButtonLoading('confirmDelete', 'confirmDeleteSpinner', 'confirmDeleteText', true);
-  const res = await fetch(`${API_BASE}/delete-account`, {
-    method: 'DELETE',
-    headers: { 'Authorization': `Bearer ${jwtToken}` }
-  });
-  const data = await res.json();
-  toggleButtonLoading('confirmDelete', 'confirmDeleteSpinner', 'confirmDeleteText', false);
-
-  if (data.success) {
-    document.getElementById('deleteAccountModal').classList.add('hidden');
-    logout();
-    showNotification('Account deleted successfully', 'green');
-  } else {
-    showNotification(data.error, 'red');
-  }
-});
-
-document.getElementById('closeDeleteAccount').addEventListener('click', () => {
-  document.getElementById('deleteAccountModal').classList.add('hidden');
-});
-
-document.getElementById('sessionYes').addEventListener('click', async () => {
-  const password = document.getElementById('sessionPassword').value;
-  if (!password) {
-    showNotification('Please enter your password', 'red');
-    return;
-  }
-
-  toggleButtonLoading('sessionYes', 'sessionYesSpinner', 'sessionYesText', true);
-  const res = await fetch(`${API_BASE}/verify-session`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
-    body: JSON.stringify({ password })
-  });
-  const data = await res.json();
-  toggleButtonLoading('sessionYes', 'sessionYesSpinner', 'sessionYesText', false);
-
-  if (data.success) {
-    document.getElementById('sessionTimeoutModal').classList.add('hidden');
-    startSessionTimer();
-  } else {
-    showNotification(data.error, 'red');
-  }
-});
-
-document.getElementById('sessionNo').addEventListener('click', () => {
-  document.getElementById('sessionTimeoutModal').classList.add('hidden');
-  logout();
-});
-
-document.getElementById('closeStaticPage').addEventListener('click', () => {
-  document.getElementById('staticPageModal').classList.add('hidden');
-});
-
-document.getElementById('copyLink').addEventListener('click', () => {
-  const link = document.getElementById('affiliateLink');
-  link.select();
-  document.execCommand('copy');
-  showNotification('Link copied to clipboard', 'green');
-});
-
-document.getElementById('requestWithdrawal').addEventListener('click', async () => {
-  const amount = parseFloat(document.getElementById('withdrawalAmount').value);
-  const mpesaNumber = document.getElementById('withdrawalMpesaNumber').value.trim();
-  const mpesaName = document.getElementById('withdrawalMpesaName').value.trim();
-  const reuseDetails = document.getElementById('reuseDetails').checked;
-
-  if (!amount || amount <= 0) {
-    showNotification('Please enter a valid amount', 'red');
-    return;
-  }
-  if (amount > (userData.currentBalance || 0)) {
-    showNotification('Insufficient balance', 'red');
-    return;
-  }
-  if (!mpesaNumber.match(/^\d{10}$/)) {
-    showNotification('MPESA number must be 10 digits', 'red');
-    return;
-  }
-  if (!mpesaName.match(/^[a-zA-Z\s]+$/)) {
-    showNotification('MPESA name must contain only letters and spaces', 'red');
-    return;
-  }
-
-  toggleButtonLoading('requestWithdrawal', 'requestWithdrawalSpinner', 'requestWithdrawalText', true);
-  const res = await fetch(`${API_BASE}/withdraw`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
-    body: JSON.stringify({ amount, mpesaNumber, mpesaName, reuseDetails })
-  });
-  const data = await res.json();
-  toggleButtonLoading('requestWithdrawal', 'requestWithdrawalSpinner', 'requestWithdrawalText', false);
-
-  if (data.success) {
-    showNotification('Withdrawal requested successfully', 'green');
-    await fetchDashboardData();
-  } else {
-    showNotification(data.error, 'red');
-  }
-});
-
-document.getElementById('editMpesaDetails').addEventListener('click', () => {
-  document.getElementById('withdrawalMpesaNumber').disabled = false;
-  document.getElementById('withdrawalMpesaName').disabled = false;
-  document.getElementById('reuseDetails').checked = false;
-});
-
-document.getElementById('logoutBtn').addEventListener('click', () => {
-  logout();
-  showNotification('Logged out successfully', 'green');
-});
-
-document.querySelectorAll('[id^=tab]').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('[id^=tab]').forEach(t => t.classList.remove('bg-blue-500', 'text-white'));
-    document.querySelectorAll('[id^=tab] + div').forEach(div => div.classList.add('hidden'));
-    tab.classList.add('bg-blue-500', 'text-white');
-    const targetTab = tab.id.replace('tab', '');
-    document.getElementById(`${targetTab}Tab`).classList.remove('hidden');
-    applyTheme();
-  });
-});
-
-document.getElementById('withdrawalPrevPage').addEventListener('click', () => {
-  if (withdrawalPage > 1) {
-    withdrawalPage--;
-    updateWithdrawalTable();
-  }
-});
-
-document.getElementById('withdrawalNextPage').addEventListener('click', () => {
-  if (withdrawalPage * ITEMS_PER_PAGE < allWithdrawals.length) {
-    withdrawalPage++;
-    updateWithdrawalTable();
-  }
-});
-
-document.getElementById('rewardsPrevPage').addEventListener('click', () => {
-  if (rewardsPage > 1) {
-    rewardsPage--;
-    updateRewardsTable();
-  }
-});
-
-document.getElementById('rewardsNextPage').addEventListener('click', () => {
-  if (rewardsPage * ITEMS_PER_PAGE < allRewards.length) {
-    rewardsPage++;
-    updateRewardsTable();
-  }
-});
-
-document.getElementById('notificationsPrevPage').addEventListener('click', () => {
-  if (notificationsPage > 1) {
-    notificationsPage--;
-    updateNotificationsTable();
-  }
-});
-
-document.getElementById('notificationsNextPage').addEventListener('click', () => {
-  if (notificationsPage * ITEMS_PER_PAGE < allNotifications.length) {
-    notificationsPage++;
-    updateNotificationsTable();
-  }
-});
-
-document.getElementById('settingsDropdown').addEventListener('click', (e) => {
-  const menu = document.getElementById('settingsMenu');
-  menu.classList.toggle('hidden');
-  e.stopPropagation();
-});
-
-document.addEventListener('click', (e) => {
-  const menu = document.getElementById('settingsMenu');
-  if (!menu.contains(e.target) && e.target !== document.getElementById('settingsDropdown')) {
-    menu.classList.add('hidden');
-  }
-});
-
-// Initialization
-applyTheme();
-document.getElementById('loadingOverlay').classList.remove('hidden');
-if (jwtToken) {
-  validateJwt().then(valid => {
-    if (valid) {
-      document.getElementById('authSection').classList.add('hidden');
-      document.getElementById('dashboardSection').classList.remove('hidden');
-      document.getElementById('contactUsBtn').classList.remove('hidden');
-      document.getElementById('settingsDropdown').classList.remove('hidden');
-      document.getElementById('welcomeMessage').classList.remove('hidden');
-      initializeWebSocket();
-      fetchDashboardData().then(() => {
-        document.getElementById('loadingOverlay').classList.add('hidden');
-        startSessionTimer();
-        fetchSettings();
-      });
-    } else {
-      logout();
-      document.getElementById('loadingOverlay').classList.add('hidden');
-    }
-  });
-} else {
-  document.getElementById('loadingOverlay').classList.add('hidden');
-}
-</script>
+  </script>
 </body>
 </html>
